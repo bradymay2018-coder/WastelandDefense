@@ -78,6 +78,7 @@ const roadBuffer = roadWidth / 2 + 8;
 const survivorPlacementHalfWidth = 15;
 const survivorPlacementHalfHeight = 27;
 const survivorPlacementRoadBuffer = roadWidth / 2 + 2;
+const horizontalEnemyLaneVisualOffset = -7;
 
 let currentLevel = 1;
 let gameMode = "campaign";
@@ -762,6 +763,9 @@ function spawnEnemy(type = "spider") {
         x: roadPoints[0].x,
         y: roadPoints[0].y,
         targetPoint: 1,
+        visualLaneOffsetY: roadPoints[0].y === roadPoints[1]?.y
+            ? horizontalEnemyLaneVisualOffset
+            : 0,
         speed: isHollow ? 50 : isSkitter ? 100 : 69,
         size: isHollow ? 32 : 22,
         health: health,
@@ -1835,6 +1839,15 @@ function drawImpactPixels() {
 
 function updateEnemies(deltaTime) {
     for (const enemy of enemies) {
+        const segmentStart = roadPoints[Math.max(0, enemy.targetPoint - 1)];
+        const segmentEnd = roadPoints[enemy.targetPoint];
+        const targetLaneOffsetY = segmentStart && segmentEnd && segmentStart.y === segmentEnd.y
+            ? horizontalEnemyLaneVisualOffset
+            : 0;
+        const currentLaneOffsetY = enemy.visualLaneOffsetY ?? targetLaneOffsetY;
+        enemy.visualLaneOffsetY = currentLaneOffsetY +
+            (targetLaneOffsetY - currentLaneOffsetY) * Math.min(1, deltaTime * 12);
+
         // Burning deals 3 damage per second.
 
 if (enemy.burnTimer > 0 && enemy.health > 0) {
@@ -1945,7 +1958,7 @@ function drawEnemies() {
         ctx.beginPath();
         ctx.ellipse(
             enemy.x + hitOffsetX,
-            enemy.y + hitOffsetY + spriteHeight / 2 + 3,
+            enemy.y + hitOffsetY + (enemy.visualLaneOffsetY || 0) + spriteHeight / 2 - 5,
             enemy.type === "hollow" ? 11 : 12,
             4.5,
             0,
@@ -1979,7 +1992,7 @@ function drawEnemies() {
         const hitOffsetX = enemy.hitOffsetX || 0;
         const hitOffsetY = enemy.hitOffsetY || 0;
         const spriteX = enemy.x + hitOffsetX;
-        const spriteY = enemy.y + hitOffsetY + bounce;
+        const spriteY = enemy.y + hitOffsetY + bounce + (enemy.visualLaneOffsetY || 0);
 
         if (image.complete && image.naturalWidth > 0) {
             ctx.save();
