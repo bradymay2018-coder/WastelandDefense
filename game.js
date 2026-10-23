@@ -2648,7 +2648,9 @@ function updateAccountUI(user = supabaseUser) {
     const usernameLabel = document.getElementById("profileAccountUsername");
     const signOutButton = document.getElementById("accountSignOutButton");
     const accountPanel = document.querySelector(".profile-account-panel");
+    const accountTitle = document.getElementById("profileAccountTitle");
     const state = document.getElementById("profileAccountState");
+    const profileIntro = document.getElementById("profileIntro");
     const friendsTools = document.getElementById("profileFriendsTools");
     const storageStatus = document.getElementById("profileStorageStatus");
 
@@ -2658,10 +2660,20 @@ function updateAccountUI(user = supabaseUser) {
     friendsTools.hidden = !connected;
     usernameLabel.textContent = connected ? `@${accountUsername(user)}` : "";
     accountPanel.classList.toggle("is-connected", connected);
+    accountTitle.textContent = connected ? "ACCOUNT CONNECTED" : "PLAYER ACCOUNT";
+    profileIntro.textContent = connected
+        ? "Your account keeps your username and progress synced across devices."
+        : "Sign in to carry your username and progress between devices.";
     updateProfileIdentity();
 
     if (connected) {
-        state.textContent = "Cloud save is connected. Your profile and progress follow this account.";
+        document.getElementById("accountUsernameInput").value = "";
+        document.getElementById("accountPasswordInput").value = "";
+        const notice = document.getElementById("profileAccountNotice");
+        if (/^(USERNAME MUST BE|PASSWORD MUST BE)/.test(notice.textContent)) {
+            setAccountNotice("");
+        }
+        state.textContent = "Your profile and progress sync across devices.";
         storageStatus.textContent = "ACCOUNT SYNC ACTIVE";
     } else if (!config.url || !config.key) {
         state.textContent = "The account service still needs its Supabase project URL and publishable key.";

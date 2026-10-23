@@ -171,7 +171,7 @@
             <div class="profile-heading-copy">
                 <p class="menu-eyebrow">PLAYER ACCOUNT // PROFILE</p>
                 <h2 id="profileTitle">PLAYER PROFILE</h2>
-                <p class="menu-description">Sign in to carry your username and progress between devices.</p>
+                <p id="profileIntro" class="menu-description">Sign in to carry your username and progress between devices.</p>
             </div>
             <div class="profile-emblem" aria-hidden="true">
                 <img id="profilePortraitPreview" src="Images/Mason.png" alt="">
@@ -212,7 +212,10 @@
                         <button type="submit">SEND REQUEST</button>
                     </div>
                 </form>
-                <div id="profileFriendsList" class="profile-friends-list" aria-live="polite"></div>
+                <div class="profile-friends-roster">
+                    <h4>YOUR FRIENDS</h4>
+                    <div id="profileFriendsList" class="profile-friends-list" aria-live="polite"></div>
+                </div>
             </div>
         </section>
 
