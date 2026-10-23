@@ -99,6 +99,7 @@ let gameMode = "campaign";
 let activeCampaignRunId = null;
 let activeEndlessRunId = null;
 let pendingEndlessScore = null;
+let returnEndlessScoreSubmission = null;
 let profileReturnScreen = "menu";
 
 const campaignRoads = {
@@ -768,11 +769,17 @@ function spawnEnemy(type = "spider") {
     const isSkitter = type === "skitter";
     const isHollow = type === "hollow";
     const baseHealth = isHollow ? 220 : isSkitter ? 72 : 100;
+    const endlessDifficultyTier = gameMode === "endless" && currentWave >= 10
+        ? Math.floor((currentWave - 10) / 5) + 1
+        : 0;
     // Endless enemies gain durability faster so a fully upgraded squad cannot
     // flatten later waves at the same pace as the campaign.
     const healthGrowthPerWave = gameMode === "endless" ? 0.065 : 0.045;
-    const waveHealthScale = 1 + Math.max(0, currentWave - 3) * healthGrowthPerWave;
+    const waveHealthScale =
+        (1 + Math.max(0, currentWave - 3) * healthGrowthPerWave) *
+        (1 + endlessDifficultyTier * 0.12);
     const health = Math.round(baseHealth * waveHealthScale);
+    const baseSpeed = isHollow ? 50 : isSkitter ? 100 : 69;
 
     enemies.push({
         type: type,
@@ -782,7 +789,7 @@ function spawnEnemy(type = "spider") {
         visualLaneOffsetY: roadPoints[0].y === roadPoints[1]?.y
             ? horizontalEnemyLaneVisualOffset
             : 0,
-        speed: isHollow ? 50 : isSkitter ? 100 : 69,
+        speed: baseSpeed * (1 + endlessDifficultyTier * 0.035),
         size: isHollow ? 32 : 22,
         health: health,
         maxHealth: health
@@ -814,8 +821,11 @@ function getWaveGroups(wave) {
         return waveGroups[wave];
     }
 
+    const endlessDifficultyTier = gameMode === "endless" && wave >= 10
+        ? Math.floor((wave - 10) / 5) + 1
+        : 0;
     const totalEnemies = gameMode === "endless" && wave >= 6
-        ? 16 + Math.floor((wave - 5) * 2.5)
+        ? 16 + Math.floor((wave - 5) * 2.5) + endlessDifficultyTier * 2
         : 5 + (wave - 1) * 2;
     const skitterRatio = gameMode === "endless"
         ? Math.min(0.42, 0.28 + Math.max(0, wave - 6) * 0.012)
@@ -2244,7 +2254,7 @@ function showWaveCompleteToast(wave, reward, leaked = 0, leakPenalty = 0) {
     void toast.offsetWidth;
     toast.classList.add("is-visible");
 
-    waveCompleteToastTimer = setTimeout(hideWaveCompleteToast, 3200);
+    waveCompleteToastTimer = setTimeout(hideWaveCompleteToast, 1800);
 }
 
 function showInsufficientScrapToast() {
@@ -2884,6 +2894,93 @@ function updateEndlessSubmissionUI(message = "", state = "") {
     }
 }
 
+function updateReturnEndlessSubmissionUI(message = "", state = "") {
+    const panel = document.getElementById("returnEndlessScoreSubmission");
+    const button = document.getElementById("submitCompletedEndlessScoreButton");
+    const notice = document.getElementById("returnEndlessScoreSubmissionNotice");
+    const score = returnEndlessScoreSubmission;
+    panel.hidden = gameMode !== "endless" || !score;
+    if (panel.hidden) return;
+
+    button.disabled = Boolean(score.submitted || score.submitting || score.bestWave < 1);
+    button.classList.toggle("is-submitted", Boolean(score.submitted));
+    button.textContent = score.submitted
+        ? "SUCCESSFULLY SUBMITTED"
+        : score.submitting
+            ? "VERIFYING SUBMISSION…"
+            : score.bestWave > 0
+                ? `SUBMIT WAVE ${score.bestWave} TO LEADERBOARD`
+                : "SUBMIT LAST CLEARED WAVE";
+    notice.classList.toggle("is-error", state === "error");
+    notice.classList.toggle("is-success", state === "success" || Boolean(score.submitted));
+
+    if (message) {
+        notice.textContent = message;
+    } else if (score.submitting) {
+        notice.textContent = `Submitting WAVE ${score.bestWave} on ${leaderboardMapNames[score.mapId]}…`;
+    } else if (score.submitted) {
+        notice.textContent = `Wave ${score.bestWave} successfully submitted to the leaderboard.`;
+    } else if (score.bestWave < 1) {
+        notice.textContent = "Complete at least one wave to submit an Endless score.";
+    } else if (!supabaseUser) {
+        notice.textContent = "Sign in to submit your most recently completed wave.";
+    } else {
+        notice.textContent = `${leaderboardMapNames[score.mapId]} · WAVE ${score.bestWave}`;
+    }
+}
+
+function prepareReturnEndlessSubmission() {
+    if (gameMode !== "endless") {
+        returnEndlessScoreSubmission = null;
+        updateReturnEndlessSubmissionUI();
+        return;
+    }
+
+    const bestWave = Math.max(0, currentWave - 1);
+    if (
+        !returnEndlessScoreSubmission ||
+        returnEndlessScoreSubmission.mapId !== currentLevel ||
+        returnEndlessScoreSubmission.bestWave !== bestWave
+    ) {
+        returnEndlessScoreSubmission = {
+            mapId: currentLevel,
+            bestWave,
+            submitted: false,
+            submitting: false
+        };
+    }
+
+    updateReturnEndlessSubmissionUI();
+}
+
+async function persistEndlessLeaderboardScore(score) {
+    const client = await ensureSupabaseClient();
+    const submittedWave = Math.max(0, Math.floor(Number(score.bestWave) || 0));
+    const { error } = await client.rpc("submit_endless_score", {
+        p_map_id: Number(score.mapId),
+        p_best_wave: submittedWave
+    });
+    if (error) throw error;
+
+    const { data: savedScore, error: verificationError } = await client
+        .from("endless_scores")
+        .select("best_wave")
+        .eq("user_id", supabaseUser.id)
+        .eq("map_id", Number(score.mapId))
+        .maybeSingle();
+    if (verificationError) throw verificationError;
+    if (!savedScore || Number(savedScore.best_wave) < submittedWave) {
+        throw new Error("The leaderboard could not verify this score. Please try again.");
+    }
+
+    try {
+        await refreshPlayerTrophies(client);
+    } catch (trophyError) {
+        // Score verification succeeded; the trophy panel can retry on the next account sync.
+        console.warn("Could not refresh the trophy collection:", trophyError.message || trophyError);
+    }
+}
+
 async function submitEndlessRunScore() {
     if (!pendingEndlessScore || pendingEndlessScore.bestWave < 1) return;
     if (!supabaseUser) {
@@ -2896,31 +2993,7 @@ async function submitEndlessRunScore() {
     score.submitting = true;
     updateEndlessSubmissionUI();
     try {
-        const client = await ensureSupabaseClient();
-        const submittedWave = Math.max(0, Math.floor(Number(score.bestWave) || 0));
-        const { error } = await client.rpc("submit_endless_score", {
-            p_map_id: Number(score.mapId),
-            p_best_wave: submittedWave
-        });
-        if (error) throw error;
-
-        const { data: savedScore, error: verificationError } = await client
-            .from("endless_scores")
-            .select("best_wave")
-            .eq("user_id", supabaseUser.id)
-            .eq("map_id", Number(score.mapId))
-            .maybeSingle();
-        if (verificationError) throw verificationError;
-        if (!savedScore || Number(savedScore.best_wave) < submittedWave) {
-            throw new Error("The leaderboard could not verify this score. Please try again.");
-        }
-
-        try {
-            await refreshPlayerTrophies(client);
-        } catch (trophyError) {
-            // Score verification succeeded; the trophy panel can retry on the next account sync.
-            console.warn("Could not refresh the trophy collection:", trophyError.message || trophyError);
-        }
+        await persistEndlessLeaderboardScore(score);
 
         if (pendingEndlessScore !== score) return;
         saveEndlessRecord(score.mapId, score.bestWave);
@@ -2932,6 +3005,39 @@ async function submitEndlessRunScore() {
         if (pendingEndlessScore !== score) return;
         score.submitting = false;
         updateEndlessSubmissionUI(
+            `SUBMISSION FAILED: ${error.message || "CHECK YOUR CONNECTION AND TRY AGAIN."}`,
+            "error"
+        );
+    }
+}
+
+async function submitCompletedEndlessWaveScore() {
+    const score = returnEndlessScoreSubmission;
+    if (!score || score.bestWave < 1 || score.submitted || score.submitting) return;
+    if (!supabaseUser) {
+        updateReturnEndlessSubmissionUI(
+            "Sign in to submit your most recently completed wave.",
+            "error"
+        );
+        showProfile();
+        setAccountNotice("SIGN IN OR CREATE AN ACCOUNT TO SUBMIT THIS ENDLESS SCORE.");
+        return;
+    }
+
+    score.submitting = true;
+    updateReturnEndlessSubmissionUI();
+    try {
+        await persistEndlessLeaderboardScore(score);
+        if (returnEndlessScoreSubmission !== score) return;
+        saveEndlessRecord(score.mapId, score.bestWave);
+        score.submitting = false;
+        score.submitted = true;
+        updateReturnEndlessSubmissionUI();
+    } catch (error) {
+        console.error("Endless score submission failed:", error.message || error);
+        if (returnEndlessScoreSubmission !== score) return;
+        score.submitting = false;
+        updateReturnEndlessSubmissionUI(
             `SUBMISSION FAILED: ${error.message || "CHECK YOUR CONNECTION AND TRY AGAIN."}`,
             "error"
         );
@@ -3816,9 +3922,12 @@ function showLeaderboard() {
 }
 
 function showProfile() {
-    profileReturnScreen = document.getElementById("gameOverScreen").style.display !== "none"
-        ? "gameover"
-        : "menu";
+    const returnMenuConfirm = document.getElementById("returnMenuConfirm");
+    profileReturnScreen = returnMenuConfirm.style.display !== "none"
+        ? "returnconfirm"
+        : document.getElementById("gameOverScreen").style.display !== "none"
+            ? "gameover"
+            : "menu";
     setMuteButtonVisible(false);
     gameRunning = false;
     previousTime = 0;
@@ -3829,6 +3938,7 @@ function showProfile() {
     levelSelect.style.display = "none";
     deploymentScreen.style.display = "none";
     gameLayout.style.display = "none";
+    returnMenuConfirm.style.display = "none";
     document.getElementById("gameOverScreen").style.display = "none";
     document.getElementById("victoryScreen").style.display = "none";
     document.getElementById("leaderboardButton").style.visibility = "hidden";
@@ -3845,6 +3955,21 @@ function showProfile() {
 }
 
 function closeProfile() {
+    if (profileReturnScreen === "returnconfirm") {
+        profileReturnScreen = "menu";
+        profileScreen.style.display = "none";
+        gameLayout.style.display = "grid";
+        returnMenuConfirm.style.display = "flex";
+        document.getElementById("leaderboardButton").style.visibility = "hidden";
+        document.getElementById("profileButton").style.visibility = "hidden";
+        document.getElementById("mainMenuButton").style.visibility = "visible";
+        setMuteButtonVisible(true);
+        gameRunning = true;
+        previousTime = 0;
+        updateReturnEndlessSubmissionUI();
+        return;
+    }
+
     if (profileReturnScreen === "gameover") {
         profileReturnScreen = "menu";
         profileScreen.style.display = "none";
@@ -3947,6 +4072,8 @@ function showMenu() {
     document.getElementById("restartConfirm").style.display = "none";
     profileReturnScreen = "menu";
     pendingEndlessScore = null;
+    returnEndlessScoreSubmission = null;
+    document.getElementById("returnEndlessScoreSubmission").hidden = true;
     updateEndlessSubmissionUI();
 
     // Reset the selected roster.
@@ -4146,6 +4273,7 @@ function startDefense() {
     populateInGameRoster();
     setMuteButtonVisible(true);
     pendingEndlessScore = null;
+    returnEndlessScoreSubmission = null;
     updateEndlessSubmissionUI();
     document.getElementById("endlessCoinReward").hidden = true;
 
@@ -4254,6 +4382,7 @@ bindUIEvent("mainMenuButton", "click", () => {
         document.getElementById("waveStatus").textContent = "Game paused.";
     }
 
+    prepareReturnEndlessSubmission();
     document.getElementById("returnMenuConfirm").style.display = "flex";
     document.getElementById("cancelReturnButton").focus();
 });
@@ -4271,6 +4400,8 @@ bindUIEvent("confirmReturnButton", "click", () => {
     resumeAfterReturnCancel = false;
     showMenu();
 });
+
+bindUIEvent("submitCompletedEndlessScoreButton", "click", submitCompletedEndlessWaveScore);
 
 bindUIEvent("cancelRestartButton", "click", () => {
     document.getElementById("restartConfirm").style.display = "none";

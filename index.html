@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wasteland Defense</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1">
-    <link rel="stylesheet" href="style.css?v=20261023-20">
+    <link rel="stylesheet" href="style.css?v=20261023-21">
 </head>
 <body>
 
@@ -731,6 +731,11 @@
 
         <p>Are you sure you want to return to the main menu? All progress will be lost.</p>
 
+        <div id="returnEndlessScoreSubmission" class="return-endless-score-submission" hidden>
+            <button id="submitCompletedEndlessScoreButton" type="button">SUBMIT LAST CLEARED WAVE</button>
+            <p id="returnEndlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
+        </div>
+
         <div class="return-confirm-buttons">
             <button id="confirmReturnButton" class="menu-button" type="button">
                 YES, RETURN
@@ -928,6 +933,6 @@
 </div>
 
 <script src="supabase-config.js?v=20261023-02"></script>
-<script src="game.js?v=20261023-17"></script>
+<script src="game.js?v=20261023-18"></script>
 </body>
 </html>

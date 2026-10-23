@@ -6021,6 +6021,51 @@ main.game-layout > .control-panel {
     margin-top: 22px;
 }
 
+.return-endless-score-submission[hidden] {
+    display: none;
+}
+
+.return-endless-score-submission {
+    display: grid;
+    gap: 7px;
+    margin-top: 16px;
+}
+
+.return-endless-score-submission button {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 10px;
+    background: linear-gradient(180deg, #f0c579, #d99e55);
+    border: 1px solid #f4d297;
+    border-bottom: 3px solid #805638;
+    border-radius: 3px;
+    color: #211a16;
+    font: 800 9px Consolas, "Courier New", monospace;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+}
+
+.return-endless-score-submission button:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.return-endless-score-submission p {
+    min-height: 14px;
+    margin: 0;
+    color: #b8b1bb;
+    font-size: 8px;
+    line-height: 1.45;
+}
+
+.return-endless-score-submission p.is-success {
+    color: #a6d0b2;
+}
+
+.return-endless-score-submission p.is-error {
+    color: #e99a8c;
+}
+
 .return-confirm-buttons button {
     min-height: 42px;
     padding: 9px 10px;
