@@ -2463,6 +2463,7 @@ let supabaseSdkPromise = null;
 let livePresenceChannel = null;
 let livePresenceSubscribed = false;
 let cloudLoadGeneration = 0;
+let profileFriendsRenderGeneration = 0;
 let leaderboardLoadGeneration = 0;
 const leaderboardMapNames = {
     1: "THE OUTSKIRTS",
@@ -3258,8 +3259,8 @@ async function handleSupabaseSession(session) {
         return;
     }
 
-    const generation = ++cloudLoadGeneration;
     if (isSameUser) return;
+    const generation = ++cloudLoadGeneration;
     setAccountNotice("SYNCING PROFILE AND GAME PROGRESS…");
     try {
         await loadRemotePlayerData(user, generation);
@@ -3424,12 +3425,15 @@ async function sendFriendRequest(event) {
 async function renderProfileFriends() {
     const container = document.getElementById("profileFriendsList");
     if (!container) return;
+    const renderGeneration = ++profileFriendsRenderGeneration;
+    const userId = supabaseUser?.id;
     container.replaceChildren();
-    if (!supabaseClient || !supabaseUser) return;
+    if (!supabaseClient || !userId) return;
     const { data: relations, error } = await supabaseClient
         .from("player_friendships")
         .select("requester_id,addressee_id,status")
-        .or(`requester_id.eq.${supabaseUser.id},addressee_id.eq.${supabaseUser.id}`);
+        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+    if (renderGeneration !== profileFriendsRenderGeneration || supabaseUser?.id !== userId) return;
     if (error) {
         const message = document.createElement("p");
         message.className = "profile-friends-empty";
@@ -3438,10 +3442,11 @@ async function renderProfileFriends() {
         return;
     }
     const relevant = (relations || []).filter(link => link.status !== "declined");
-    const ids = [...new Set(relevant.map(link => link.requester_id === supabaseUser.id ? link.addressee_id : link.requester_id))];
+    const ids = [...new Set(relevant.map(link => link.requester_id === userId ? link.addressee_id : link.requester_id))];
     const profilesResponse = ids.length
         ? await supabaseClient.from("player_profiles").select("id,username,portrait_id").in("id", ids)
         : { data: [], error: null };
+    if (renderGeneration !== profileFriendsRenderGeneration || supabaseUser?.id !== userId) return;
     if (profilesResponse.error) return;
     const profiles = new Map((profilesResponse.data || []).map(profile => [profile.id, profile]));
 
@@ -3454,8 +3459,8 @@ async function renderProfileFriends() {
     }
 
     relevant.forEach(link => {
-        const isIncoming = link.addressee_id === supabaseUser.id && link.status === "pending";
-        const friendId = link.requester_id === supabaseUser.id ? link.addressee_id : link.requester_id;
+        const isIncoming = link.addressee_id === userId && link.status === "pending";
+        const friendId = link.requester_id === userId ? link.addressee_id : link.requester_id;
         const profile = profiles.get(friendId);
         if (!profile) return;
         const isOnline = isPlayerOnline(friendId);
