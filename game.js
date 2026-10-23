@@ -79,6 +79,7 @@ const survivorPlacementHalfSize = 35; // 32px sprite half-size plus animation cl
 
 let currentLevel = 1;
 let gameMode = "campaign";
+let activeCampaignRunId = null;
 
 const campaignRoads = {
     // LEVEL 1 — THE OUTSKIRTS
@@ -2311,7 +2312,14 @@ const gameLayout = document.querySelector(".game-layout");
 const endlessRecordKey = "wastelandDefense.endlessRecords.v1";
 const coinBalanceKey = "wastelandDefense.coins.v1";
 const playerProfileKey = "wastelandDefense.profile.v1";
+const unlockedSurvivorsKey = "wastelandDefense.unlockedSurvivors.v1";
+const linkedCloudAccountKey = "wastelandDefense.cloudAccountId.v1";
 const campaignLevelCoinReward = 100;
+let supabaseClient = null;
+let supabaseUser = null;
+let supabaseSdkPromise = null;
+let cloudLoadGeneration = 0;
+let leaderboardLoadGeneration = 0;
 const leaderboardMapNames = {
     1: "THE OUTSKIRTS",
     2: "ABANDONED HIGHWAY",
@@ -2335,9 +2343,6 @@ const profilePortraitSources = {
 function readPlayerProfile() {
     try {
         const saved = JSON.parse(localStorage.getItem(playerProfileKey) || "{}");
-        const callsign = typeof saved.callsign === "string"
-            ? saved.callsign.trim().replace(/\s+/g, " ").slice(0, 18)
-            : "";
         const campaignLevels = Array.isArray(saved.campaignLevels)
             ? [...new Set(saved.campaignLevels.map(Number).filter(level => level >= 1 && level <= 6))]
             : [];
@@ -2347,12 +2352,11 @@ function readPlayerProfile() {
             : "mason";
 
         return {
-            callsign: callsign || "DEFENDER",
             campaignLevels,
             portrait
         };
     } catch {
-        return { callsign: "DEFENDER", campaignLevels: [], portrait: "mason" };
+        return { campaignLevels: [], portrait: "mason" };
     }
 }
 
@@ -2367,8 +2371,8 @@ function persistPlayerProfile() {
 }
 
 function updateProfileIdentity() {
-    const callsign = playerProfile.callsign || "DEFENDER";
-    const upperCallsign = callsign.toLocaleUpperCase();
+    const displayName = supabaseUser ? accountUsername() : "PLAYER";
+    const upperUsername = displayName.toLocaleUpperCase();
     const unlockedPortraits = getUnlockedProfilePortraits();
     if (!unlockedPortraits.some(([id]) => id === playerProfile.portrait)) {
         playerProfile.portrait = unlockedPortraits[0]?.[0] || "mason";
@@ -2376,12 +2380,12 @@ function updateProfileIdentity() {
     const survivor = survivorDetails[playerProfile.portrait];
     const portraitSource = profilePortraitSources[playerProfile.portrait] || profilePortraitSources.mason;
 
-    document.getElementById("profileButtonCallsign").textContent = upperCallsign;
-    document.getElementById("mainMenuGreeting").textContent = `HEY, ${upperCallsign}!`;
+    document.getElementById("profileButtonUsername").textContent = upperUsername;
+    document.getElementById("mainMenuGreeting").textContent = `HEY, ${upperUsername}!`;
     document.getElementById("profileButtonPortrait").src = portraitSource;
     document.getElementById("profilePortraitPreview").src = portraitSource;
     document.getElementById("profilePortraitLabel").textContent = survivor.name.toUpperCase();
-    document.getElementById("profileTitle").textContent = `${upperCallsign} // PROFILE`;
+    document.getElementById("profileTitle").textContent = `${upperUsername} // PROFILE`;
 }
 
 function getUnlockedProfilePortraits() {
@@ -2423,8 +2427,15 @@ function saveProfilePortrait(id) {
     persistPlayerProfile();
     updateProfileIdentity();
     renderProfilePortraitOptions();
-    document.getElementById("profileSaveNotice").textContent =
-        `${survivor.name.toUpperCase()} PORTRAIT SAVED ON THIS DEVICE.`;
+    const notice = document.getElementById("profileSaveNotice");
+    notice.textContent = supabaseUser
+        ? `${survivor.name.toUpperCase()} PORTRAIT SAVED. SYNCING...`
+        : `${survivor.name.toUpperCase()} PORTRAIT SAVED ON THIS DEVICE.`;
+    syncRemoteProfile().then(error => {
+        if (supabaseUser) notice.textContent = error
+            ? "SAVED ON THIS DEVICE. ONLINE SYNC FAILED."
+            : `${survivor.name.toUpperCase()} PORTRAIT SAVED TO YOUR ACCOUNT.`;
+    });
 }
 
 function updateProfileStats() {
@@ -2448,24 +2459,6 @@ function recordCampaignLevelClear(level) {
     }
 }
 
-function saveProfileCallsign() {
-    const input = document.getElementById("profileCallsignInput");
-    const notice = document.getElementById("profileSaveNotice");
-    const callsign = input.value.trim().replace(/\s+/g, " ").slice(0, 18);
-
-    if (!callsign) {
-        notice.textContent = "ENTER A CALLSIGN BEFORE SAVING.";
-        input.focus();
-        return;
-    }
-
-    playerProfile.callsign = callsign;
-    persistPlayerProfile();
-    updateProfileIdentity();
-    updateProfileStats();
-    notice.textContent = "CALLSIGN SAVED ON THIS DEVICE.";
-}
-
 function readCoinBalance() {
     try {
         const balance = Number(localStorage.getItem(coinBalanceKey));
@@ -2482,20 +2475,57 @@ function updateCoinBalanceDisplay() {
     if (display) display.textContent = playerCoinBalance.toLocaleString();
 }
 
-function awardCampaignLevelCoins() {
-    playerCoinBalance += campaignLevelCoinReward;
-
+function persistCoinBalance() {
     try {
         localStorage.setItem(coinBalanceKey, String(playerCoinBalance));
     } catch {
         // Keep the current run reward visible if browser storage is unavailable.
     }
+}
 
+function renderCampaignCoinReward(reward) {
     updateCoinBalanceDisplay();
+    updateProfileStats();
     document.getElementById("victoryCoinsEarned").textContent =
-        `+${campaignLevelCoinReward} COINS`;
+        `+${reward} COINS`;
     document.getElementById("victoryCoinsTotal").textContent =
         playerCoinBalance.toLocaleString();
+}
+
+function awardCampaignLevelCoins() {
+    if (supabaseClient && supabaseUser && activeCampaignRunId) {
+        const notice = document.getElementById("profileAccountNotice");
+        supabaseClient.rpc("award_campaign_clear", {
+            p_level_id: currentLevel,
+            p_run_id: activeCampaignRunId
+        }).then(({ data, error }) => {
+            if (error) {
+                console.warn("Campaign completion could not sync to Supabase:", error.message);
+                playerCoinBalance += campaignLevelCoinReward;
+                persistCoinBalance();
+                renderCampaignCoinReward(campaignLevelCoinReward);
+                if (notice) setAccountNotice("Campaign reward is saved on this device; cloud sync failed.", true);
+                return;
+            }
+
+            const result = Array.isArray(data) ? data[0] : data;
+            const awarded = Math.max(0, Number(result?.coins_awarded) || 0);
+            playerCoinBalance = Math.max(0, Number(result?.total_coins) || 0);
+            persistCoinBalance();
+            renderCampaignCoinReward(awarded);
+        }).catch(error => {
+            console.warn("Campaign completion could not reach Supabase:", error.message || error);
+            playerCoinBalance += campaignLevelCoinReward;
+            persistCoinBalance();
+            renderCampaignCoinReward(campaignLevelCoinReward);
+            setAccountNotice("Campaign reward is saved on this device; cloud sync failed.", true);
+        });
+        return;
+    }
+
+    playerCoinBalance += campaignLevelCoinReward;
+    persistCoinBalance();
+    renderCampaignCoinReward(campaignLevelCoinReward);
 }
 
 function readEndlessRecords() {
@@ -2531,6 +2561,584 @@ function saveEndlessRecord(level, wave) {
     }
 
     updateEndlessRecordDisplays();
+
+    if (supabaseClient && supabaseUser) {
+        supabaseClient.rpc("submit_endless_score", {
+            p_map_id: Number(level),
+            p_best_wave: Math.max(0, Math.floor(Number(wave) || 0))
+        }).then(({ error }) => {
+            if (error) console.warn("Endless score could not sync to Supabase:", error.message);
+        }).catch(error => {
+            console.warn("Endless score could not reach Supabase:", error.message || error);
+        });
+    }
+}
+
+function createRunId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, character => {
+        const random = Math.floor(Math.random() * 16);
+        return (character === "x" ? random : (random & 3) | 8).toString(16);
+    });
+}
+
+function getSupabaseConfig() {
+    const config = window.WD_SUPABASE_CONFIG || {};
+    return {
+        url: String(config.url || "").trim(),
+        key: String(config.publishableKey || config.anonKey || "").trim()
+    };
+}
+
+function setAccountNotice(message, isError = false, isSuccess = false) {
+    const notice = document.getElementById("profileAccountNotice");
+    if (!notice) return;
+    notice.textContent = message;
+    notice.classList.toggle("is-error", isError);
+    notice.classList.toggle("is-success", isSuccess);
+}
+
+function normalizeAccountUsername(value) {
+    return String(value || "").trim().toLowerCase();
+}
+
+function usernameLoginEmail(username) {
+    return `${username}@accounts.wastelanddefense.invalid`;
+}
+
+function accountUsername(user = supabaseUser) {
+    const metadataName = user?.user_metadata?.username;
+    const emailName = user?.email?.split("@")[0]?.replace(/@accounts\.wastelanddefense\.invalid$/i, "");
+    return String(metadataName || emailName || "PLAYER").toLowerCase();
+}
+
+async function ensureSupabaseClient() {
+    if (supabaseClient) return supabaseClient;
+    const { url, key } = getSupabaseConfig();
+    if (!url || !key) throw new Error("Supabase is not configured yet. Add the project URL and publishable key to supabase-config.js.");
+
+    if (!window.supabase?.createClient) {
+        if (!supabaseSdkPromise) {
+            supabaseSdkPromise = new Promise((resolve, reject) => {
+                const script = document.createElement("script");
+                script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+                script.async = true;
+                script.onload = () => window.supabase?.createClient
+                    ? resolve()
+                    : reject(new Error("Supabase's browser library did not load."));
+                script.onerror = () => reject(new Error("Could not load Supabase. Check your internet connection or content blocker."));
+                document.head.append(script);
+            });
+        }
+        await supabaseSdkPromise;
+    }
+
+    if (supabaseClient) return supabaseClient;
+
+    supabaseClient = window.supabase.createClient(url, key, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+    });
+    return supabaseClient;
+}
+
+function updateAccountUI(user = supabaseUser) {
+    const connected = Boolean(user);
+    const config = getSupabaseConfig();
+    const accountFields = document.getElementById("profileAccountFields");
+    const usernameLabel = document.getElementById("profileAccountUsername");
+    const signOutButton = document.getElementById("accountSignOutButton");
+    const accountPanel = document.querySelector(".profile-account-panel");
+    const state = document.getElementById("profileAccountState");
+    const friendsTools = document.getElementById("profileFriendsTools");
+    const storageStatus = document.getElementById("profileStorageStatus");
+
+    accountFields.hidden = connected;
+    usernameLabel.hidden = !connected;
+    signOutButton.hidden = !connected;
+    friendsTools.hidden = !connected;
+    usernameLabel.textContent = connected ? `@${accountUsername(user)}` : "";
+    accountPanel.classList.toggle("is-connected", connected);
+    updateProfileIdentity();
+
+    if (connected) {
+        state.textContent = "Cloud save is connected. Your profile and progress follow this account.";
+        storageStatus.textContent = "ACCOUNT SYNC ACTIVE";
+    } else if (!config.url || !config.key) {
+        state.textContent = "The account service still needs its Supabase project URL and publishable key.";
+        storageStatus.textContent = "LOCAL SAVE // SETUP REQUIRED";
+    } else {
+        state.textContent = "Sign in or create a username and password account to sync your save.";
+        storageStatus.textContent = "LOCAL SAVE // ACCOUNT NOT CONNECTED";
+    }
+}
+
+async function submitAccount(action) {
+    const username = normalizeAccountUsername(document.getElementById("accountUsernameInput").value);
+    const password = document.getElementById("accountPasswordInput").value;
+    const notice = document.getElementById("profileAccountNotice");
+    const signInButton = document.getElementById("accountSignInButton");
+    const createButton = document.getElementById("accountCreateButton");
+
+    if (!/^[a-z0-9_]{3,18}$/.test(username)) {
+        setAccountNotice("USERNAME MUST BE 3–18 CHARACTERS: LETTERS, NUMBERS, OR UNDERSCORES.", true);
+        document.getElementById("accountUsernameInput").focus();
+        return;
+    }
+    if (password.length < 8) {
+        setAccountNotice("PASSWORD MUST BE AT LEAST 8 CHARACTERS.", true);
+        document.getElementById("accountPasswordInput").focus();
+        return;
+    }
+
+    signInButton.disabled = true;
+    createButton.disabled = true;
+    notice.textContent = action === "create" ? "CREATING YOUR ACCOUNT…" : "SIGNING IN…";
+    notice.classList.remove("is-error", "is-success");
+
+    try {
+        const client = await ensureSupabaseClient();
+        const email = usernameLoginEmail(username);
+        const result = action === "create"
+            ? await client.auth.signUp({
+                email,
+                password,
+                options: { data: { username } }
+            })
+            : await client.auth.signInWithPassword({ email, password });
+
+        if (result.error) throw result.error;
+        if (action === "create" && !result.data.session) {
+            setAccountNotice("ACCOUNT CREATED. TURN OFF EMAIL CONFIRMATION IN SUPABASE AUTH SETTINGS, THEN SIGN IN.", true);
+            return;
+        }
+
+        document.getElementById("accountPasswordInput").value = "";
+        setAccountNotice(action === "create" ? "ACCOUNT CREATED. LOADING YOUR SAVE…" : "SIGNED IN. LOADING YOUR SAVE…", false, true);
+        if (result.data.session) await handleSupabaseSession(result.data.session);
+    } catch (error) {
+        console.error("Supabase account request failed:", error.message || error);
+        const message = error.code === "23505"
+            ? "THAT USERNAME IS ALREADY TAKEN."
+            : error.message || "ACCOUNT REQUEST FAILED. CHECK YOUR CONNECTION AND TRY AGAIN.";
+        setAccountNotice(message, true);
+    } finally {
+        signInButton.disabled = false;
+        createButton.disabled = false;
+    }
+}
+
+function getLocalUnlockedSurvivors() {
+    return Object.entries(survivorDetails)
+        .filter(([, survivor]) => survivor.unlocked === true)
+        .map(([id]) => id);
+}
+
+function persistUnlockedSurvivors() {
+    try {
+        localStorage.setItem(unlockedSurvivorsKey, JSON.stringify(getLocalUnlockedSurvivors()));
+    } catch {
+        // Local storage is a fallback; keep the current session playable.
+    }
+}
+
+function storeEndlessRecords(records) {
+    try {
+        localStorage.setItem(endlessRecordKey, JSON.stringify(records));
+    } catch {
+        // Keep the save in memory when local storage is unavailable.
+    }
+}
+
+async function importLocalProgress(client, progress) {
+    if (progress.legacy_imported_at) return progress;
+    let previouslyLinkedUser = "";
+    try { previouslyLinkedUser = localStorage.getItem(linkedCloudAccountKey) || ""; } catch { /* no local account link */ }
+    const isSwitchingAccounts = previouslyLinkedUser && previouslyLinkedUser !== supabaseUser.id;
+    const { error } = await client.rpc("import_legacy_progress", {
+        p_coins: isSwitchingAccounts ? 0 : playerCoinBalance,
+        p_unlocked_survivors: isSwitchingAccounts
+            ? ["mason", "james", "cody", "britney", "zach", "brady"]
+            : getLocalUnlockedSurvivors(),
+        p_completed_campaign_levels: isSwitchingAccounts ? [] : playerProfile.campaignLevels,
+        p_endless_scores: isSwitchingAccounts ? {} : readEndlessRecords(),
+        p_callsign: accountUsername(),
+        p_portrait_id: isSwitchingAccounts ? "mason" : playerProfile.portrait
+    });
+    if (error) throw error;
+    const { data, error: reloadError } = await client
+        .from("player_progress")
+        .select("coins,unlocked_survivors,completed_campaign_levels,legacy_imported_at")
+        .eq("user_id", supabaseUser.id)
+        .single();
+    if (reloadError) throw reloadError;
+    return data;
+}
+
+async function handleSupabaseSession(session) {
+    const user = session?.user || null;
+    const isSameUser = user?.id && user.id === supabaseUser?.id;
+    supabaseUser = user;
+    updateAccountUI(user);
+    if (!user) {
+        cloudLoadGeneration++;
+        renderLeaderboard();
+        return;
+    }
+
+    const generation = ++cloudLoadGeneration;
+    if (isSameUser) return;
+    setAccountNotice("SYNCING PROFILE AND GAME PROGRESS…");
+    try {
+        await loadRemotePlayerData(user, generation);
+        if (generation === cloudLoadGeneration) {
+            setAccountNotice(`SAVE SYNCED FOR @${accountUsername(user)}.`, false, true);
+        }
+    } catch (error) {
+        console.error("Could not load Supabase player data:", error.message || error);
+        if (generation === cloudLoadGeneration) {
+            setAccountNotice(`ACCOUNT CONNECTED, BUT SAVE SYNC FAILED: ${error.message || "CHECK THE DATABASE SETUP."}`, true);
+        }
+    }
+}
+
+async function loadRemotePlayerData(user, generation) {
+    const client = await ensureSupabaseClient();
+    let [{ data: profile, error: profileError }, { data: progress, error: progressError }] = await Promise.all([
+        client.from("player_profiles").select("id,username,portrait_id").eq("id", user.id).single(),
+        client.from("player_progress").select("coins,unlocked_survivors,completed_campaign_levels,legacy_imported_at").eq("user_id", user.id).single()
+    ]);
+    if (profileError) throw profileError;
+    if (progressError) throw progressError;
+
+    if (!progress.legacy_imported_at) {
+        progress = await importLocalProgress(client, progress);
+        const profileResponse = await client.from("player_profiles")
+            .select("id,username,portrait_id").eq("id", user.id).single();
+        if (profileResponse.error) throw profileResponse.error;
+        profile = profileResponse.data;
+    }
+    if (generation !== cloudLoadGeneration) return;
+
+    playerProfile = {
+        portrait: profilePortraitSources[profile.portrait_id] ? profile.portrait_id : "mason",
+        campaignLevels: (progress.completed_campaign_levels || []).map(Number).filter(level => level >= 1 && level <= 6)
+    };
+    persistPlayerProfile();
+
+    const unlocked = new Set(progress.unlocked_survivors || []);
+    Object.entries(survivorDetails).forEach(([id, survivor]) => {
+        survivor.unlocked = unlocked.has(id);
+    });
+    persistUnlockedSurvivors();
+    if (!getUnlockedProfilePortraits().some(([id]) => id === playerProfile.portrait)) {
+        playerProfile.portrait = getUnlockedProfilePortraits()[0]?.[0] || "mason";
+        persistPlayerProfile();
+    }
+
+    playerCoinBalance = Math.max(0, Number(progress.coins) || 0);
+    persistCoinBalance();
+    const { data: scores, error: scoresError } = await client
+        .from("endless_scores")
+        .select("map_id,best_wave")
+        .eq("user_id", user.id);
+    if (scoresError) throw scoresError;
+    const records = {};
+    (scores || []).forEach(score => { records[score.map_id] = score.best_wave; });
+    storeEndlessRecords(records);
+    try { localStorage.setItem(linkedCloudAccountKey, user.id); } catch { /* localStorage remains an optional cache */ }
+
+    updateProfileIdentity();
+    renderProfilePortraitOptions();
+    updateCoinBalanceDisplay();
+    updateEndlessRecordDisplays();
+    updateProfileStats();
+    await renderProfileFriends();
+    renderLeaderboard();
+}
+
+async function syncRemoteProfile() {
+    if (!supabaseClient || !supabaseUser) return null;
+    try {
+        const { error } = await supabaseClient.from("player_profiles").update({
+            portrait_id: playerProfile.portrait,
+            updated_at: new Date().toISOString()
+        }).eq("id", supabaseUser.id);
+        if (error) {
+            console.warn("Player profile could not sync to Supabase:", error.message);
+            return error;
+        }
+        return null;
+    } catch (error) {
+        console.warn("Player profile could not reach Supabase:", error.message || error);
+        return error;
+    }
+}
+
+async function initializeSupabaseAccount() {
+    updateAccountUI(null);
+    try {
+        const client = await ensureSupabaseClient();
+        const { data, error } = await client.auth.getSession();
+        if (error) throw error;
+        await handleSupabaseSession(data.session);
+        client.auth.onAuthStateChange((_event, session) => {
+            window.setTimeout(() => { handleSupabaseSession(session); }, 0);
+        });
+    } catch (error) {
+        console.error("Supabase initialization failed:", error.message || error);
+        setAccountNotice(error.message || "SUPABASE COULD NOT START.", true);
+    }
+}
+
+async function signOutOfAccount() {
+    if (!supabaseClient) return;
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) {
+            setAccountNotice(error.message || "SIGN OUT FAILED.", true);
+            return;
+        }
+        setAccountNotice("SIGNED OUT. YOUR LAST SYNCED SAVE IS STILL ON THIS DEVICE.", false, true);
+    } catch (error) {
+        setAccountNotice(error.message || "SIGN OUT FAILED.", true);
+    }
+}
+
+async function sendFriendRequest(event) {
+    event.preventDefault();
+    const username = normalizeAccountUsername(document.getElementById("friendUsernameInput").value);
+    if (!/^[a-z0-9_]{3,18}$/.test(username)) {
+        setAccountNotice("ENTER A VALID USERNAME.", true);
+        return;
+    }
+    try {
+        const { data: target, error: lookupError } = await supabaseClient
+            .from("player_profiles").select("id,username").eq("username", username).maybeSingle();
+        if (lookupError) throw lookupError;
+        if (!target) throw new Error("NO PLAYER FOUND WITH THAT USERNAME.");
+        if (target.id === supabaseUser.id) throw new Error("YOU CANNOT ADD YOUR OWN ACCOUNT.");
+        const { error } = await supabaseClient.from("player_friendships").insert({
+            requester_id: supabaseUser.id,
+            addressee_id: target.id,
+            status: "pending"
+        });
+        if (error) {
+            if (error.code === "23505") throw new Error("A FRIEND LINK ALREADY EXISTS.");
+            throw error;
+        }
+        document.getElementById("friendUsernameInput").value = "";
+        setAccountNotice(`FRIEND REQUEST SENT TO @${target.username}.`, false, true);
+        await renderProfileFriends();
+    } catch (error) {
+        setAccountNotice(error.message || "FRIEND REQUEST FAILED.", true);
+    }
+}
+
+async function renderProfileFriends() {
+    const container = document.getElementById("profileFriendsList");
+    if (!container) return;
+    container.replaceChildren();
+    if (!supabaseClient || !supabaseUser) return;
+    const { data: relations, error } = await supabaseClient
+        .from("player_friendships")
+        .select("requester_id,addressee_id,status")
+        .or(`requester_id.eq.${supabaseUser.id},addressee_id.eq.${supabaseUser.id}`);
+    if (error) {
+        const message = document.createElement("p");
+        message.className = "profile-friends-empty";
+        message.textContent = "Could not load friends. Check the Supabase schema.";
+        container.append(message);
+        return;
+    }
+    const relevant = (relations || []).filter(link => link.status !== "declined");
+    const ids = [...new Set(relevant.map(link => link.requester_id === supabaseUser.id ? link.addressee_id : link.requester_id))];
+    const profilesResponse = ids.length
+        ? await supabaseClient.from("player_profiles").select("id,username").in("id", ids)
+        : { data: [], error: null };
+    if (profilesResponse.error) return;
+    const profiles = new Map((profilesResponse.data || []).map(profile => [profile.id, profile]));
+
+    if (!relevant.length) {
+        const empty = document.createElement("p");
+        empty.className = "profile-friends-empty";
+        empty.textContent = "No friends connected yet. Send a request by username to compare Endless scores.";
+        container.append(empty);
+        return;
+    }
+
+    relevant.forEach(link => {
+        const isIncoming = link.addressee_id === supabaseUser.id && link.status === "pending";
+        const friendId = link.requester_id === supabaseUser.id ? link.addressee_id : link.requester_id;
+        const profile = profiles.get(friendId);
+        if (!profile) return;
+        const row = document.createElement("div");
+        row.className = "profile-friend-row";
+        const copy = document.createElement("span");
+        copy.textContent = `@${profile.username}`;
+        const details = document.createElement("small");
+        details.textContent = link.status === "accepted" ? "FRIEND" : isIncoming ? "REQUEST IN" : "REQUEST SENT";
+        copy.append(details);
+        row.append(copy);
+        if (isIncoming) {
+            const actions = document.createElement("div");
+            ["accepted", "declined"].forEach(status => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "profile-friend-action";
+                button.dataset.friendAction = status;
+                button.dataset.friendRequester = link.requester_id;
+                button.dataset.friendAddressee = link.addressee_id;
+                button.textContent = status === "accepted" ? "ACCEPT" : "IGNORE";
+                actions.append(button);
+            });
+            row.append(actions);
+        }
+        container.append(row);
+    });
+}
+
+async function handleFriendListClick(event) {
+    const button = event.target.closest("button[data-friend-action]");
+    if (!button || !supabaseClient || !supabaseUser) return;
+    try {
+        const { error } = await supabaseClient.from("player_friendships").update({
+            status: button.dataset.friendAction,
+            updated_at: new Date().toISOString()
+        }).eq("requester_id", button.dataset.friendRequester)
+          .eq("addressee_id", button.dataset.friendAddressee)
+          .eq("status", "pending");
+        if (error) throw error;
+        await renderProfileFriends();
+    } catch (error) {
+        setAccountNotice(error.message || "COULD NOT UPDATE FRIEND REQUEST.", true);
+        return;
+    }
+}
+
+function appendLeaderboardEmpty(titleText, descriptionText) {
+    const row = document.createElement("tr");
+    row.className = "leaderboard-empty-row";
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    const empty = document.createElement("div");
+    empty.className = "leaderboard-empty-state";
+    const mark = document.createElement("span");
+    mark.className = "leaderboard-empty-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.textContent = activeLeaderboardScope === "global" ? "#" : "◇";
+    const title = document.createElement("strong");
+    title.textContent = titleText;
+    const description = document.createElement("span");
+    description.textContent = descriptionText;
+    empty.append(mark, title, description);
+    cell.append(empty);
+    row.append(cell);
+    document.getElementById("leaderboardRows").append(row);
+}
+
+function appendCloudLeaderboardRow(score, profile, rank, isSelf = false) {
+    const row = document.createElement("tr");
+    row.className = "leaderboard-player-row";
+    if (isSelf) row.classList.add("is-you");
+    const rankCell = document.createElement("td");
+    rankCell.className = "leaderboard-rank";
+    rankCell.textContent = String(rank);
+    const playerCell = document.createElement("td");
+    const player = document.createElement("div");
+    player.className = "leaderboard-player-name";
+    const avatar = document.createElement("img");
+    avatar.className = "leaderboard-player-avatar";
+    avatar.src = profilePortraitSources[profile.portrait_id] || profilePortraitSources.mason;
+    avatar.alt = `${profile.username}'s profile portrait`;
+    const nameCopy = document.createElement("span");
+    const name = document.createElement("strong");
+    name.textContent = profile.username;
+    const username = document.createElement("small");
+    username.textContent = isSelf ? `@${profile.username} · YOU` : `@${profile.username}`;
+    nameCopy.append(name, username);
+    player.append(avatar, nameCopy);
+    playerCell.append(player);
+    const scoreCell = document.createElement("td");
+    scoreCell.className = "leaderboard-score";
+    scoreCell.textContent = String(score.best_wave);
+    const recordCell = document.createElement("td");
+    const recordTag = document.createElement("span");
+    recordTag.className = "leaderboard-record-tag";
+    recordTag.textContent = new Date(score.updated_at).toLocaleDateString();
+    recordCell.append(recordTag);
+    row.append(rankCell, playerCell, scoreCell, recordCell);
+    document.getElementById("leaderboardRows").append(row);
+}
+
+async function loadCloudLeaderboard() {
+    const generation = ++leaderboardLoadGeneration;
+    const rows = document.getElementById("leaderboardRows");
+    const notice = document.getElementById("leaderboardNotice");
+    rows.replaceChildren();
+    notice.textContent = "CONNECTING TO THE WASTELAND RECORDS…";
+    try {
+        const client = await ensureSupabaseClient();
+        let friendIds = null;
+        if (activeLeaderboardScope === "friends") {
+            if (!supabaseUser) {
+                notice.textContent = "SIGN IN TO SEE YOUR FRIENDS' SCORES.";
+                appendLeaderboardEmpty("SIGN IN TO OPEN YOUR FRIENDS BOARD", "Create or sign in to a player account, then add friends by username from your profile.");
+                return;
+            }
+            const { data: links, error: linkError } = await client.from("player_friendships")
+                .select("requester_id,addressee_id")
+                .eq("status", "accepted")
+                .or(`requester_id.eq.${supabaseUser.id},addressee_id.eq.${supabaseUser.id}`);
+            if (linkError) throw linkError;
+            friendIds = [...new Set([supabaseUser.id, ...(links || []).map(link =>
+                link.requester_id === supabaseUser.id ? link.addressee_id : link.requester_id
+            )])];
+        }
+
+        let query = client.from("endless_scores")
+            .select("user_id,map_id,best_wave,updated_at")
+            .eq("map_id", activeLeaderboardMap)
+            .order("best_wave", { ascending: false })
+            .order("updated_at", { ascending: true })
+            .limit(50);
+        if (friendIds) query = query.in("user_id", friendIds);
+        const { data: scores, error: scoreError } = await query;
+        if (scoreError) throw scoreError;
+        if (generation !== leaderboardLoadGeneration) return;
+        if (!scores?.length) {
+            notice.textContent = activeLeaderboardScope === "global"
+                ? "GLOBAL ENDLESS RANKINGS · THIS MAP HAS NO SCORES YET."
+                : "FRIENDS BOARD · ADD FRIENDS BY USERNAME FROM YOUR PROFILE.";
+            appendLeaderboardEmpty(
+                activeLeaderboardScope === "global" ? "NO SCORES FOR THIS MAP YET" : "NO FRIEND SCORES YET",
+                activeLeaderboardScope === "global"
+                    ? "Complete an Endless run to add the first record."
+                    : "Your accepted friends' best Endless runs will appear here."
+            );
+            return;
+        }
+        const ids = [...new Set(scores.map(score => score.user_id))];
+        const { data: profiles, error: profileError } = await client.from("player_profiles")
+            .select("id,username,portrait_id").in("id", ids);
+        if (profileError) throw profileError;
+        if (generation !== leaderboardLoadGeneration) return;
+        const profileById = new Map((profiles || []).map(profile => [profile.id, profile]));
+        let rank = 0;
+        scores.forEach(score => {
+            const profile = profileById.get(score.user_id);
+            if (!profile) return;
+            rank++;
+            appendCloudLeaderboardRow(score, profile, rank, score.user_id === supabaseUser?.id);
+        });
+        notice.textContent = activeLeaderboardScope === "global"
+            ? `GLOBAL ENDLESS RANKING · TOP ${rank} FOR THIS MAP.`
+            : `FRIENDS BOARD · ${rank} PLAYER${rank === 1 ? "" : "S"} ON THIS MAP.`;
+    } catch (error) {
+        console.error("Could not load Endless leaderboard:", error.message || error);
+        if (generation !== leaderboardLoadGeneration) return;
+        notice.textContent = `LEADERBOARD UNAVAILABLE: ${error.message || "CHECK THE DATABASE SETUP."}`;
+        appendLeaderboardEmpty("RECORDS COULD NOT LOAD", "Apply the Supabase schema and check that the project is online.");
+    }
 }
 
 function renderLeaderboard() {
@@ -2575,7 +3183,12 @@ function renderLeaderboard() {
 
     rows.replaceChildren();
 
-    if (activeLeaderboardScope !== "runs" || bestWave === 0) {
+    if (activeLeaderboardScope !== "runs") {
+        loadCloudLeaderboard();
+        return;
+    }
+
+    if (bestWave === 0) {
         const row = document.createElement("tr");
         row.className = "leaderboard-empty-row";
         const cell = document.createElement("td");
@@ -2620,9 +3233,10 @@ function renderLeaderboard() {
     const avatar = document.createElement("img");
     avatar.className = "leaderboard-player-avatar";
     avatar.src = profilePortraitSources[playerProfile.portrait] || profilePortraitSources.mason;
-    avatar.alt = `${playerProfile.callsign || "DEFENDER"}'s profile portrait`;
+    const localUsername = supabaseUser ? accountUsername() : "PLAYER";
+    avatar.alt = `${localUsername}'s profile portrait`;
     const localName = document.createElement("strong");
-    localName.textContent = playerProfile.callsign || "DEFENDER";
+    localName.textContent = localUsername;
     const localLabel = document.createElement("small");
     localLabel.textContent = "THIS DEVICE";
     const nameCopy = document.createElement("span");
@@ -2687,11 +3301,14 @@ function showProfile() {
     document.getElementById("leaderboardButton").style.visibility = "hidden";
     document.getElementById("profileButton").style.visibility = "hidden";
     document.getElementById("mainMenuButton").style.visibility = "hidden";
-    document.getElementById("profileCallsignInput").value = playerProfile.callsign;
     document.getElementById("profileSaveNotice").textContent = "";
     updateProfileIdentity();
     renderProfilePortraitOptions();
     updateProfileStats();
+    updateAccountUI();
+    renderProfileFriends().catch(error => {
+        console.warn("Could not refresh friends list:", error.message || error);
+    });
 }
 
 function closeProfile() {
@@ -2966,6 +3583,8 @@ function startDefense() {
 
     populateInGameRoster();
 
+    activeCampaignRunId = gameMode === "campaign" ? createRunId() : null;
+
     cancelAutoStartWave();
     awaitingNextWave = false;
     hideWaveCompleteToast();
@@ -3191,13 +3810,20 @@ bindUIEvent("leaderboardButton", "click", showLeaderboard);
 bindUIEvent("leaderboardBackButton", "click", closeLeaderboard);
 bindUIEvent("profileButton", "click", showProfile);
 bindUIEvent("profileBackButton", "click", closeProfile);
-bindUIEvent("profileCallsignForm", "submit", event => {
-    event.preventDefault();
-    saveProfileCallsign();
-});
 bindUIEvent("profilePortraitOptions", "click", event => {
     const option = event.target.closest("button[data-profile-portrait]");
     if (option) saveProfilePortrait(option.dataset.profilePortrait);
+});
+bindUIEvent("accountSignInButton", "click", () => submitAccount("sign-in"));
+bindUIEvent("accountCreateButton", "click", () => submitAccount("create"));
+bindUIEvent("accountSignOutButton", "click", signOutOfAccount);
+bindUIEvent("friendRequestForm", "submit", sendFriendRequest);
+bindUIEvent("profileFriendsList", "click", handleFriendListClick);
+bindUIEvent("accountPasswordInput", "keydown", event => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        submitAccount("sign-in");
+    }
 });
 bindUIEvent("leaderboardMyRunsButton", "click", () => {
     activeLeaderboardScope = activeLeaderboardScope === "runs" ? "global" : "runs";
@@ -3278,6 +3904,18 @@ const survivorDetails = {
         unlocked: true
     }
 };
+
+try {
+    const savedUnlocked = JSON.parse(localStorage.getItem(unlockedSurvivorsKey) || "null");
+    if (Array.isArray(savedUnlocked)) {
+        const unlockedIds = new Set(savedUnlocked);
+        Object.entries(survivorDetails).forEach(([id, survivor]) => {
+            survivor.unlocked = unlockedIds.has(id);
+        });
+    }
+} catch {
+    // Use the game's default unlock list when there is no readable local cache.
+}
 
 updateProfileIdentity();
 
@@ -3520,5 +4158,7 @@ function updateMoveButton() {
     moveButton.disabled = !inspectedSurvivor || waveRunning || !gameRunning;
     moveButton.textContent = moveMode ? "CLICK A NEW SPOT" : "MOVE";
 }
+
+initializeSupabaseAccount();
 
 

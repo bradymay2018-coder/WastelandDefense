@@ -27,7 +27,7 @@
         </span>
         <span class="header-nav-copy">
             <strong>PROFILE</strong>
-            <small id="profileButtonCallsign">DEFENDER</small>
+            <small id="profileButtonUsername">PLAYER</small>
         </span>
     </button>
 
@@ -46,7 +46,7 @@
 
     <div class="menu-hero">
         <div class="menu-hero-copy">
-            <p class="menu-eyebrow" id="mainMenuGreeting">HEY, DEFENDER!</p>
+            <p class="menu-eyebrow" id="mainMenuGreeting">HEY, PLAYER!</p>
             <h2 id="mainMenuTitle">THE SPIDERS<br>ARE BACK<span aria-hidden="true">!</span></h2>
             <p class="menu-description">
                 Rude of them, honestly. Pick a mode, choose your squad, and give the wasteland a story worth telling.
@@ -169,9 +169,9 @@
         <div class="profile-heading-row">
             <button id="profileBackButton" class="menu-button" type="button">&lt; MAIN MENU</button>
             <div class="profile-heading-copy">
-                <p class="menu-eyebrow">SAFEHOUSE RECORD // LOCAL PROFILE</p>
-                <h2 id="profileTitle">DEFENDER PROFILE</h2>
-                <p class="menu-description">Your callsign and progress, saved on this device.</p>
+                <p class="menu-eyebrow">PLAYER ACCOUNT // PROFILE</p>
+                <h2 id="profileTitle">PLAYER PROFILE</h2>
+                <p class="menu-description">Sign in to carry your username and progress between devices.</p>
             </div>
             <div class="profile-emblem" aria-hidden="true">
                 <img id="profilePortraitPreview" src="Images/Mason.png" alt="">
@@ -179,14 +179,45 @@
             </div>
         </div>
 
-        <div class="profile-content">
-            <form id="profileCallsignForm" class="profile-identity-card">
-                <label for="profileCallsignInput">PLAYER CALLSIGN</label>
-                <div class="profile-name-entry">
-                    <input id="profileCallsignInput" name="callsign" type="text" maxlength="18" autocomplete="nickname" placeholder="Enter a callsign">
-                    <button id="saveProfileButton" class="profile-save-button" type="submit">SAVE PROFILE</button>
+        <section class="profile-account-panel" aria-labelledby="profileAccountTitle">
+            <div class="profile-account-copy">
+                <p class="profile-account-eyebrow">CROSS-DEVICE SAVE</p>
+                <h3 id="profileAccountTitle">PLAYER ACCOUNT</h3>
+                <p id="profileAccountState">Sign in or create an account to sync your game progress.</p>
+            </div>
+            <div id="profileAccountFields" class="profile-account-fields">
+                <label>
+                    <span>USERNAME</span>
+                    <input id="accountUsernameInput" type="text" minlength="3" maxlength="18" pattern="[A-Za-z0-9_]{3,18}" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="3–18 letters, numbers, or _">
+                </label>
+                <label>
+                    <span>PASSWORD</span>
+                    <input id="accountPasswordInput" type="password" minlength="8" autocomplete="current-password" placeholder="At least 8 characters">
+                </label>
+                <div class="profile-account-actions">
+                    <button id="accountSignInButton" type="button">SIGN IN</button>
+                    <button id="accountCreateButton" type="button">CREATE ACCOUNT</button>
                 </div>
-                <p>Choose the name that will represent you on future leaderboards.</p>
+            </div>
+            <div class="profile-account-session">
+                <span id="profileAccountUsername" hidden></span>
+                <button id="accountSignOutButton" type="button" hidden>SIGN OUT</button>
+            </div>
+            <output id="profileAccountNotice" class="profile-account-notice" role="status" aria-live="polite"></output>
+            <div id="profileFriendsTools" class="profile-friends-tools" hidden>
+                <form id="friendRequestForm" class="profile-friend-form">
+                    <label for="friendUsernameInput">ADD A FRIEND BY USERNAME</label>
+                    <div>
+                        <input id="friendUsernameInput" type="text" maxlength="18" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="friend_username">
+                        <button type="submit">SEND REQUEST</button>
+                    </div>
+                </form>
+                <div id="profileFriendsList" class="profile-friends-list" aria-live="polite"></div>
+            </div>
+        </section>
+
+        <div class="profile-content">
+            <div class="profile-identity-card">
                 <output id="profileSaveNotice" class="profile-save-notice" role="status" aria-live="polite"></output>
                 <div class="profile-portrait-section">
                     <div class="profile-portrait-heading">
@@ -195,7 +226,7 @@
                     </div>
                     <div id="profilePortraitOptions" class="profile-portrait-options" role="group" aria-label="Choose a profile portrait"></div>
                 </div>
-            </form>
+            </div>
 
             <div class="profile-stats" aria-label="Player progress">
                 <div class="profile-stat profile-stat-coins">
@@ -218,8 +249,8 @@
         </div>
 
         <div class="profile-footer">
-            <span>PROFILE SAVED LOCALLY</span>
-            <span>ONLINE SYNC NOT CONNECTED</span>
+            <span id="profileStorageStatus">PROFILE SAVED ON THIS DEVICE</span>
+            <span>WASTELAND DEFENSE // ACCOUNT SYNC</span>
         </div>
     </div>
 </section>
@@ -834,6 +865,7 @@
     </span>
 </div>
 
+<script src="supabase-config.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
