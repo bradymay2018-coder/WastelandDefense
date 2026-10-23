@@ -6409,6 +6409,48 @@ main.game-layout > .control-panel {
     visibility: visible;
 }
 
+.insufficient-scrap-toast {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: min(300px, calc(100% - 28px));
+    min-height: 58px;
+    border-color: #8f4b42;
+    border-left-color: #e27968;
+    padding-block: 9px;
+}
+
+.insufficient-scrap-toast.is-visible {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.insufficient-scrap-toast .wave-complete-mark {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+    background: #a43f351c;
+    border-color: #9e5148;
+    color: #f08b78;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.insufficient-scrap-toast .wave-complete-copy strong {
+    color: #ffd2c9;
+    font-size: 11px;
+}
+
+@media (max-width: 900px) {
+    .insufficient-scrap-toast {
+        top: auto;
+        bottom: 10px;
+    }
+
+    .insufficient-scrap-toast.is-visible {
+        transform: translate(-50%, 0) scale(1);
+    }
+}
+
 .wave-complete-mark {
     display: grid;
     width: 38px;
@@ -8022,15 +8064,42 @@ main.game-layout > .control-panel {
     font-weight: 800;
     letter-spacing: 1px;
 }
-.profile-friends-list { display: grid; min-width: 0; align-content: start; gap: 5px; }
+.profile-friends-list { display: grid; min-width: 0; align-content: start; gap: 8px; }
 .profile-friend-row {
     display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 7px 9px; background: #17181c; border: 1px solid #45414b;
-    color: #d7d0d9; font-size: 11px;
+    min-height: 64px; padding: 8px 10px;
+    background: linear-gradient(105deg, #292730, #1d1c22 72%);
+    border: 1px solid #4a4651; border-left: 3px solid #726d78;
+    border-radius: 3px; color: #eee8ef; font-size: 12px;
+    box-shadow: inset 0 1px #ffffff08;
 }
-.profile-friend-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.profile-friend-row small { margin-left: 7px; color: #aaa4af; font-size: 9px; }
-.profile-friend-row > div { display: flex; flex: 0 0 auto; gap: 4px; }
+.profile-friend-row.is-online { border-left-color: #8bc9a8; }
+.profile-friend-identity { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.profile-friend-avatar {
+    display: block; width: 44px; height: 44px; flex: 0 0 44px;
+    object-fit: cover; image-rendering: pixelated;
+    background: #19181d; border: 1px solid #655c69; border-radius: 2px;
+    box-shadow: 0 2px 0 #111116;
+}
+.profile-friend-copy { display: grid; min-width: 0; gap: 4px; }
+.profile-friend-copy strong {
+    overflow: hidden; color: #f4eee5; font-size: 12px; font-weight: 800;
+    letter-spacing: 0.35px; text-overflow: ellipsis; white-space: nowrap;
+}
+.profile-friend-row small.profile-friend-status {
+    display: inline-flex; align-items: center; gap: 5px; margin: 0;
+    color: #a8a2ac; font-size: 9px; font-weight: 700; letter-spacing: 0.8px;
+}
+.profile-friend-status.is-online { color: #a6d9b9 !important; }
+.profile-friend-status.is-offline { color: #aaa4af !important; }
+.profile-friend-status-dot {
+    width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%;
+    background: #77727c; box-shadow: 0 0 0 2px #77727c24;
+}
+.profile-friend-status.is-online .profile-friend-status-dot {
+    background: #88d3a6; box-shadow: 0 0 0 2px #88d3a629, 0 0 8px #88d3a65c;
+}
+.profile-friend-actions { display: flex; flex: 0 0 auto; gap: 5px; }
 .profile-friend-action { min-height: 32px; padding: 0 9px; }
 .profile-friends-empty {
     display: flex;
@@ -8148,8 +8217,8 @@ main.game-layout > .control-panel {
     }
 }
 
-/* Give the lobby wordmark a warmer, sharper arcade-title treatment. */
-.game-header.is-main-menu h1 {
+/* Keep the Wasteland Defense wordmark consistent across every screen. */
+.game-header h1 {
     color: #f3e4ca;
     letter-spacing: clamp(1px, 0.42vw, 5px);
     text-shadow: 2px 2px 0 #c77b4c, 4px 4px 0 #090a0d;
@@ -8796,4 +8865,19 @@ body.is-survivor-dragging {
 .battlefield.is-survivor-drop-target {
     outline: 3px solid #edbd7a;
     outline-offset: -4px;
+}
+
+#levelSelect .level-card.is-completed {
+    border-color: #56745f;
+    background: linear-gradient(145deg, #29322d, #1e2222 72%);
+}
+
+#levelSelect .level-card.is-completed::before {
+    background: #8bc9a0;
+}
+
+#levelSelect .level-status.is-completed {
+    border-color: #527960;
+    background: #26372d;
+    color: #a9d8b4;
 }

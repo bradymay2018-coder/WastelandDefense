@@ -2185,6 +2185,7 @@ let autoStartWaves = false;
 let awaitingNextWave = false;
 let autoStartWaveTimer = null;
 let waveCompleteToastTimer = null;
+let insufficientScrapToastTimer = null;
 const scrapPenaltyPerLeak = 10;
 const startingWaveScrapReward = 40;
 const waveScrapRewardIncrease = 10;
@@ -2244,6 +2245,25 @@ function showWaveCompleteToast(wave, reward, leaked = 0, leakPenalty = 0) {
     toast.classList.add("is-visible");
 
     waveCompleteToastTimer = setTimeout(hideWaveCompleteToast, 3200);
+}
+
+function showInsufficientScrapToast() {
+    const toast = document.getElementById("insufficientScrapToast");
+    if (!toast) return;
+
+    if (insufficientScrapToastTimer !== null) {
+        clearTimeout(insufficientScrapToastTimer);
+        insufficientScrapToastTimer = null;
+    }
+
+    toast.setAttribute("aria-hidden", "false");
+    void toast.offsetWidth;
+    toast.classList.add("is-visible");
+    insufficientScrapToastTimer = window.setTimeout(() => {
+        toast.classList.remove("is-visible");
+        toast.setAttribute("aria-hidden", "true");
+        insufficientScrapToastTimer = null;
+    }, 1000);
 }
 
 function setAutoStartWaves(enabled) {
@@ -2441,6 +2461,7 @@ let supabaseClient = null;
 let supabaseUser = null;
 let supabaseSdkPromise = null;
 let livePresenceChannel = null;
+let livePresenceSubscribed = false;
 let cloudLoadGeneration = 0;
 let leaderboardLoadGeneration = 0;
 const leaderboardMapNames = {
@@ -2580,6 +2601,9 @@ function saveProfilePortrait(id) {
     persistPlayerProfile();
     updateProfileIdentity();
     renderProfilePortraitOptions();
+    syncLivePlayerPresence().catch(error => {
+        console.warn("Live player portrait could not sync:", error.message || error);
+    });
     const notice = document.getElementById("profileSaveNotice");
     notice.textContent = `${survivor.name.toUpperCase()} PORTRAIT SAVED. SYNCING...`;
     syncRemoteProfile().then(error => {
@@ -2648,6 +2672,20 @@ function recordCampaignLevelClear(level) {
         playerProfile.campaignLevels.push(level);
         playerProfile.campaignLevels.sort((a, b) => a - b);
         persistPlayerProfile();
+    }
+    updateCampaignLevelCardStatuses();
+}
+
+function updateCampaignLevelCardStatuses() {
+    for (let level = 1; level <= 6; level++) {
+        const card = document.getElementById(`level${level}Button`);
+        const status = card?.querySelector(".level-status");
+        if (!card || !status) continue;
+
+        const completed = gameMode !== "endless" && playerProfile.campaignLevels.includes(level);
+        status.textContent = completed ? "COMPLETED" : "AVAILABLE";
+        status.classList.toggle("is-completed", completed);
+        card.classList.toggle("is-completed", completed);
     }
 }
 
@@ -2986,6 +3024,28 @@ function updateLivePlayerCount(status = "online") {
     label.textContent = status === "online" ? "PLAYERS ONLINE" : "COUNT OFFLINE";
 }
 
+function isPlayerOnline(userId) {
+    if (!livePresenceChannel || !userId) return false;
+    const presence = livePresenceChannel.presenceState();
+    return Object.values(presence).some(clients =>
+        Array.isArray(clients) && clients.some(client => client.user_id === userId)
+    );
+}
+
+async function syncLivePlayerPresence() {
+    if (!livePresenceChannel || !livePresenceSubscribed) return;
+
+    const presence = { connected_at: new Date().toISOString() };
+    if (supabaseUser?.id) {
+        presence.user_id = supabaseUser.id;
+        presence.username = accountUsername();
+        presence.portrait_id = playerProfile.portrait || "mason";
+    }
+
+    const status = await livePresenceChannel.track(presence);
+    if (status !== "ok") throw new Error("Realtime presence could not be tracked.");
+}
+
 function startLivePlayerCount(client) {
     if (livePresenceChannel || typeof client?.channel !== "function") return;
 
@@ -3001,25 +3061,34 @@ function startLivePlayerCount(client) {
     try {
         const channel = client.channel("wasteland-defense-live-players");
         livePresenceChannel = channel;
-        channel.on("presence", { event: "sync" }, () => updateLivePlayerCount());
+        channel.on("presence", { event: "sync" }, () => {
+            updateLivePlayerCount();
+            if (supabaseUser) {
+                renderProfileFriends().catch(error => {
+                    console.warn("Friend presence could not refresh:", error.message || error);
+                });
+            }
+        });
         channel.subscribe(async status => {
             if (status === "SUBSCRIBED") {
+                livePresenceSubscribed = true;
                 badge.dataset.status = "online";
                 label.textContent = "PLAYERS ONLINE";
                 try {
-                    const trackStatus = await channel.track({ connected_at: new Date().toISOString() });
-                    if (trackStatus !== "ok") throw new Error("Realtime presence could not be tracked.");
+                    await syncLivePlayerPresence();
                     updateLivePlayerCount();
                 } catch (error) {
                     console.warn("Live player count could not publish presence:", error.message || error);
                     updateLivePlayerCount("offline");
                 }
             } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
+                livePresenceSubscribed = false;
                 updateLivePlayerCount("offline");
             }
         });
     } catch (error) {
         livePresenceChannel = null;
+        livePresenceSubscribed = false;
         badge.dataset.status = "offline";
         value.textContent = "—";
         label.textContent = "COUNT OFFLINE";
@@ -3177,6 +3246,9 @@ async function handleSupabaseSession(session) {
     const isSameUser = user?.id && user.id === supabaseUser?.id;
     supabaseUser = user;
     updateAccountUI(user);
+    syncLivePlayerPresence().catch(error => {
+        console.warn("Live player identity could not sync:", error.message || error);
+    });
     if (!user) {
         persistPlayerProfile();
         playerTrophyRecords = [];
@@ -3259,6 +3331,9 @@ async function loadRemotePlayerData(user, generation) {
 
     updateProfileIdentity();
     renderProfilePortraitOptions();
+    syncLivePlayerPresence().catch(error => {
+        console.warn("Live player portrait could not sync:", error.message || error);
+    });
     updateCoinBalanceDisplay();
     updateEndlessRecordDisplays();
     updateProfileStats();
@@ -3365,7 +3440,7 @@ async function renderProfileFriends() {
     const relevant = (relations || []).filter(link => link.status !== "declined");
     const ids = [...new Set(relevant.map(link => link.requester_id === supabaseUser.id ? link.addressee_id : link.requester_id))];
     const profilesResponse = ids.length
-        ? await supabaseClient.from("player_profiles").select("id,username").in("id", ids)
+        ? await supabaseClient.from("player_profiles").select("id,username,portrait_id").in("id", ids)
         : { data: [], error: null };
     if (profilesResponse.error) return;
     const profiles = new Map((profilesResponse.data || []).map(profile => [profile.id, profile]));
@@ -3383,16 +3458,37 @@ async function renderProfileFriends() {
         const friendId = link.requester_id === supabaseUser.id ? link.addressee_id : link.requester_id;
         const profile = profiles.get(friendId);
         if (!profile) return;
+        const isOnline = isPlayerOnline(friendId);
         const row = document.createElement("div");
         row.className = "profile-friend-row";
-        const copy = document.createElement("span");
-        copy.textContent = `@${profile.username}`;
+        row.classList.toggle("is-online", isOnline);
+
+        const identity = document.createElement("div");
+        identity.className = "profile-friend-identity";
+        const avatar = document.createElement("img");
+        avatar.className = "profile-friend-avatar";
+        avatar.src = profilePortraitSources[profile.portrait_id] || profilePortraitSources.mason;
+        avatar.alt = `${profile.username}'s profile portrait`;
+
+        const copy = document.createElement("div");
+        copy.className = "profile-friend-copy";
+        const username = document.createElement("strong");
+        username.textContent = `@${profile.username}`;
         const details = document.createElement("small");
-        details.textContent = link.status === "accepted" ? "FRIEND" : isIncoming ? "REQUEST IN" : "REQUEST SENT";
-        copy.append(details);
-        row.append(copy);
+        details.className = `profile-friend-status ${isOnline ? "is-online" : "is-offline"}`;
+        const statusDot = document.createElement("span");
+        statusDot.className = "profile-friend-status-dot";
+        statusDot.setAttribute("aria-hidden", "true");
+        const statusText = link.status === "accepted"
+            ? (isOnline ? "ONLINE" : "OFFLINE")
+            : isIncoming ? "REQUEST IN" : "REQUEST SENT";
+        details.append(statusDot, document.createTextNode(statusText));
+        copy.append(username, details);
+        identity.append(avatar, copy);
+        row.append(identity);
         if (isIncoming) {
             const actions = document.createElement("div");
+            actions.className = "profile-friend-actions";
             ["accepted", "declined"].forEach(status => {
                 const button = document.createElement("button");
                 button.type = "button";
@@ -3931,6 +4027,8 @@ function showLevelSelect() {
             }
         }
     }
+
+    updateCampaignLevelCardStatuses();
 
     mainMenu.style.display = "none";
     profileScreen.style.display = "none";
@@ -4481,6 +4579,11 @@ card.innerHTML = `
         rosterList.appendChild(card);
 
 card.addEventListener("click", () => {
+    if (gameRunning && scrap < survivorCosts[id]) {
+        showInsufficientScrapToast();
+        return;
+    }
+
     selectSurvivorToDeploy(id);
     showSurvivorDetails(id);
     
@@ -4568,6 +4671,12 @@ document.addEventListener("touchmove", event => {
 
     if (!drag.active) {
         if (Math.hypot(touch.clientX - drag.startX, touch.clientY - drag.startY) <= 8) return;
+        if (scrap < survivorCosts[drag.id]) {
+            event.preventDefault();
+            showInsufficientScrapToast();
+            clearTouchSurvivorDrag();
+            return;
+        }
         drag.active = true;
         selectSurvivorToDeploy(drag.id);
         drag.card.classList.add("is-drag-source");
