@@ -7867,7 +7867,7 @@ main.game-layout > .control-panel {
     grid-template-columns: minmax(180px, 0.72fr) minmax(0, 1.5fr) auto;
     align-items: center;
     gap: 18px;
-    padding: 16px 18px 12px;
+    padding: 18px 20px 14px;
     background:
         radial-gradient(circle, #f0c7650b 1px, transparent 1.6px) 0 0 / 18px 18px,
         linear-gradient(145deg, #292731, #201f26);
@@ -7879,20 +7879,20 @@ main.game-layout > .control-panel {
 .profile-account-eyebrow {
     margin: 0 0 5px;
     color: #edbd7a;
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 1.4px;
 }
 .profile-account-copy h3 {
     margin: 0;
     color: #eee8ef;
-    font-size: 15px;
+    font-size: 17px;
     letter-spacing: 1px;
 }
 .profile-account-copy > p:last-child {
     margin: 6px 0 0;
     color: #aaa4af;
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.45;
 }
 .profile-account-fields {
@@ -7904,33 +7904,33 @@ main.game-layout > .control-panel {
 .profile-account-fields label { display: grid; min-width: 0; gap: 4px; }
 .profile-account-fields label > span {
     color: #c3bbc9;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 800;
     letter-spacing: 1px;
 }
 .profile-account-fields input {
     width: 100%;
     min-width: 0;
-    min-height: 35px;
-    padding: 0 9px;
+    min-height: 40px;
+    padding: 0 11px;
     background: #17181c;
     border: 1px solid #62576a;
     border-radius: 3px;
     color: #f1e9dc;
-    font: 11px Consolas, "Courier New", monospace;
+    font: 12px Consolas, "Courier New", monospace;
 }
 .profile-account-fields input:focus { border-color: #d8a15d; outline: 2px solid #d8a15d44; }
 .profile-account-actions { display: flex; grid-column: 1 / -1; gap: 8px; }
 .profile-account-actions button,
 .profile-account-session button {
-    min-height: 34px;
-    padding: 0 12px;
+    min-height: 38px;
+    padding: 0 14px;
     background: linear-gradient(180deg, #eabb70, #d99e55);
     border: 1px solid #f0ca8a;
     border-bottom: 3px solid #805638;
     border-radius: 3px;
     color: #211a16;
-    font: 800 8px Consolas, "Courier New", monospace;
+    font: 800 9px Consolas, "Courier New", monospace;
     letter-spacing: 0.7px;
     cursor: pointer;
 }
@@ -7945,7 +7945,7 @@ main.game-layout > .control-panel {
 .profile-account-session { display: flex; align-items: center; justify-content: end; gap: 10px; }
 .profile-account-session > span {
     display: inline-flex;
-    min-height: 34px;
+    min-height: 38px;
     max-width: 190px;
     align-items: center;
     padding: 0 11px;
@@ -7954,7 +7954,7 @@ main.game-layout > .control-panel {
     border: 1px solid #4f7565;
     border-radius: 3px;
     color: #b9d7c0;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.3px;
     text-overflow: ellipsis;
@@ -7968,10 +7968,10 @@ main.game-layout > .control-panel {
     color: #e7dfe9;
 }
 .profile-account-notice {
-    min-height: 14px;
+    min-height: 16px;
     grid-column: 1 / -1;
     color: #c4b8ca;
-    font-size: 8px;
+    font-size: 10px;
     line-height: 1.45;
 }
 .profile-account-notice.is-error { color: #e99a8c; }
@@ -7994,22 +7994,22 @@ main.game-layout > .control-panel {
 .profile-friend-form { display: grid; align-content: start; gap: 7px; }
 .profile-friend-form label {
     color: #edbd7a;
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 1px;
 }
 .profile-friend-form > div { display: flex; min-width: 0; gap: 6px; }
 .profile-friend-form input {
-    width: 100%; min-width: 0; min-height: 32px; padding: 0 8px;
+    width: 100%; min-width: 0; min-height: 38px; padding: 0 10px;
     background: #17181c; border: 1px solid #62576a; border-radius: 3px;
-    color: #f1e9dc; font: 10px Consolas, "Courier New", monospace;
+    color: #f1e9dc; font: 12px Consolas, "Courier New", monospace;
 }
 .profile-friend-form button,
 .profile-friend-action {
-    min-height: 32px; padding: 0 9px;
+    min-height: 38px; padding: 0 11px;
     background: #302d34; border: 1px solid #62576a; border-bottom: 2px solid #151418;
     border-radius: 3px; color: #e7dfe9;
-    font: 700 7px Consolas, "Courier New", monospace; letter-spacing: 0.45px;
+    font: 700 9px Consolas, "Courier New", monospace; letter-spacing: 0.55px;
     white-space: nowrap; cursor: pointer;
 }
 .profile-friend-form button:hover,
@@ -8018,20 +8018,20 @@ main.game-layout > .control-panel {
 .profile-friends-roster h4 {
     margin: 0;
     color: #c9c0cf;
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 1px;
 }
 .profile-friends-list { display: grid; min-width: 0; align-content: start; gap: 5px; }
 .profile-friend-row {
     display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 5px 7px; background: #17181c; border: 1px solid #45414b;
-    color: #d7d0d9; font-size: 9px;
+    padding: 7px 9px; background: #17181c; border: 1px solid #45414b;
+    color: #d7d0d9; font-size: 11px;
 }
 .profile-friend-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.profile-friend-row small { margin-left: 5px; color: #aaa4af; font-size: 7px; }
+.profile-friend-row small { margin-left: 7px; color: #aaa4af; font-size: 9px; }
 .profile-friend-row > div { display: flex; flex: 0 0 auto; gap: 4px; }
-.profile-friend-action { min-height: 26px; padding: 0 7px; }
+.profile-friend-action { min-height: 32px; padding: 0 9px; }
 .profile-friends-empty {
     display: flex;
     min-height: 34px;
@@ -8041,7 +8041,7 @@ main.game-layout > .control-panel {
     background: #1b1a20;
     border: 1px dashed #4a454f;
     color: #aaa4af;
-    font-size: 8px;
+    font-size: 10px;
     line-height: 1.5;
 }
 
@@ -8780,4 +8780,20 @@ main.game-layout > .control-panel {
         min-height: 46px;
         padding: 5px;
     }
+}
+
+body.is-survivor-dragging {
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.control-panel .survivor-list .survivor-card.is-drag-source {
+    opacity: 0.5;
+    border-color: #edbd7a;
+}
+
+.battlefield.is-survivor-drop-target {
+    outline: 3px solid #edbd7a;
+    outline-offset: -4px;
 }

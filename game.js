@@ -1,6 +1,20 @@
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+let ignoreCanvasDropClick = null;
+
+canvas.addEventListener("click", event => {
+    if (!event.isTrusted || !ignoreCanvasDropClick) return;
+    if (performance.now() > ignoreCanvasDropClick.until) {
+        ignoreCanvasDropClick = null;
+        return;
+    }
+    if (Math.hypot(event.clientX - ignoreCanvasDropClick.x, event.clientY - ignoreCanvasDropClick.y) <= 18) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        ignoreCanvasDropClick = null;
+    }
+}, true);
 
 const masonImage = new Image();
 masonImage.src = "Images/Masonchar.png";
@@ -4475,6 +4489,145 @@ card.addEventListener("click", () => {
 
     rosterCountDisplay.textContent = selectedSurvivors.size + " UNITS";
 }
+
+// On phones, press and hold a roster card briefly before dragging it onto the
+// battlefield. Waiting for a hold keeps ordinary swipes available for scrolling.
+const inGameSurvivorList = document.getElementById("inGameSurvivorList");
+let touchSurvivorDrag = null;
+let touchSurvivorDragTimer = null;
+let suppressRosterClickUntil = 0;
+
+function clearTouchSurvivorDrag() {
+    if (touchSurvivorDragTimer !== null) {
+        clearTimeout(touchSurvivorDragTimer);
+        touchSurvivorDragTimer = null;
+    }
+
+    if (touchSurvivorDrag?.active) {
+        touchSurvivorDrag.card.classList.remove("is-drag-source");
+        mouseOnCanvas = false;
+    }
+
+    document.body.classList.remove("is-survivor-dragging");
+    document.querySelector(".battlefield")?.classList.remove("is-survivor-drop-target");
+    touchSurvivorDrag = null;
+}
+
+// A touch drag may still produce a compatibility click on its original card.
+// Suppress that click so it cannot reselect a survivor immediately after drop.
+inGameSurvivorList.addEventListener("click", event => {
+    if (!event.isTrusted || performance.now() > suppressRosterClickUntil) return;
+    if (!event.target.closest(".survivor-card")) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    suppressRosterClickUntil = 0;
+}, true);
+
+inGameSurvivorList.addEventListener("touchstart", event => {
+    const touch = event.touches[0];
+    const card = event.target.closest(".survivor-card");
+
+    if (
+        !touch ||
+        !card ||
+        event.touches.length !== 1 ||
+        !gameRunning ||
+        !selectedSurvivors.has(card.dataset.survivor)
+    ) return;
+
+    clearTouchSurvivorDrag();
+    const drag = {
+        id: card.dataset.survivor,
+        card,
+        startX: touch.clientX,
+        startY: touch.clientY,
+        armed: false,
+        active: false
+    };
+    touchSurvivorDrag = drag;
+    touchSurvivorDragTimer = window.setTimeout(() => {
+        if (touchSurvivorDrag === drag && gameRunning) {
+            drag.armed = true;
+        }
+        touchSurvivorDragTimer = null;
+    }, 180);
+}, { passive: true });
+
+document.addEventListener("touchmove", event => {
+    const drag = touchSurvivorDrag;
+    if (!drag || event.touches.length !== 1) return;
+
+    const touch = event.touches[0];
+    if (!drag.armed && !drag.active) {
+        if (Math.hypot(touch.clientX - drag.startX, touch.clientY - drag.startY) > 10) {
+            clearTouchSurvivorDrag();
+        }
+        return;
+    }
+
+    if (!drag.active) {
+        if (Math.hypot(touch.clientX - drag.startX, touch.clientY - drag.startY) <= 8) return;
+        drag.active = true;
+        selectSurvivorToDeploy(drag.id);
+        drag.card.classList.add("is-drag-source");
+        document.body.classList.add("is-survivor-dragging");
+    }
+
+    event.preventDefault();
+
+    const rect = canvas.getBoundingClientRect();
+    const overCanvas =
+        touch.clientX >= rect.left && touch.clientX <= rect.right &&
+        touch.clientY >= rect.top && touch.clientY <= rect.bottom;
+    document.querySelector(".battlefield")?.classList.toggle("is-survivor-drop-target", overCanvas);
+    mouseOnCanvas = overCanvas;
+
+    if (overCanvas) {
+        mouseX = (touch.clientX - rect.left) * canvas.width / rect.width;
+        mouseY = (touch.clientY - rect.top) * canvas.height / rect.height;
+        renderGame();
+    }
+}, { passive: false });
+
+document.addEventListener("touchend", event => {
+    const drag = touchSurvivorDrag;
+    if (!drag) return;
+
+    const touch = event.changedTouches[0];
+    if (drag.active && touch) {
+        const rect = canvas.getBoundingClientRect();
+        const droppedOnCanvas =
+            touch.clientX >= rect.left && touch.clientX <= rect.right &&
+            touch.clientY >= rect.top && touch.clientY <= rect.bottom;
+
+        if (droppedOnCanvas) {
+            ignoreCanvasDropClick = {
+                until: performance.now() + 500,
+                x: touch.clientX,
+                y: touch.clientY
+            };
+            const ignoredClick = ignoreCanvasDropClick;
+            canvas.dispatchEvent(new MouseEvent("click", {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            }));
+            window.setTimeout(() => {
+                if (ignoreCanvasDropClick === ignoredClick) ignoreCanvasDropClick = null;
+            }, 550);
+        }
+
+        // Prevent a browser-generated touch click from selecting the source card again.
+        suppressRosterClickUntil = performance.now() + 650;
+    }
+
+    clearTouchSurvivorDrag();
+}, { passive: true });
+
+document.addEventListener("touchcancel", clearTouchSurvivorDrag, { passive: true });
 
 bindUIEvent("cancelPlacementButton", "click", () => {
     selectedSurvivor = null;
