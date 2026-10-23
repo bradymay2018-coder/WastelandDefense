@@ -754,8 +754,10 @@ function spawnEnemy(type = "spider") {
     const isSkitter = type === "skitter";
     const isHollow = type === "hollow";
     const baseHealth = isHollow ? 220 : isSkitter ? 72 : 100;
-    // Keep the opening approachable, then steadily harden enemies as the run progresses.
-    const waveHealthScale = 1 + Math.max(0, currentWave - 3) * 0.045;
+    // Endless enemies gain durability faster so a fully upgraded squad cannot
+    // flatten later waves at the same pace as the campaign.
+    const healthGrowthPerWave = gameMode === "endless" ? 0.065 : 0.045;
+    const waveHealthScale = 1 + Math.max(0, currentWave - 3) * healthGrowthPerWave;
     const health = Math.round(baseHealth * waveHealthScale);
 
     enemies.push({
@@ -794,10 +796,16 @@ function getWaveGroups(wave) {
         ]
     };
 
-    if (waveGroups[wave]) return waveGroups[wave];
+    if (waveGroups[wave] && !(gameMode === "endless" && wave >= 6)) {
+        return waveGroups[wave];
+    }
 
-    const totalEnemies = 5 + (wave - 1) * 2;
-    const skitterRatio = Math.min(0.38, 0.26 + Math.max(0, wave - 6) * 0.015);
+    const totalEnemies = gameMode === "endless" && wave >= 6
+        ? 16 + Math.floor((wave - 5) * 2.5)
+        : 5 + (wave - 1) * 2;
+    const skitterRatio = gameMode === "endless"
+        ? Math.min(0.42, 0.28 + Math.max(0, wave - 6) * 0.012)
+        : Math.min(0.38, 0.26 + Math.max(0, wave - 6) * 0.015);
     const skitterCount = Math.floor(totalEnemies * skitterRatio);
     const groups = [
         { type: "spider", count: totalEnemies - skitterCount },
@@ -1631,7 +1639,7 @@ survivor.recoilY -= (dy / distance) * recoilStrength;
 }
             totalEnemiesDefeated++;
             enemies.splice(i, 1);
-            scrap += scrapRewardPerKill;
+            scrap += gameMode === "endless" ? 4 : scrapRewardPerKill;
         }
     }
 
@@ -2289,8 +2297,9 @@ function updateWaveSystem(deltaTime) {
         gamePaused = false;
 
         const completedWave = currentWave;
-        const baseWaveReward =
-            startingWaveScrapReward + (completedWave - 1) * waveScrapRewardIncrease;
+        const baseWaveReward = gameMode === "endless"
+            ? 25 + (completedWave - 1) * 5
+            : startingWaveScrapReward + (completedWave - 1) * waveScrapRewardIncrease;
         const leakPenalty = leakedEnemiesThisWave * scrapPenaltyPerLeak;
         const waveReward = Math.max(0, baseWaveReward - leakPenalty);
         scrap += waveReward;
@@ -2439,6 +2448,20 @@ const profilePortraitSources = {
     zach: "Images/Zach.png",
     brady: "Images/Brady.png"
 };
+const trophyPlaceNames = { 1: "GOLD", 2: "SILVER", 3: "BRONZE" };
+
+function createTrophyIcon(place) {
+    const trophy = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    trophy.setAttribute("class", `trophy-icon trophy-icon-place-${place}`);
+    trophy.setAttribute("viewBox", "0 0 24 24");
+    trophy.setAttribute("aria-hidden", "true");
+    const trophyShape = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    trophyShape.setAttribute("d", "M7 3h10v5c0 3.2-2.2 5.6-5 6.3C9.2 13.6 7 11.2 7 8V3ZM3 5h4v2H5v1c0 1.4 1 2.4 2.4 2.8l-.5 1.9C4.5 12.1 3 10.3 3 8V5Zm14 0h4v3c0 2.3-1.5 4.1-3.9 4.7l-.5-1.9C18 10.4 19 9.4 19 8V7h-2V5ZM10 14h4v4h4v3H6v-3h4v-4Z");
+    trophy.append(trophyShape);
+    return trophy;
+}
+
+let playerTrophyRecords = [];
 
 function readPlayerProfile() {
     try {
@@ -2563,6 +2586,58 @@ function updateProfileStats() {
     document.getElementById("profileEndlessStat").textContent = String(bestWave);
     document.getElementById("profileMapRecordsStat").textContent =
         `${Math.min(6, mapRecordCount)} / 6`;
+    const trophyTotal = document.getElementById("profileTrophyTotal");
+    if (trophyTotal) trophyTotal.textContent = String(playerTrophyRecords.length);
+    renderProfileTrophyCollection();
+}
+
+function renderProfileTrophyCollection() {
+    const collection = document.getElementById("profileTrophyCollection");
+    if (!collection) return;
+    collection.replaceChildren();
+
+    if (playerTrophyRecords.length === 0) {
+        const empty = document.createElement("span");
+        empty.className = "profile-trophy-empty";
+        empty.textContent = "NO PODIUM TROPHIES YET — PLACE TOP 3 ON AN ENDLESS MAP.";
+        collection.append(empty);
+        return;
+    }
+
+    const orderedTrophies = [...playerTrophyRecords].sort((a, b) =>
+        Number(a.map_id) - Number(b.map_id) || Number(a.place) - Number(b.place)
+    );
+    orderedTrophies.forEach(trophy => {
+        const place = Number(trophy.place);
+        const mapName = leaderboardMapNames[Number(trophy.map_id)] || `MAP ${trophy.map_id}`;
+        const chip = document.createElement("span");
+        chip.className = `profile-trophy-chip trophy-place-${place}`;
+        chip.title = `${trophyPlaceNames[place] || "PODIUM"} TROPHY · ${mapName}`;
+        chip.append(createTrophyIcon(place));
+        const label = document.createElement("span");
+        label.textContent = `${mapName} · ${trophyPlaceNames[place] || "PODIUM"}`;
+        chip.append(label);
+        collection.append(chip);
+    });
+}
+
+async function refreshPlayerTrophies(client = supabaseClient) {
+    if (!client || !supabaseUser) {
+        playerTrophyRecords = [];
+        updateProfileStats();
+        return [];
+    }
+    const userId = supabaseUser.id;
+    const { data, error } = await client.from("player_trophies")
+        .select("map_id,place,earned_at")
+        .eq("user_id", userId)
+        .order("map_id", { ascending: true })
+        .order("place", { ascending: true });
+    if (error) throw error;
+    if (supabaseUser?.id !== userId) return playerTrophyRecords;
+    playerTrophyRecords = data || [];
+    updateProfileStats();
+    return playerTrophyRecords;
 }
 
 function recordCampaignLevelClear(level) {
@@ -2741,7 +2816,11 @@ function updateEndlessSubmissionUI(message = "", state = "") {
     button.classList.toggle("is-submitted", Boolean(submitted));
     notice.classList.toggle("is-error", state === "error");
     notice.classList.toggle("is-success", state === "success" || Boolean(submitted));
-    button.textContent = submitted ? "SCORE SUBMITTED" : submitting ? "SUBMITTING SCORE…" : "SUBMIT TO LEADERBOARD";
+    button.textContent = submitted
+        ? "SUBMITTED TO LEADERBOARD"
+        : submitting
+            ? "VERIFYING SUBMISSION…"
+            : "SUBMIT TO LEADERBOARD";
     button.disabled = Boolean(submitted || submitting || bestWave < 1);
 
     if (message) {
@@ -2749,7 +2828,7 @@ function updateEndlessSubmissionUI(message = "", state = "") {
     } else if (submitting) {
         notice.textContent = `Submitting WAVE ${bestWave} on ${leaderboardMapNames[mapId]}…`;
     } else if (submitted) {
-        notice.textContent = "Your highest score for this map is saved in your single leaderboard spot.";
+        notice.textContent = "Successfully submitted to the leaderboard.";
     } else if (bestWave < 1) {
         notice.textContent = "Clear at least one wave to submit an Endless score.";
     } else if (!supabaseUser) {
@@ -2772,11 +2851,31 @@ async function submitEndlessRunScore() {
     updateEndlessSubmissionUI();
     try {
         const client = await ensureSupabaseClient();
+        const submittedWave = Math.max(0, Math.floor(Number(score.bestWave) || 0));
         const { error } = await client.rpc("submit_endless_score", {
             p_map_id: Number(score.mapId),
-            p_best_wave: Math.max(0, Math.floor(Number(score.bestWave) || 0))
+            p_best_wave: submittedWave
         });
         if (error) throw error;
+
+        const { data: savedScore, error: verificationError } = await client
+            .from("endless_scores")
+            .select("best_wave")
+            .eq("user_id", supabaseUser.id)
+            .eq("map_id", Number(score.mapId))
+            .maybeSingle();
+        if (verificationError) throw verificationError;
+        if (!savedScore || Number(savedScore.best_wave) < submittedWave) {
+            throw new Error("The leaderboard could not verify this score. Please try again.");
+        }
+
+        try {
+            await refreshPlayerTrophies(client);
+        } catch (trophyError) {
+            // Score verification succeeded; the trophy panel can retry on the next account sync.
+            console.warn("Could not refresh the trophy collection:", trophyError.message || trophyError);
+        }
+
         if (pendingEndlessScore !== score) return;
         saveEndlessRecord(score.mapId, score.bestWave);
         score.submitting = false;
@@ -3077,6 +3176,8 @@ async function handleSupabaseSession(session) {
     updateAccountUI(user);
     if (!user) {
         persistPlayerProfile();
+        playerTrophyRecords = [];
+        updateProfileStats();
         cloudLoadGeneration++;
         renderLeaderboard();
         return;
@@ -3149,6 +3250,9 @@ async function loadRemotePlayerData(user, generation) {
     });
     storeEndlessRecords(records);
     try { localStorage.setItem(linkedCloudAccountKey, user.id); } catch { /* localStorage remains an optional cache */ }
+
+    await refreshPlayerTrophies(client);
+    if (generation !== cloudLoadGeneration) return;
 
     updateProfileIdentity();
     renderProfilePortraitOptions();
@@ -3347,7 +3451,13 @@ function appendCloudLeaderboardRow(score, profile, rank, isSelf = false) {
     if (isSelf) row.classList.add("is-you");
     const rankCell = document.createElement("td");
     rankCell.className = "leaderboard-rank";
-    rankCell.textContent = String(rank);
+    const rankContent = document.createElement("span");
+    rankContent.className = "leaderboard-rank-content";
+    if (activeLeaderboardScope === "global" && rank <= 3) rankContent.append(createTrophyIcon(rank));
+    const rankNumber = document.createElement("span");
+    rankNumber.textContent = String(rank);
+    rankContent.append(rankNumber);
+    rankCell.append(rankContent);
     const playerCell = document.createElement("td");
     const player = document.createElement("div");
     player.className = "leaderboard-player-name";
@@ -3405,6 +3515,7 @@ async function loadCloudLeaderboard() {
             .eq("map_id", activeLeaderboardMap)
             .order("best_wave", { ascending: false })
             .order("updated_at", { ascending: true })
+            .order("user_id", { ascending: true })
             .limit(50);
         if (friendIds) query = query.in("user_id", friendIds);
         const { data: scores, error: scoreError } = await query;

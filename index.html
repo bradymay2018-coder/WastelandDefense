@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wasteland Defense</title>
-    <link rel="stylesheet" href="style.css?v=20261023-06">
+    <link rel="stylesheet" href="style.css?v=20261023-10">
 </head>
 <body>
 
@@ -280,6 +280,16 @@
                     <span>MAP RECORDS</span>
                     <strong id="profileMapRecordsStat">0 / 6</strong>
                 </div>
+                <section class="profile-stat profile-stat-trophies" aria-labelledby="profileTrophyTitle">
+                    <div class="profile-trophy-summary">
+                        <div>
+                            <span id="profileTrophyTitle">CAREER TROPHIES</span>
+                            <strong id="profileTrophyTotal">0</strong>
+                        </div>
+                        <small>Podium awards stay here even if your rank drops.</small>
+                    </div>
+                    <div id="profileTrophyCollection" class="profile-trophy-collection" aria-live="polite"></div>
+                </section>
             </div>
         </div>
 
@@ -872,6 +882,11 @@
                 </div>
             </div>
 
+            <div class="survivor-action-buttons">
+                <button id="moveSurvivorButton" type="button">MOVE</button>
+                <button id="sellSurvivorButton" type="button">SELL</button>
+            </div>
+
             <p id="survivorDetailDescription">Select a survivor to view their details.</p>
             <p class="placement-hint">CLICK THE BATTLEFIELD TO DEPLOY</p>
 
@@ -884,16 +899,6 @@
                     <span id="survivorUpgradeLevel" class="survivor-upgrade-level">LEVEL 0 / 2</span>
                 </button>
             </div>
-
-<div class="survivor-action-buttons">
-    <button id="moveSurvivorButton" type="button">
-        MOVE
-    </button>
-    <button id="sellSurvivorButton" type="button">
-        SELL
-    </button>
-</div>
-
 
         </div>
 
@@ -916,6 +921,6 @@
 </div>
 
 <script src="supabase-config.js?v=20261023-02"></script>
-<script src="game.js?v=20261023-04"></script>
+<script src="game.js?v=20261023-08"></script>
 </body>
 </html>
