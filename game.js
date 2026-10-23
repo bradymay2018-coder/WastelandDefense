@@ -75,11 +75,16 @@ function seededRandom() {
 // Campaign road settings
 const roadWidth = 42;
 const roadBuffer = roadWidth / 2 + 8;
-const survivorPlacementHalfSize = 35; // 32px sprite half-size plus animation clearance
+const survivorPlacementHalfWidth = 15;
+const survivorPlacementHalfHeight = 27;
+const survivorPlacementRoadBuffer = roadWidth / 2 + 2;
 
 let currentLevel = 1;
 let gameMode = "campaign";
 let activeCampaignRunId = null;
+let activeEndlessRunId = null;
+let pendingEndlessScore = null;
+let profileReturnScreen = "menu";
 
 const campaignRoads = {
     // LEVEL 1 — THE OUTSKIRTS
@@ -199,18 +204,18 @@ function isOnRoad(x, y) {
 // Road segments are axis-aligned, so expanding each segment's bounds by the
 // rendered road edge gives the same clearance at straightaways and turns.
 function isSurvivorFootprintOnRoad(x, y) {
-    const left = x - survivorPlacementHalfSize;
-    const right = x + survivorPlacementHalfSize;
-    const top = y - survivorPlacementHalfSize;
-    const bottom = y + survivorPlacementHalfSize;
+    const left = x - survivorPlacementHalfWidth;
+    const right = x + survivorPlacementHalfWidth;
+    const top = y - survivorPlacementHalfHeight;
+    const bottom = y + survivorPlacementHalfHeight;
 
     for (let i = 0; i < roadPoints.length - 1; i++) {
         const a = roadPoints[i];
         const b = roadPoints[i + 1];
-        const roadLeft = Math.min(a.x, b.x) - roadBuffer;
-        const roadRight = Math.max(a.x, b.x) + roadBuffer;
-        const roadTop = Math.min(a.y, b.y) - roadBuffer;
-        const roadBottom = Math.max(a.y, b.y) + roadBuffer;
+        const roadLeft = Math.min(a.x, b.x) - survivorPlacementRoadBuffer;
+        const roadRight = Math.max(a.x, b.x) + survivorPlacementRoadBuffer;
+        const roadTop = Math.min(a.y, b.y) - survivorPlacementRoadBuffer;
+        const roadBottom = Math.max(a.y, b.y) + survivorPlacementRoadBuffer;
 
         if (
             right >= roadLeft && left <= roadRight &&
@@ -221,6 +226,13 @@ function isSurvivorFootprintOnRoad(x, y) {
     }
 
     return false;
+}
+
+function isOutsideSurvivorPlacementBounds(x, y) {
+    return x < survivorPlacementHalfWidth ||
+        x > canvas.width - survivorPlacementHalfWidth ||
+        y < survivorPlacementHalfHeight ||
+        y > canvas.height - survivorPlacementHalfHeight;
 }
 
 
@@ -898,10 +910,7 @@ canvas.addEventListener("click", function(event) {
 
             if (
                 isSurvivorFootprintOnRoad(clickX, clickY) ||
-                clickX < survivorPlacementHalfSize ||
-                clickX > canvas.width - survivorPlacementHalfSize ||
-                clickY < survivorPlacementHalfSize ||
-                clickY > canvas.height - survivorPlacementHalfSize
+                isOutsideSurvivorPlacementBounds(clickX, clickY)
             ) {
                 updateDeploymentMessage("Choose a clear spot off the road.");
                 return;
@@ -978,10 +987,7 @@ canvas.addEventListener("click", function(event) {
 
     if (
         isSurvivorFootprintOnRoad(x, y) ||
-        x < survivorPlacementHalfSize ||
-        x > canvas.width - survivorPlacementHalfSize ||
-        y < survivorPlacementHalfSize ||
-        y > canvas.height - survivorPlacementHalfSize
+        isOutsideSurvivorPlacementBounds(x, y)
     ) {
         return;
     }
@@ -1037,10 +1043,7 @@ canvas.addEventListener("click", function(event) {
 
     if (
         isSurvivorFootprintOnRoad(x, y) ||
-        x < survivorPlacementHalfSize ||
-        x > canvas.width - survivorPlacementHalfSize ||
-        y < survivorPlacementHalfSize ||
-        y > canvas.height - survivorPlacementHalfSize
+        isOutsideSurvivorPlacementBounds(x, y)
     ) {
         document.getElementById("deploymentMessage").textContent =
             "Choose a clear spot off the road.";
@@ -1302,10 +1305,7 @@ function drawSurvivorPreview() {
     // Check whether the preview location is valid.
     let validPlacement =
         !isSurvivorFootprintOnRoad(mouseX, mouseY) &&
-        mouseX >= survivorPlacementHalfSize &&
-        mouseX <= canvas.width - survivorPlacementHalfSize &&
-        mouseY >= survivorPlacementHalfSize &&
-        mouseY <= canvas.height - survivorPlacementHalfSize;
+        !isOutsideSurvivorPlacementBounds(mouseX, mouseY);
 
     for (const survivor of survivors) {
         // Ignore the survivor being moved.
@@ -1379,16 +1379,67 @@ const weaponAudioProfiles = {
     brady:   { wave: "sawtooth",  start: 155, end: 52,  time: 0.13,  tone: 0.085, noise: 0.07,  hiss: 0.075, cutoff: 1500 }
 };
 
+const audioMuteKey = "wastelandDefense.audioMuted.v1";
+let gameAudioMuted = false;
+try {
+    gameAudioMuted = localStorage.getItem(audioMuteKey) === "true";
+} catch {
+    // Keep audio enabled by default when browser storage is unavailable.
+}
+
+function updateAudioMuteButton() {
+    const button = document.getElementById("muteButton");
+    if (!button) return;
+
+    const state = document.getElementById("muteButtonState");
+    const mark = document.getElementById("muteButtonMark");
+    button.setAttribute("aria-pressed", String(gameAudioMuted));
+    button.setAttribute("aria-label", gameAudioMuted ? "Unmute sound" : "Mute sound");
+    button.title = gameAudioMuted ? "Unmute sound" : "Mute sound";
+    button.classList.toggle("is-muted", gameAudioMuted);
+    if (state) state.textContent = gameAudioMuted ? "OFF" : "ON";
+    if (mark) mark.textContent = gameAudioMuted ? "×" : "♫";
+}
+
+function setMuteButtonVisible(visible) {
+    const button = document.getElementById("muteButton");
+    if (button) button.hidden = !visible;
+}
+
+function setGameAudioMuted(muted) {
+    gameAudioMuted = Boolean(muted);
+    try {
+        localStorage.setItem(audioMuteKey, String(gameAudioMuted));
+    } catch {
+        // The sound toggle still works until the page is closed.
+    }
+
+    const audio = window.jamesAudioContext;
+    const masterGain = window.wastelandSoundGain;
+    if (audio && masterGain) {
+        masterGain.gain.cancelScheduledValues(audio.currentTime);
+        masterGain.gain.setTargetAtTime(gameAudioMuted ? 0 : 1, audio.currentTime, 0.012);
+    }
+    updateAudioMuteButton();
+}
+
+updateAudioMuteButton();
+
 function playWeaponAttackSound(type) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     const profile = weaponAudioProfiles[type];
-    if (!AudioContextClass || !profile) return;
+    if (gameAudioMuted || !AudioContextClass || !profile) return;
 
     if (!window.jamesAudioContext) {
         window.jamesAudioContext = new AudioContextClass();
     }
 
     const audio = window.jamesAudioContext;
+    if (!window.wastelandSoundGain) {
+        window.wastelandSoundGain = audio.createGain();
+        window.wastelandSoundGain.gain.value = gameAudioMuted ? 0 : 1;
+        window.wastelandSoundGain.connect(audio.destination);
+    }
     if (audio.state === "suspended") audio.resume();
 
     // Every layer begins on this shot; Cody has a compact launch thump only.
@@ -1402,7 +1453,7 @@ function playWeaponAttackSound(type) {
     toneGain.gain.exponentialRampToValueAtTime(profile.tone, now + 0.004);
     toneGain.gain.exponentialRampToValueAtTime(0.0001, now + profile.time);
     oscillator.connect(toneGain);
-    toneGain.connect(audio.destination);
+    toneGain.connect(window.wastelandSoundGain);
     oscillator.start(now);
     oscillator.stop(now + profile.time + 0.005);
 
@@ -1428,7 +1479,7 @@ function playWeaponAttackSound(type) {
     noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + noiseDuration);
     noise.connect(filter);
     filter.connect(noiseGain);
-    noiseGain.connect(audio.destination);
+    noiseGain.connect(window.wastelandSoundGain);
     noise.start(now);
     noise.stop(now + noiseDuration + 0.005);
 }
@@ -1883,6 +1934,28 @@ if (playerHealth <= 0) {
 function drawEnemies() {
     let hollowAlive = false;
 
+    // Draw ground shadows first so they sit beneath every enemy sprite.
+    for (const enemy of enemies) {
+        const spriteHeight = enemy.type === "hollow" ? 64 : 44;
+        const hitOffsetX = enemy.hitOffsetX || 0;
+        const hitOffsetY = enemy.hitOffsetY || 0;
+
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.beginPath();
+        ctx.ellipse(
+            enemy.x + hitOffsetX,
+            enemy.y + hitOffsetY + spriteHeight / 2 + 3,
+            enemy.type === "hollow" ? 11 : 12,
+            4.5,
+            0,
+            0,
+            Math.PI * 2
+        );
+        ctx.fill();
+        ctx.restore();
+    }
+
     for (const enemy of enemies) {
         const isHollow = enemy.type === "hollow";
         const isSkitter = enemy.type === "skitter";
@@ -2232,6 +2305,7 @@ function updateWaveSystem(deltaTime) {
             document.getElementById("victoryMessage").textContent =
                 `${missionTitle} is secure. Your squad cleared every wave.`;
             updateRunRecap(totalWaves);
+            setMuteButtonVisible(false);
             document.getElementById("victoryScreen").style.display = "flex";
             return;
         }
@@ -2492,6 +2566,59 @@ function renderCampaignCoinReward(reward) {
         playerCoinBalance.toLocaleString();
 }
 
+const endlessCoinsPerWave = 10;
+
+function renderEndlessCoinReward(reward, status = "") {
+    const panel = document.getElementById("endlessCoinReward");
+    if (!panel) return;
+
+    panel.hidden = gameMode !== "endless";
+    if (panel.hidden) return;
+
+    document.getElementById("gameOverCoinsEarned").textContent =
+        `+${Math.max(0, reward).toLocaleString()} COINS`;
+    document.getElementById("gameOverCoinsTotal").textContent =
+        playerCoinBalance.toLocaleString();
+    document.getElementById("endlessCoinRewardStatus").textContent = status;
+}
+
+function awardEndlessRunCoins(wavesCleared, runId) {
+    const reward = Math.max(0, Math.floor(wavesCleared)) * endlessCoinsPerWave;
+    playerCoinBalance += reward;
+    persistCoinBalance();
+    updateCoinBalanceDisplay();
+    updateProfileStats();
+    renderEndlessCoinReward(
+        reward,
+        reward === 0
+            ? "NO CLEARED WAVES // NO COINS EARNED"
+            : supabaseUser
+                ? "SAVING REWARD TO YOUR ACCOUNT…"
+                : "ADDED TO YOUR DEVICE SAVE"
+    );
+
+    if (reward === 0 || !supabaseClient || !supabaseUser || !runId) return;
+
+    supabaseClient.rpc("award_endless_run", {
+        p_run_id: runId,
+        p_waves_cleared: Math.floor(wavesCleared)
+    }).then(({ data, error }) => {
+        if (error) throw error;
+        const result = Array.isArray(data) ? data[0] : data;
+        playerCoinBalance = Math.max(0, Number(result?.total_coins) || 0);
+        persistCoinBalance();
+        updateCoinBalanceDisplay();
+        updateProfileStats();
+        renderEndlessCoinReward(
+            Math.max(0, Number(result?.coins_awarded) || 0),
+            "REWARD SAVED TO YOUR ACCOUNT"
+        );
+    }).catch(error => {
+        console.warn("Endless reward could not sync to Supabase:", error.message || error);
+        renderEndlessCoinReward(reward, "SAVED ON THIS DEVICE. ACCOUNT SYNC FAILED.");
+    });
+}
+
 function awardCampaignLevelCoins() {
     if (supabaseClient && supabaseUser && activeCampaignRunId) {
         const notice = document.getElementById("profileAccountNotice");
@@ -2561,16 +2688,68 @@ function saveEndlessRecord(level, wave) {
     }
 
     updateEndlessRecordDisplays();
+}
 
-    if (supabaseClient && supabaseUser) {
-        supabaseClient.rpc("submit_endless_score", {
-            p_map_id: Number(level),
-            p_best_wave: Math.max(0, Math.floor(Number(wave) || 0))
-        }).then(({ error }) => {
-            if (error) console.warn("Endless score could not sync to Supabase:", error.message);
-        }).catch(error => {
-            console.warn("Endless score could not reach Supabase:", error.message || error);
+function updateEndlessSubmissionUI(message = "", state = "") {
+    const panel = document.getElementById("endlessScoreSubmission");
+    const button = document.getElementById("submitEndlessScoreButton");
+    const notice = document.getElementById("endlessScoreSubmissionNotice");
+    panel.hidden = gameMode !== "endless" || !pendingEndlessScore;
+    if (panel.hidden) return;
+
+    const { mapId, bestWave, submitted, submitting } = pendingEndlessScore;
+    button.classList.toggle("is-submitted", Boolean(submitted));
+    notice.classList.toggle("is-error", state === "error");
+    notice.classList.toggle("is-success", state === "success" || Boolean(submitted));
+    button.textContent = submitted ? "SCORE SUBMITTED" : submitting ? "SUBMITTING SCORE…" : "SUBMIT TO LEADERBOARD";
+    button.disabled = Boolean(submitted || submitting || bestWave < 1);
+
+    if (message) {
+        notice.textContent = message;
+    } else if (submitting) {
+        notice.textContent = `Submitting WAVE ${bestWave} on ${leaderboardMapNames[mapId]}…`;
+    } else if (submitted) {
+        notice.textContent = "Your highest score for this map is saved in your single leaderboard spot.";
+    } else if (bestWave < 1) {
+        notice.textContent = "Clear at least one wave to submit an Endless score.";
+    } else if (!supabaseUser) {
+        notice.textContent = "Sign in to submit this run. You can return here after signing in.";
+    } else {
+        notice.textContent = `${leaderboardMapNames[mapId]} · WAVE ${bestWave} · YOUR BEST SCORE IS KEPT.`;
+    }
+}
+
+async function submitEndlessRunScore() {
+    if (!pendingEndlessScore || pendingEndlessScore.bestWave < 1) return;
+    if (!supabaseUser) {
+        showProfile();
+        setAccountNotice("SIGN IN OR CREATE AN ACCOUNT TO SUBMIT THIS RUN. RETURN HERE AFTER SIGNING IN.");
+        return;
+    }
+
+    const score = pendingEndlessScore;
+    score.submitting = true;
+    updateEndlessSubmissionUI();
+    try {
+        const client = await ensureSupabaseClient();
+        const { error } = await client.rpc("submit_endless_score", {
+            p_map_id: Number(score.mapId),
+            p_best_wave: Math.max(0, Math.floor(Number(score.bestWave) || 0))
         });
+        if (error) throw error;
+        if (pendingEndlessScore !== score) return;
+        saveEndlessRecord(score.mapId, score.bestWave);
+        score.submitting = false;
+        score.submitted = true;
+        updateEndlessSubmissionUI();
+    } catch (error) {
+        console.error("Endless score submission failed:", error.message || error);
+        if (pendingEndlessScore !== score) return;
+        score.submitting = false;
+        updateEndlessSubmissionUI(
+            `SUBMISSION FAILED: ${error.message || "CHECK YOUR CONNECTION AND TRY AGAIN."}`,
+            "error"
+        );
     }
 }
 
@@ -2772,7 +2951,7 @@ async function importLocalProgress(client, progress) {
             ? ["mason", "james", "cody", "britney", "zach", "brady"]
             : getLocalUnlockedSurvivors(),
         p_completed_campaign_levels: isSwitchingAccounts ? [] : playerProfile.campaignLevels,
-        p_endless_scores: isSwitchingAccounts ? {} : readEndlessRecords(),
+        p_endless_scores: {},
         p_callsign: accountUsername(),
         p_portrait_id: isSwitchingAccounts ? "mason" : playerProfile.portrait
     });
@@ -2854,8 +3033,14 @@ async function loadRemotePlayerData(user, generation) {
         .select("map_id,best_wave")
         .eq("user_id", user.id);
     if (scoresError) throw scoresError;
-    const records = {};
-    (scores || []).forEach(score => { records[score.map_id] = score.best_wave; });
+    let linkedUserId = "";
+    try { linkedUserId = localStorage.getItem(linkedCloudAccountKey) || ""; } catch { /* localStorage remains optional */ }
+    const records = !linkedUserId || linkedUserId === user.id
+        ? { ...readEndlessRecords() }
+        : {};
+    (scores || []).forEach(score => {
+        records[score.map_id] = Math.max(Number(records[score.map_id]) || 0, Number(score.best_wave) || 0);
+    });
     storeEndlessRecords(records);
     try { localStorage.setItem(linkedCloudAccountKey, user.id); } catch { /* localStorage remains an optional cache */ }
 
@@ -3281,6 +3466,7 @@ function showLeaderboard() {
         leaderboardReturnScreen = "menu";
     }
 
+    setMuteButtonVisible(false);
     gameRunning = false;
     previousTime = 0;
     mainMenu.style.display = "none";
@@ -3292,6 +3478,7 @@ function showLeaderboard() {
     gameLayout.style.display = "none";
     document.getElementById("gameOverScreen").style.display = "none";
     document.getElementById("victoryScreen").style.display = "none";
+    document.getElementById("endlessCoinReward").hidden = true;
     document.getElementById("leaderboardButton").style.visibility = "hidden";
     document.getElementById("profileButton").style.visibility = "hidden";
     document.getElementById("mainMenuButton").style.visibility = "hidden";
@@ -3299,6 +3486,10 @@ function showLeaderboard() {
 }
 
 function showProfile() {
+    profileReturnScreen = document.getElementById("gameOverScreen").style.display !== "none"
+        ? "gameover"
+        : "menu";
+    setMuteButtonVisible(false);
     gameRunning = false;
     previousTime = 0;
     mainMenu.style.display = "none";
@@ -3324,6 +3515,16 @@ function showProfile() {
 }
 
 function closeProfile() {
+    if (profileReturnScreen === "gameover") {
+        profileReturnScreen = "menu";
+        profileScreen.style.display = "none";
+        document.getElementById("gameOverScreen").style.display = "flex";
+        document.getElementById("leaderboardButton").style.visibility = "hidden";
+        document.getElementById("profileButton").style.visibility = "hidden";
+        document.getElementById("mainMenuButton").style.visibility = "visible";
+        updateEndlessSubmissionUI();
+        return;
+    }
     showMenu();
 }
 
@@ -3360,12 +3561,20 @@ function updateRunRecap(wavesCleared) {
 function endGame() {
     if (!gameRunning) return;
 
+    setMuteButtonVisible(false);
     cancelAutoStartWave();
     awaitingNextWave = false;
     hideWaveCompleteToast();
 
     if (gameMode === "endless") {
-        saveEndlessRecord(currentLevel, Math.max(0, currentWave - 1));
+        const bestWave = Math.max(0, currentWave - 1);
+        saveEndlessRecord(currentLevel, bestWave);
+        pendingEndlessScore = { mapId: currentLevel, bestWave, submitted: false, submitting: false };
+        awardEndlessRunCoins(bestWave, activeEndlessRunId);
+        activeEndlessRunId = null;
+    } else {
+        pendingEndlessScore = null;
+        renderEndlessCoinReward(0);
     }
 
     gameRunning = false;
@@ -3384,11 +3593,13 @@ function endGame() {
             : `WAVE REACHED: ${currentWave} / ${totalWaves}`;
 
     updateRunRecap(currentWave - 1);
+    updateEndlessSubmissionUI();
 
     document.getElementById("gameOverScreen").style.display = "flex";
 }
 
 function showMenu() {
+    setMuteButtonVisible(false);
     gameRunning = false;
     waveRunning = false;
     gamePaused = false;
@@ -3404,6 +3615,9 @@ function showMenu() {
     document.getElementById("startWaveButton").disabled = false;
     document.getElementById("returnMenuConfirm").style.display = "none";
     document.getElementById("restartConfirm").style.display = "none";
+    profileReturnScreen = "menu";
+    pendingEndlessScore = null;
+    updateEndlessSubmissionUI();
 
     // Reset the selected roster.
     selectedSurvivors.clear();
@@ -3437,9 +3651,11 @@ function showMenu() {
     gameLayout.style.display = "none";
     document.getElementById("gameOverScreen").style.display = "none";
     document.getElementById("victoryScreen").style.display = "none";
+    document.getElementById("endlessCoinReward").hidden = true;
 }
 
 function showCampaignSelect() {
+    setMuteButtonVisible(false);
     gameRunning = false;
     previousTime = 0;
     mainMenu.style.display = "none";
@@ -3456,6 +3672,7 @@ function showCampaignSelect() {
 }
 
 function showLevelSelect() {
+    setMuteButtonVisible(false);
     gameRunning = false;
     previousTime = 0;
     updateEndlessRecordDisplays();
@@ -3556,6 +3773,7 @@ bindUIEvent("dialogueContinue", "click", () => {
 });
 
 function showDeployment(level = 1) {
+    setMuteButtonVisible(false);
     currentLevel = level;
     roadPoints = campaignRoads[currentLevel];
     drawMap();
@@ -3594,8 +3812,13 @@ function startDefense() {
     }
 
     populateInGameRoster();
+    setMuteButtonVisible(true);
+    pendingEndlessScore = null;
+    updateEndlessSubmissionUI();
+    document.getElementById("endlessCoinReward").hidden = true;
 
     activeCampaignRunId = gameMode === "campaign" ? createRunId() : null;
+    activeEndlessRunId = gameMode === "endless" ? createRunId() : null;
 
     cancelAutoStartWave();
     awaitingNextWave = false;
@@ -3819,6 +4042,7 @@ bindUIEvent("endlessButton", "click", () => {
 });
 
 bindUIEvent("leaderboardButton", "click", showLeaderboard);
+bindUIEvent("muteButton", "click", () => setGameAudioMuted(!gameAudioMuted));
 bindUIEvent("leaderboardBackButton", "click", closeLeaderboard);
 bindUIEvent("profileButton", "click", showProfile);
 bindUIEvent("profileBackButton", "click", closeProfile);
@@ -3860,6 +4084,7 @@ bindUIEvent("returnToMenuButton", "click", () => {
     document.getElementById("gameOverScreen").style.display = "none";
     showMenu();
 });
+bindUIEvent("submitEndlessScoreButton", "click", submitEndlessRunScore);
 
 bindUIEvent("returnFromVictoryButton", "click", showMenu);
 

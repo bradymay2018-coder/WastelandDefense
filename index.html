@@ -11,13 +11,22 @@
 
 
 <header class="game-header">
-    <button id="leaderboardButton" class="header-nav-button" type="button" aria-label="Open leaderboards">
-        <span class="header-nav-mark" aria-hidden="true">#</span>
-        <span class="header-nav-copy">
-            <strong>LEADERBOARD</strong>
-            <small>ENDLESS RANKINGS</small>
-        </span>
-    </button>
+    <div class="header-nav-left">
+        <button id="muteButton" class="header-nav-button header-sound-button" type="button" aria-label="Mute sound" aria-pressed="false" title="Mute sound" hidden>
+            <span id="muteButtonMark" class="header-nav-mark" aria-hidden="true">♫</span>
+            <span class="header-nav-copy">
+                <strong>SOUND</strong>
+                <small id="muteButtonState">ON</small>
+            </span>
+        </button>
+        <button id="leaderboardButton" class="header-nav-button" type="button" aria-label="Open leaderboards">
+            <span class="header-nav-mark" aria-hidden="true">#</span>
+            <span class="header-nav-copy">
+                <strong>LEADERBOARD</strong>
+                <small>ENDLESS RANKINGS</small>
+            </span>
+        </button>
+    </div>
 
     <h1>WASTELAND DEFENSE</h1>
 
@@ -39,6 +48,21 @@
 
 
 <section id="mainMenu" class="main-menu" aria-labelledby="mainMenuTitle">
+    <section class="menu-whats-new" aria-labelledby="menuWhatsNewTitle">
+        <div class="menu-whats-new-heading">
+            <span class="menu-whats-new-mark" aria-hidden="true">✦</span>
+            <div>
+                <p class="menu-roadmap-kicker">LATEST UPDATE</p>
+                <h3 id="menuWhatsNewTitle">WHAT'S NEW</h3>
+            </div>
+            <span class="menu-whats-new-badge">NOW LIVE</span>
+        </div>
+        <div class="menu-whats-new-copy">
+            <strong>Profiles and Endless leaderboards are ready.</strong>
+            <p>Create an account to save your progress, submit your best runs, and add friends by username to compare scores.</p>
+        </div>
+    </section>
+
     <div class="menu-statusbar" aria-label="Field terminal status">
         <span>THE SAFEHOUSE <b>//</b> MAIN LOBBY</span>
         <span class="menu-link-status"><i aria-hidden="true"></i> READY WHEN YOU ARE</span>
@@ -141,20 +165,20 @@
                 <div>
                     <span class="menu-roadmap-kicker">SURVIVOR RECRUITS</span>
                     <strong>Make room for new faces.</strong>
-                    <p>Spend your credits to grow the crew.</p>
+                    <p>Spend your coins to unlock new survivors.</p>
                 </div>
                 <span class="menu-roadmap-status">COMING SOON</span>
             </article>
 
-            <article class="menu-roadmap-card menu-roadmap-friends">
-                <span class="menu-roadmap-icon menu-friends-icon" aria-hidden="true">VS</span>
+            <button class="menu-roadmap-card menu-roadmap-store" id="storeComingSoonButton" type="button" disabled aria-label="Survivor store, coming soon">
+                <span class="menu-roadmap-icon menu-store-icon" aria-hidden="true">◉</span>
                 <div>
-                    <span class="menu-roadmap-kicker">FRIENDS LEADERBOARD</span>
-                    <strong>Bragging rights are on the line.</strong>
-                    <p>Compare runs and see who holds out longest.</p>
+                    <span class="menu-roadmap-kicker">SURVIVOR STORE</span>
+                    <strong>Gear up for your next run.</strong>
+                    <p>Spend your coins on items to help your next run!</p>
                 </div>
                 <span class="menu-roadmap-status">COMING SOON</span>
-            </article>
+            </button>
         </div>
     </section>
 
@@ -622,6 +646,21 @@
                 <span>SCRAP ON HAND</span>
                 <strong id="gameOverScrapLeft">0</strong>
             </div>
+        </div>
+
+        <div id="endlessCoinReward" class="endless-coin-reward" role="status" aria-live="polite" hidden>
+            <span class="victory-coin-mark" aria-hidden="true">◉</span>
+            <span class="victory-coin-copy">
+                <small>ENDLESS RUN REWARD</small>
+                <strong id="gameOverCoinsEarned">+0 COINS</strong>
+            </span>
+            <span class="victory-coin-total">WALLET <strong id="gameOverCoinsTotal">0</strong></span>
+            <small id="endlessCoinRewardStatus" class="endless-coin-reward-status"></small>
+        </div>
+
+        <div id="endlessScoreSubmission" class="endless-score-submission" hidden>
+            <button id="submitEndlessScoreButton" type="button">SUBMIT TO LEADERBOARD</button>
+            <p id="endlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
         </div>
 
         <button id="returnToMenuButton" class="menu-button" type="button">

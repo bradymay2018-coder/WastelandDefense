@@ -2218,6 +2218,114 @@ button:focus-visible {
     }
 }
 
+/* Homepage update callout for the newly available account features. */
+#mainMenu .menu-whats-new {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 13px;
+    margin: 0 0 14px;
+    padding: 13px 15px;
+    background:
+        radial-gradient(circle, #91c9c614 1px, transparent 1.6px) 0 0 / 18px 18px,
+        linear-gradient(110deg, #22252a, #1b1c21 78%);
+    border: 1px solid #454a52;
+    border-left: 3px solid #91c9c6;
+    box-shadow: inset 0 1px #ffffff08;
+}
+
+#mainMenu .menu-whats-new-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#mainMenu .menu-whats-new-mark {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    place-items: center;
+    background: #28363a;
+    border: 1px solid #52787d;
+    color: #a7dcdd;
+    font-size: 19px;
+}
+
+#mainMenu .menu-whats-new-heading > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+#mainMenu .menu-whats-new-heading .menu-roadmap-kicker {
+    margin: 0;
+    color: #9ed0d1;
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+#mainMenu .menu-whats-new-heading h3 {
+    margin: 0;
+    color: #eee7de;
+    font-size: 11px;
+    letter-spacing: 1.3px;
+}
+
+#mainMenu .menu-whats-new-badge {
+    align-self: flex-start;
+    padding: 4px 6px;
+    background: #304246;
+    border: 1px solid #52787d;
+    color: #a7dcdd;
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    white-space: nowrap;
+}
+
+#mainMenu .menu-whats-new-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+}
+
+#mainMenu .menu-whats-new-copy strong {
+    color: #e9e6ed;
+    font-size: 9px;
+}
+
+#mainMenu .menu-whats-new-copy p {
+    margin: 0;
+    color: #aaa4af;
+    font-size: 8px;
+    line-height: 1.5;
+}
+
+@media (max-width: 700px) {
+    #mainMenu .menu-whats-new {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 11px;
+        padding: 12px;
+    }
+
+    #mainMenu .menu-whats-new-heading {
+        grid-column: 1;
+    }
+
+    #mainMenu .menu-whats-new-badge {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    #mainMenu .menu-whats-new-copy {
+        grid-column: 1 / -1;
+    }
+
+}
+
 /* Improve control-panel legibility and give every action a generous target. */
 main.game-layout > .control-panel {
     padding: 12px;
@@ -5005,6 +5113,144 @@ main.game-layout > .control-panel {
     }
 }
 
+/* Sound control sits beside the existing left-side header navigation. */
+.header-nav-left {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-self: start;
+    gap: 8px;
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.header-sound-button {
+    flex: 0 0 auto;
+    gap: 7px;
+    text-align: left;
+}
+
+.header-sound-button .header-nav-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.header-sound-button .header-nav-copy strong {
+    color: #e8dfd3;
+    font: inherit;
+}
+
+.header-sound-button .header-nav-copy small {
+    color: #edbd7a;
+    font-size: 7px;
+    letter-spacing: 1px;
+}
+
+#muteButton.is-muted {
+    border-color: #76575b;
+    color: #dfb5b2;
+}
+
+#muteButton.is-muted .header-nav-mark {
+    border-color: #76575b;
+    background: #442d32;
+    color: #e6a7a0;
+}
+
+/* Compact score-earned strip on the Endless run result card. */
+.endless-coin-reward[hidden] { display: none; }
+.endless-coin-reward {
+    display: flex;
+    min-height: 58px;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: -3px 0 13px;
+    padding: 9px 12px;
+    background:
+        radial-gradient(circle, #f0c76512 1px, transparent 1.6px) 0 0 / 18px 18px,
+        linear-gradient(110deg, #332b29, #222127 76%);
+    border: 1px solid #72593b;
+    border-left: 3px solid #f0c765;
+}
+
+.endless-coin-reward .victory-coin-mark {
+    font-size: 22px;
+}
+
+.endless-coin-reward .victory-coin-copy {
+    flex: 1 1 130px;
+}
+
+.endless-coin-reward .victory-coin-copy strong {
+    font-size: 14px;
+}
+
+.endless-coin-reward-status {
+    flex-basis: 100%;
+    margin-left: 32px;
+    color: #b8b1bb;
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.75px;
+    line-height: 1.35;
+}
+
+/* Survivor-store roadmap card takes over the now-live leaderboard teaser. */
+#mainMenu .menu-roadmap-store {
+    width: 100%;
+    font: inherit;
+    text-align: left;
+    border-top: 2px solid #e5b95e;
+    opacity: 0.8;
+    cursor: not-allowed;
+}
+
+#mainMenu .menu-roadmap-store .menu-store-icon {
+    border-color: #806b42;
+    background: #363124;
+    color: #f0cf7b;
+}
+
+#mainMenu .menu-roadmap-store .menu-roadmap-kicker {
+    color: #f0cf7b;
+}
+
+@media (max-width: 900px) {
+    .game-header .header-nav-left {
+        grid-column: 1;
+        grid-row: 1;
+    }
+}
+
+@media (max-width: 560px) {
+    .header-nav-left { gap: 5px; }
+    .header-sound-button .header-nav-copy small { font-size: 6px; }
+}
+
+@media (max-width: 440px) {
+    .header-nav-left { gap: 4px; }
+    #muteButton .header-nav-copy,
+    #leaderboardButton .header-nav-copy,
+    #profileButton .header-nav-copy,
+    #mainMenuButton > span:not(.header-nav-mark) {
+        display: none;
+    }
+
+    .game-header .header-nav-left .header-nav-button,
+    .game-header #profileButton,
+    .game-header #mainMenuButton {
+        width: 42px;
+        min-width: 42px;
+        justify-content: center;
+        padding: 5px;
+    }
+
+    .endless-coin-reward { gap: 7px; padding: 8px; }
+    .endless-coin-reward .victory-coin-total { font-size: 7px; }
+}
+
 /* A little ambient color and pixel dust keeps the safehouse screens from
    sitting on a flat black void. */
 body {
@@ -6016,6 +6262,55 @@ main.game-layout > .control-panel {
     line-height: 1;
     font-variant-numeric: tabular-nums;
 }
+
+.endless-score-submission[hidden] { display: none; }
+.endless-score-submission {
+    display: grid;
+    gap: 7px;
+    margin: 0 0 10px;
+}
+
+#submitEndlessScoreButton {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 14px;
+    background: linear-gradient(180deg, #f0c579, #d99e55);
+    border: 1px solid #f4d297;
+    border-bottom: 3px solid #805638;
+    border-radius: 3px;
+    color: #211a16;
+    font: 800 10px Consolas, "Courier New", monospace;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: filter 120ms ease, transform 120ms ease;
+}
+
+#submitEndlessScoreButton:hover:not(:disabled) {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+}
+
+#submitEndlessScoreButton:disabled {
+    cursor: default;
+    opacity: 0.72;
+}
+
+#submitEndlessScoreButton.is-submitted {
+    background: linear-gradient(180deg, #a6d0b2, #6e9f84);
+    border-color: #bde0c7;
+    border-bottom-color: #385d4a;
+}
+
+#endlessScoreSubmissionNotice {
+    min-height: 14px;
+    margin: 0;
+    color: #b8b1bb;
+    font-size: 8px;
+    line-height: 1.45;
+}
+
+#endlessScoreSubmissionNotice.is-success { color: #a6d0b2; }
+#endlessScoreSubmissionNotice.is-error { color: #e99a8c; }
 
 #returnToMenuButton,
 #returnFromVictoryButton {
@@ -7975,5 +8270,130 @@ main.game-layout > .control-panel {
         height: 40px;
         min-width: 40px;
         flex-basis: 40px;
+    }
+}
+
+/* Final responsive header adjustments for the added sound control. */
+.game-header .header-nav-left {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+#muteButton[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 440px) {
+    #muteButton .header-nav-copy,
+    #leaderboardButton .header-nav-copy,
+    #profileButton .header-nav-copy,
+    #mainMenuButton > span:not(.header-nav-mark) {
+        display: none;
+    }
+
+    .game-header .header-nav-left .header-nav-button,
+    .game-header #profileButton,
+    .game-header #mainMenuButton {
+        width: 42px;
+        min-width: 42px;
+        justify-content: center;
+        padding: 5px;
+    }
+}
+
+/* Bring the homepage's small labels and supporting copy up to a comfortable reading size. */
+#mainMenu .menu-statusbar {
+    font-size: 10px;
+    letter-spacing: 1.2px;
+}
+
+#mainMenu .menu-briefing-note strong {
+    font-size: 9px;
+}
+
+#mainMenu .menu-briefing-note small,
+#mainMenu .menu-mode-heading > span {
+    color: #b5b0bc;
+    font-size: 10px;
+}
+
+#mainMenu .menu-crew-count small {
+    font-size: 8px;
+}
+
+#mainMenu .menu-coins {
+    font-size: 9px;
+}
+
+#mainMenu .menu-crew-footer {
+    font-size: 10px;
+}
+
+#mainMenu .menu-crew-next {
+    font-size: 8px;
+}
+
+#mainMenu .menu-card > .menu-card-copy > span:last-child {
+    font-size: 11px;
+}
+
+#mainMenu .menu-card > span.menu-card-cta {
+    font-size: 9px;
+}
+
+#mainMenu .menu-roadmap-heading > span {
+    font-size: 9px;
+}
+
+#mainMenu .menu-roadmap-kicker {
+    font-size: 9px;
+}
+
+#mainMenu .menu-roadmap-card strong {
+    font-size: 11px;
+}
+
+#mainMenu .menu-roadmap-card p {
+    color: #b1adb7;
+    font-size: 10px;
+}
+
+#mainMenu .menu-roadmap-status,
+#mainMenu .menu-footer {
+    font-size: 9px;
+}
+
+#mainMenu .menu-whats-new-heading .menu-roadmap-kicker,
+#mainMenu .menu-whats-new-badge {
+    font-size: 9px;
+}
+
+#mainMenu .menu-whats-new-copy strong {
+    font-size: 11px;
+}
+
+#mainMenu .menu-whats-new-copy p {
+    color: #c0bbc5;
+    font-size: 10px;
+}
+
+@media (max-width: 620px) {
+    #mainMenu .menu-statusbar {
+        font-size: 9px;
+        letter-spacing: 0.6px;
+    }
+
+    #mainMenu .menu-card > span.menu-card-cta {
+        font-size: 8px;
+    }
+
+    #mainMenu .menu-coins {
+        font-size: 8px;
+    }
+}
+
+@media (max-width: 380px) {
+    #mainMenu .menu-statusbar {
+        font-size: 8px;
     }
 }
