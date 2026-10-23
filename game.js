@@ -2586,38 +2586,27 @@ function updateProfileStats() {
     document.getElementById("profileEndlessStat").textContent = String(bestWave);
     document.getElementById("profileMapRecordsStat").textContent =
         `${Math.min(6, mapRecordCount)} / 6`;
-    const trophyTotal = document.getElementById("profileTrophyTotal");
-    if (trophyTotal) trophyTotal.textContent = String(playerTrophyRecords.length);
-    renderProfileTrophyCollection();
+    renderProfileTrophyCounts();
 }
 
-function renderProfileTrophyCollection() {
-    const collection = document.getElementById("profileTrophyCollection");
-    if (!collection) return;
-    collection.replaceChildren();
+function renderProfileTrophyCounts() {
+    const countsPanel = document.getElementById("profileTrophyCounts");
+    if (!countsPanel) return;
+    countsPanel.replaceChildren();
 
-    if (playerTrophyRecords.length === 0) {
-        const empty = document.createElement("span");
-        empty.className = "profile-trophy-empty";
-        empty.textContent = "NO PODIUM TROPHIES YET — PLACE TOP 3 ON AN ENDLESS MAP.";
-        collection.append(empty);
-        return;
-    }
+    [1, 2, 3].forEach(place => {
+        const count = playerTrophyRecords.filter(trophy => Number(trophy.place) === place).length;
+        const counter = document.createElement("div");
+        counter.className = `profile-trophy-count trophy-place-${place}`;
+        counter.setAttribute("aria-label", `${trophyPlaceNames[place]} trophies: ${count}`);
+        counter.append(createTrophyIcon(place));
 
-    const orderedTrophies = [...playerTrophyRecords].sort((a, b) =>
-        Number(a.map_id) - Number(b.map_id) || Number(a.place) - Number(b.place)
-    );
-    orderedTrophies.forEach(trophy => {
-        const place = Number(trophy.place);
-        const mapName = leaderboardMapNames[Number(trophy.map_id)] || `MAP ${trophy.map_id}`;
-        const chip = document.createElement("span");
-        chip.className = `profile-trophy-chip trophy-place-${place}`;
-        chip.title = `${trophyPlaceNames[place] || "PODIUM"} TROPHY · ${mapName}`;
-        chip.append(createTrophyIcon(place));
-        const label = document.createElement("span");
-        label.textContent = `${mapName} · ${trophyPlaceNames[place] || "PODIUM"}`;
-        chip.append(label);
-        collection.append(chip);
+        const amount = document.createElement("strong");
+        amount.textContent = `×${count}`;
+        const label = document.createElement("small");
+        label.textContent = trophyPlaceNames[place];
+        counter.append(amount, label);
+        countsPanel.append(counter);
     });
 }
 

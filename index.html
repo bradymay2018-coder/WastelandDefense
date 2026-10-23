@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wasteland Defense</title>
-    <link rel="stylesheet" href="style.css?v=20261023-10">
+    <link rel="stylesheet" href="style.css?v=20261023-11">
 </head>
 <body>
 
@@ -282,13 +282,10 @@
                 </div>
                 <section class="profile-stat profile-stat-trophies" aria-labelledby="profileTrophyTitle">
                     <div class="profile-trophy-summary">
-                        <div>
-                            <span id="profileTrophyTitle">CAREER TROPHIES</span>
-                            <strong id="profileTrophyTotal">0</strong>
-                        </div>
+                        <span id="profileTrophyTitle">ENDLESS TROPHIES</span>
                         <small>Podium awards stay here even if your rank drops.</small>
                     </div>
-                    <div id="profileTrophyCollection" class="profile-trophy-collection" aria-live="polite"></div>
+                    <div id="profileTrophyCounts" class="profile-trophy-counts" role="group" aria-label="Endless trophies by type"></div>
                 </section>
             </div>
         </div>
@@ -921,6 +918,6 @@
 </div>
 
 <script src="supabase-config.js?v=20261023-02"></script>
-<script src="game.js?v=20261023-08"></script>
+<script src="game.js?v=20261023-09"></script>
 </body>
 </html>
