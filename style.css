@@ -6315,7 +6315,9 @@ main.game-layout > .control-panel {
     margin: 0 0 10px;
 }
 
-#submitEndlessScoreButton {
+#submitEndlessScoreButton,
+#restartRunButton,
+#returnToMenuButton {
     width: 100%;
     min-height: 48px;
     padding: 0 14px;
@@ -6330,7 +6332,9 @@ main.game-layout > .control-panel {
     transition: filter 120ms ease, transform 120ms ease;
 }
 
-#submitEndlessScoreButton:hover:not(:disabled) {
+#submitEndlessScoreButton:hover:not(:disabled),
+#restartRunButton:hover:not(:disabled),
+#returnToMenuButton:hover:not(:disabled) {
     filter: brightness(1.08);
     transform: translateY(-1px);
 }
@@ -6357,8 +6361,6 @@ main.game-layout > .control-panel {
 #endlessScoreSubmissionNotice.is-success { color: #a6d0b2; }
 #endlessScoreSubmissionNotice.is-error { color: #e99a8c; }
 
-#restartRunButton,
-#returnToMenuButton,
 #returnFromVictoryButton {
     width: 100%;
     min-height: 44px;

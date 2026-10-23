@@ -42,6 +42,21 @@ skitterImage.src = "Images/Skitter.png";
 
 const hollowImage = new Image();
 hollowImage.src = "Images/Hollow.png";
+
+const fogkeeperImage = new Image();
+fogkeeperImage.src = "Images/Fogkeeper.png";
+
+const heavyMutantImage = new Image();
+heavyMutantImage.src = "Images/Heavymutant.png";
+
+const wastelandCowImage = new Image();
+wastelandCowImage.src = "Images/Wastelandcow.png";
+
+const mutantManImage = new Image();
+mutantManImage.src = "Images/Mutantman.png";
+
+const mutantSnakeImage = new Image();
+mutantSnakeImage.src = "Images/MutantSnake.png";
 canvas.addEventListener("contextmenu", function(event) {
     event.preventDefault();
 });
@@ -749,6 +764,116 @@ let playerHealth = 100;
 let totalEnemiesDefeated = 0;
 const enemyDamage = 12;
 
+const enemyProfiles = {
+    spider: {
+        image: spiderImage,
+        baseHealth: 100,
+        speed: 69,
+        size: 22,
+        spriteWidth: 44,
+        spriteHeight: 44,
+        leakDamage: enemyDamage
+    },
+    skitter: {
+        image: skitterImage,
+        baseHealth: 72,
+        speed: 100,
+        size: 22,
+        spriteWidth: 44,
+        spriteHeight: 44,
+        leakDamage: 8
+    },
+    hollow: {
+        image: hollowImage,
+        baseHealth: 220,
+        speed: 50,
+        size: 32,
+        spriteWidth: 32,
+        spriteHeight: 64,
+        leakDamage: 25,
+        isBoss: true
+    },
+    fogkeeper: {
+        image: fogkeeperImage,
+        baseHealth: 185,
+        speed: 54,
+        size: 28,
+        spriteWidth: 32,
+        spriteHeight: 64,
+        leakDamage: 18,
+        isHeavy: true
+    },
+    heavymutant: {
+        image: heavyMutantImage,
+        baseHealth: 205,
+        speed: 48,
+        size: 28,
+        spriteWidth: 32,
+        spriteHeight: 64,
+        leakDamage: 20,
+        isHeavy: true
+    },
+    wastelandcow: {
+        image: wastelandCowImage,
+        baseHealth: 100,
+        speed: 69,
+        size: 22,
+        spriteWidth: 44,
+        spriteHeight: 44,
+        leakDamage: enemyDamage
+    },
+    mutantman: {
+        image: mutantManImage,
+        baseHealth: 100,
+        speed: 69,
+        size: 22,
+        spriteWidth: 44,
+        spriteHeight: 44,
+        leakDamage: enemyDamage
+    },
+    mutantsnake: {
+        image: mutantSnakeImage,
+        baseHealth: 125,
+        speed: 100,
+        size: 23,
+        spriteWidth: 44,
+        spriteHeight: 44,
+        leakDamage: 10
+    }
+};
+
+const enemyLabels = {
+    spider: "SPIDER",
+    skitter: "SKITTER",
+    hollow: "THE HOLLOW",
+    fogkeeper: "FOGKEEPER",
+    heavymutant: "HEAVY MUTANT",
+    wastelandcow: "WASTELAND COW",
+    mutantman: "MUTANT MAN",
+    mutantsnake: "MUTANT SNAKE"
+};
+
+function getEnemyProfile(type) {
+    return enemyProfiles[type] || enemyProfiles.spider;
+}
+
+function interleaveEnemyTypes(typeCounts) {
+    const remaining = Object.entries(typeCounts)
+        .filter(([, count]) => count > 0)
+        .map(([type, count]) => ({ type, count, spawned: 0 }));
+    const sequence = [];
+
+    while (sequence.length < remaining.reduce((total, entry) => total + entry.count, 0)) {
+        for (const entry of remaining) {
+            if (entry.spawned >= entry.count) continue;
+            sequence.push(entry.type);
+            entry.spawned++;
+        }
+    }
+
+    return sequence;
+}
+
 function updatePlayerHealthDisplay() {
     const health = Math.max(0, Math.min(100, playerHealth));
     const track = document.querySelector(".health-track");
@@ -766,9 +891,7 @@ function updatePlayerHealthDisplay() {
 }
 
 function spawnEnemy(type = "spider") {
-    const isSkitter = type === "skitter";
-    const isHollow = type === "hollow";
-    const baseHealth = isHollow ? 220 : isSkitter ? 72 : 100;
+    const profile = getEnemyProfile(type);
     const endlessDifficultyTier = gameMode === "endless" && currentWave >= 10
         ? Math.floor((currentWave - 10) / 5) + 1
         : 0;
@@ -778,8 +901,7 @@ function spawnEnemy(type = "spider") {
     const waveHealthScale =
         (1 + Math.max(0, currentWave - 3) * healthGrowthPerWave) *
         (1 + endlessDifficultyTier * 0.12);
-    const health = Math.round(baseHealth * waveHealthScale);
-    const baseSpeed = isHollow ? 50 : isSkitter ? 100 : 69;
+    const health = Math.round(profile.baseHealth * waveHealthScale);
 
     enemies.push({
         type: type,
@@ -789,8 +911,8 @@ function spawnEnemy(type = "spider") {
         visualLaneOffsetY: roadPoints[0].y === roadPoints[1]?.y
             ? horizontalEnemyLaneVisualOffset
             : 0,
-        speed: baseSpeed * (1 + endlessDifficultyTier * 0.035),
-        size: isHollow ? 32 : 22,
+        speed: profile.speed * (1 + endlessDifficultyTier * 0.035),
+        size: profile.size,
         health: health,
         maxHealth: health
     });
@@ -831,9 +953,36 @@ function getWaveGroups(wave) {
         ? Math.min(0.42, 0.28 + Math.max(0, wave - 6) * 0.012)
         : Math.min(0.38, 0.26 + Math.max(0, wave - 6) * 0.015);
     const skitterCount = Math.floor(totalEnemies * skitterRatio);
+    const snakeCount = wave >= 8
+        ? Math.max(1, Math.floor(totalEnemies * 0.08))
+        : 0;
+    const heavyCount = wave >= 10 && wave % 5 === 0
+        ? Math.min(3, 1 + Math.floor((wave - 10) / 10))
+        : 0;
+    const standardCount = Math.max(0, totalEnemies - skitterCount - snakeCount);
+    const cowCount = wave >= 6 ? Math.floor(standardCount * 0.1) : 0;
+    const mutantManCount = wave >= 6 ? Math.floor(standardCount * 0.1) : 0;
+    const heavyType = Math.floor(wave / 5) % 2 === 0
+        ? "fogkeeper"
+        : "heavymutant";
+    const spiderCount = Math.max(
+        0,
+        standardCount - cowCount - mutantManCount - heavyCount
+    );
+
+    const standardTypes = interleaveEnemyTypes({
+        spider: spiderCount,
+        wastelandcow: cowCount,
+        mutantman: mutantManCount,
+        [heavyType]: heavyCount
+    });
+    const fastTypes = interleaveEnemyTypes({
+        skitter: skitterCount,
+        mutantsnake: snakeCount
+    });
     const groups = [
-        { type: "spider", count: totalEnemies - skitterCount },
-        { type: "skitter", count: skitterCount }
+        { types: standardTypes, count: standardTypes.length },
+        { types: fastTypes, count: fastTypes.length }
     ].filter(group => group.count > 0);
 
     // Tough hulks return as milestone threats instead of disappearing after wave 5.
@@ -863,6 +1012,7 @@ function startWave() {
 
     enemyGroups = groups.map(group => ({ ...group }));
     currentGroupIndex = 0;
+    currentGroupSpawnIndex = 0;
     groupDelayStarted = false;
     enemiesToSpawn = enemyGroups[0].count;
     spawnTimer = 0;
@@ -1945,11 +2095,7 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
 enemy.finished = true;
 leakedEnemiesThisWave++;
 
-const leakDamage = enemy.type === "hollow"
-    ? 25
-    : enemy.type === "skitter"
-        ? 8
-        : enemyDamage;
+const leakDamage = getEnemyProfile(enemy.type).leakDamage;
 playerHealth = Math.max(0, playerHealth - leakDamage);
 updatePlayerHealthDisplay();
 
@@ -1981,7 +2127,8 @@ function drawEnemies() {
 
     // Draw ground shadows first so they sit beneath every enemy sprite.
     for (const enemy of enemies) {
-        const spriteHeight = enemy.type === "hollow" ? 64 : 44;
+        const profile = getEnemyProfile(enemy.type);
+        const spriteHeight = profile.spriteHeight;
         const hitOffsetX = enemy.hitOffsetX || 0;
         const hitOffsetY = enemy.hitOffsetY || 0;
 
@@ -1991,7 +2138,7 @@ function drawEnemies() {
         ctx.ellipse(
             enemy.x + hitOffsetX,
             enemy.y + hitOffsetY + (enemy.visualLaneOffsetY || 0) + spriteHeight / 2 - 5,
-            enemy.type === "hollow" ? 11 : 12,
+            profile.isHeavy || profile.isBoss ? 14 : 12,
             4.5,
             0,
             0,
@@ -2002,17 +2149,11 @@ function drawEnemies() {
     }
 
     for (const enemy of enemies) {
-        const isHollow = enemy.type === "hollow";
-        const isSkitter = enemy.type === "skitter";
-
-        const image = isHollow
-            ? hollowImage
-            : isSkitter
-                ? skitterImage
-                : spiderImage;
-
-        const spriteWidth = isHollow ? 32 : 44;
-        const spriteHeight = isHollow ? 64 : 44;
+        const profile = getEnemyProfile(enemy.type);
+        const isHollow = profile.isBoss === true;
+        const image = profile.image;
+        const spriteWidth = profile.spriteWidth;
+        const spriteHeight = profile.spriteHeight;
 
         if (isHollow && enemy.health > 0) {
             hollowAlive = true;
@@ -2051,7 +2192,7 @@ function drawEnemies() {
 
         // Small health bars for regular enemies.
         if (!isHollow) {
-            const barWidth = 30;
+            const barWidth = profile.isHeavy ? 36 : 30;
             const barHeight = 5;
             const barX = spriteX - barWidth / 2;
             const barY = spriteY - spriteHeight / 2 - 12;
@@ -2190,6 +2331,7 @@ const groupSpawnDelay = 5;
 const enemySpawnDelay = 1.2;
 let enemyGroups = [];
 let currentGroupIndex = 0;
+let currentGroupSpawnIndex = 0;
 let groupDelayStarted = false;
 let autoStartWaves = false;
 let awaitingNextWave = false;
@@ -2313,7 +2455,10 @@ function updateWaveSystem(deltaTime) {
                 return;
             }
 
-            spawnEnemy(group.type);
+            const enemyTypes = group.types?.length ? group.types : [group.type];
+            const enemyType = enemyTypes[currentGroupSpawnIndex % enemyTypes.length];
+            spawnEnemy(enemyType);
+            currentGroupSpawnIndex++;
             enemiesToSpawn--;
             spawnTimer = enemySpawnDelay;
         }
@@ -2331,6 +2476,7 @@ function updateWaveSystem(deltaTime) {
 
         if (spawnTimer <= 0) {
             currentGroupIndex++;
+            currentGroupSpawnIndex = 0;
             enemiesToSpawn = enemyGroups[currentGroupIndex].count;
             groupDelayStarted = false;
             spawnTimer = 0;
@@ -4899,21 +5045,24 @@ function updateWavePreview() {
 
     const groups = getWaveGroups(currentWave);
     const totalEnemies = groups.reduce((total, group) => total + group.count, 0);
-    const hasHollow = groups.some(group => group.type === "hollow");
-    const hasSkitter = groups.some(group => group.type === "skitter");
-    const isMixed = groups.length > 1;
-    const mainType = hasHollow ? "hollow" : hasSkitter && !isMixed ? "skitter" : "spider";
-    const labels = {
-        spider: "SPIDER",
-        skitter: "SKITTER",
-        hollow: "THE HOLLOW"
-    };
-    const imageFiles = {
-        spider: "Images/spider.png",
-        skitter: "Images/Skitter.png",
-        hollow: "Images/Hollow.png"
-    };
-    const threat = hasHollow || totalEnemies >= 30
+    const waveTypes = new Set(groups.flatMap(group =>
+        group.types?.length ? group.types : [group.type]
+    ));
+    const hasHollow = waveTypes.has("hollow");
+    const hasHeavy = [...waveTypes].some(type => getEnemyProfile(type).isHeavy);
+    const hasSkitter = waveTypes.has("skitter");
+    const hasMutantSnake = waveTypes.has("mutantsnake");
+    const isMixed = waveTypes.size > 1;
+    const mainType = hasHollow
+        ? "hollow"
+        : hasHeavy
+            ? [...waveTypes].find(type => getEnemyProfile(type).isHeavy)
+            : hasMutantSnake
+                ? "mutantsnake"
+                : hasSkitter && !isMixed
+                    ? "skitter"
+                    : [...waveTypes][0] || "spider";
+    const threat = hasHollow || hasHeavy || totalEnemies >= 30
         ? "SEVERE"
         : totalEnemies >= 20
             ? "HIGH"
@@ -4924,11 +5073,11 @@ function updateWavePreview() {
     document.getElementById("previewWaveTitle").textContent =
         `WAVE ${currentWave} INTEL`;
     document.getElementById("previewThreat").textContent = threat;
-    document.getElementById("previewEnemyImage").src = imageFiles[mainType];
-    document.getElementById("previewEnemyImage").alt = labels[mainType];
+    document.getElementById("previewEnemyImage").src = getEnemyProfile(mainType).image.src;
+    document.getElementById("previewEnemyImage").alt = enemyLabels[mainType] || "HOSTILE";
     document.getElementById("previewEnemyName").textContent = isMixed
         ? "MIXED HOSTILES"
-        : labels[mainType];
+        : enemyLabels[mainType] || "HOSTILE";
     document.getElementById("previewEnemyHint").textContent =
         `${totalEnemies} hostile contact${totalEnemies === 1 ? "" : "s"} expected`;
     document.getElementById("previewEnemyCount").textContent = `×${totalEnemies}`;
