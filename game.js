@@ -864,7 +864,7 @@ let moveMode = false;
 
 const survivorCosts = {
     mason: 60,
-    james: 90,
+    james: 140,
     cody: 120,
     britney: 150,
     zach: 75,
@@ -4316,7 +4316,7 @@ const survivorDetails = {
         role: "FLAMETHROWER",
         icon: "J",
         iconClass: "pyro",
-        cost: 90,
+        cost: 140,
         unlocked: true
     },
     cody: {
