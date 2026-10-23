@@ -1303,8 +1303,8 @@ portrait.alt = person.name + "'s portrait";    document.getElementById("survivor
 
 document.getElementById("survivorKills").textContent =
     deployedUnit ? deployedUnit.kills || 0 : 0;
-    document.getElementById("survivorDetailFireRate").textContent =
-        (1 / detail.fireRate).toFixed(2) + " shots/s";
+    document.getElementById("survivorDetailDps").textContent =
+        (detail.damage / detail.fireRate).toFixed(1);
 
    
 document.getElementById("survivorDetailDescription").textContent =
@@ -2256,8 +2256,12 @@ function showInsufficientScrapToast() {
         insufficientScrapToastTimer = null;
     }
 
-    toast.setAttribute("aria-hidden", "false");
+    // Restart the entrance animation and give the warning a fresh full second
+    // even when the player clicks the unaffordable card repeatedly.
+    toast.classList.remove("is-visible");
+    toast.setAttribute("aria-hidden", "true");
     void toast.offsetWidth;
+    toast.setAttribute("aria-hidden", "false");
     toast.classList.add("is-visible");
     insufficientScrapToastTimer = window.setTimeout(() => {
         toast.classList.remove("is-visible");
@@ -4155,6 +4159,8 @@ function startDefense() {
 
     deploymentScreen.style.display = "none";
     gameLayout.style.display = "grid";
+    document.getElementById("gameOverScreen").style.display = "none";
+    document.getElementById("victoryScreen").style.display = "none";
     profileScreen.style.display = "none";
     leaderboardScreen.style.display = "none";
     document.getElementById("leaderboardButton").style.visibility = "hidden";
@@ -4312,6 +4318,7 @@ bindUIEvent("level6Button", "click", () => {
 });
 bindUIEvent("backToLevelsButton", "click", showLevelSelect);
 bindUIEvent("startDefenseButton", "click", startDefense);
+bindUIEvent("restartRunButton", "click", startDefense);
 
 
 bindUIEvent("startWaveButton", "click", startWave);

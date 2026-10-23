@@ -6312,6 +6312,7 @@ main.game-layout > .control-panel {
 #endlessScoreSubmissionNotice.is-success { color: #a6d0b2; }
 #endlessScoreSubmissionNotice.is-error { color: #e99a8c; }
 
+#restartRunButton,
 #returnToMenuButton,
 #returnFromVictoryButton {
     width: 100%;

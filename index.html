@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wasteland Defense</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1">
-    <link rel="stylesheet" href="style.css?v=20261023-19">
+    <link rel="stylesheet" href="style.css?v=20261023-20">
 </head>
 <body>
 
@@ -679,6 +679,9 @@
             <p id="endlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
         </div>
 
+        <button id="restartRunButton" class="menu-button" type="button">
+            RESTART RUN
+        </button>
         <button id="returnToMenuButton" class="menu-button" type="button">
             RETURN TO MENU
         </button>
@@ -870,8 +873,8 @@
                     <strong id="survivorDetailRange">0</strong>
                 </div>
                 <div>
-                    <span>FIRE RATE</span>
-                    <strong id="survivorDetailFireRate">0</strong>
+                    <span>DPS</span>
+                    <strong id="survivorDetailDps">0</strong>
                 </div>
             </div>
 
@@ -925,6 +928,6 @@
 </div>
 
 <script src="supabase-config.js?v=20261023-02"></script>
-<script src="game.js?v=20261023-14"></script>
+<script src="game.js?v=20261023-17"></script>
 </body>
 </html>
