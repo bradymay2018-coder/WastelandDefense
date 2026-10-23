@@ -8823,6 +8823,113 @@ main.game-layout > .control-panel {
     padding: 6px 8px;
 }
 
+/* On phones, keep the lobby's two destinations labeled and give them a full row. */
+@media (max-width: 560px) {
+    .game-header.is-main-menu {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: auto auto;
+        column-gap: 6px;
+        row-gap: 8px;
+        align-items: center;
+    }
+
+    .game-header.is-main-menu #mainMenuButton {
+        display: none;
+    }
+
+    .game-header.is-main-menu .header-nav-left {
+        grid-column: 1;
+        grid-row: 1;
+        gap: 4px;
+    }
+
+    .game-header.is-main-menu h1 {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-self: center;
+        font-size: clamp(16px, 5vw, 22px);
+        letter-spacing: 1.2px;
+    }
+
+    .game-header.is-main-menu #leaderboardButton,
+    .game-header.is-main-menu #profileButton {
+        box-sizing: border-box;
+        display: inline-flex;
+        height: 46px;
+        min-height: 46px;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 5px 7px;
+        gap: 6px;
+    }
+
+    .game-header.is-main-menu #leaderboardButton {
+        width: 132px;
+        min-width: 132px;
+    }
+
+    .game-header.is-main-menu #profileButton {
+        grid-column: 2;
+        grid-row: 1;
+        justify-self: end;
+        width: 96px;
+        min-width: 96px;
+    }
+
+    .game-header.is-main-menu #leaderboardButton .header-nav-copy,
+    .game-header.is-main-menu #profileButton .header-nav-copy {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .game-header.is-main-menu #leaderboardButton .header-nav-copy strong,
+    .game-header.is-main-menu #profileButton .header-nav-copy strong {
+        display: block;
+        font-size: 8px;
+        letter-spacing: 0.35px;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .game-header.is-main-menu #leaderboardButton .header-nav-copy small,
+    .game-header.is-main-menu #profileButton .header-nav-copy small {
+        display: none;
+    }
+
+    .game-header.is-main-menu #leaderboardButton .header-nav-mark,
+    .game-header.is-main-menu #profileButton .header-nav-mark {
+        display: grid;
+        width: 25px;
+        height: 25px;
+        flex: 0 0 25px;
+        font-size: 9px;
+    }
+}
+
+@media (max-width: 380px) {
+    .game-header.is-main-menu #leaderboardButton {
+        width: 120px;
+        min-width: 120px;
+        gap: 5px;
+        padding-inline: 6px;
+    }
+
+    .game-header.is-main-menu #profileButton {
+        width: 90px;
+        min-width: 90px;
+        gap: 5px;
+        padding-inline: 6px;
+    }
+
+    .game-header.is-main-menu #leaderboardButton .header-nav-copy strong,
+    .game-header.is-main-menu #profileButton .header-nav-copy strong {
+        font-size: 7.5px;
+        letter-spacing: 0.2px;
+    }
+}
+
 .game-header:not(.is-main-menu) #mainMenuButton > span:not(.header-nav-mark) {
     font-size: 8px;
     letter-spacing: 0.65px;
