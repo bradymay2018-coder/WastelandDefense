@@ -2903,7 +2903,18 @@ function showOpeningDialogue() {
     }, 35);
 }
 
-document.getElementById("dialogueContinue").addEventListener("click", () => {
+function bindUIEvent(id, eventName, handler, options) {
+    const element = document.getElementById(id);
+    if (!element) {
+        console.warn(`[Wasteland Defense] Skipping ${eventName} handler: #${id} is missing from the page.`);
+        return false;
+    }
+
+    element.addEventListener(eventName, handler, options);
+    return true;
+}
+
+bindUIEvent("dialogueContinue", "click", () => {
     if (!dialogueFinished) {
         clearInterval(dialogueTimer);
         document.getElementById("dialogueText").textContent = openingDialogue;
@@ -3012,13 +3023,13 @@ moveMode = false;
 }
 }
 
-document.getElementById("campaignButton").addEventListener("click", () => {
+bindUIEvent("campaignButton", "click", () => {
     gameMode = "campaign";
     showCampaignSelect();
 });
-document.getElementById("campaignBackButton").addEventListener("click", showMenu);
-document.getElementById("outskirtsCampaignButton").addEventListener("click", showLevelSelect);
-document.getElementById("backToMenuButton").addEventListener("click", () => {
+bindUIEvent("campaignBackButton", "click", showMenu);
+bindUIEvent("outskirtsCampaignButton", "click", showLevelSelect);
+bindUIEvent("backToMenuButton", "click", () => {
     if (gameMode === "campaign") {
         showCampaignSelect();
     } else {
@@ -3039,7 +3050,7 @@ function resumeWaveAfterCancel(shouldResume) {
         `Wave ${currentWave} in progress.`;
 }
 
-document.getElementById("mainMenuButton").addEventListener("click", () => {
+bindUIEvent("mainMenuButton", "click", () => {
     if (!gameRunning) {
         showMenu();
         return;
@@ -3059,7 +3070,7 @@ document.getElementById("mainMenuButton").addEventListener("click", () => {
     document.getElementById("cancelReturnButton").focus();
 });
 
-document.getElementById("cancelReturnButton").addEventListener("click", () => {
+bindUIEvent("cancelReturnButton", "click", () => {
     document.getElementById("returnMenuConfirm").style.display = "none";
     resumeWaveAfterCancel(resumeAfterReturnCancel);
     resumeAfterReturnCancel = false;
@@ -3067,13 +3078,13 @@ document.getElementById("cancelReturnButton").addEventListener("click", () => {
     document.getElementById("mainMenuButton").focus();
 });
 
-document.getElementById("confirmReturnButton").addEventListener("click", () => {
+bindUIEvent("confirmReturnButton", "click", () => {
     document.getElementById("returnMenuConfirm").style.display = "none";
     resumeAfterReturnCancel = false;
     showMenu();
 });
 
-document.getElementById("cancelRestartButton").addEventListener("click", () => {
+bindUIEvent("cancelRestartButton", "click", () => {
     document.getElementById("restartConfirm").style.display = "none";
     resumeWaveAfterCancel(resumeAfterRestartCancel);
     resumeAfterRestartCancel = false;
@@ -3081,7 +3092,7 @@ document.getElementById("cancelRestartButton").addEventListener("click", () => {
     document.getElementById("startOverButton").focus();
 });
 
-document.getElementById("confirmRestartButton").addEventListener("click", () => {
+bindUIEvent("confirmRestartButton", "click", () => {
     document.getElementById("restartConfirm").style.display = "none";
     resumeAfterRestartCancel = false;
     startDefense();
@@ -3095,39 +3106,39 @@ document.addEventListener("keydown", event => {
     }
 });
 
-document.getElementById("level1Button").addEventListener("click", () => {
+bindUIEvent("level1Button", "click", () => {
     showDeployment(1);
 });
-document.getElementById("level2Button").addEventListener("click", () => {
+bindUIEvent("level2Button", "click", () => {
     showDeployment(2);
 });
 
-document.getElementById("level3Button").addEventListener("click", () => {
+bindUIEvent("level3Button", "click", () => {
     showDeployment(3);
 });
 
-document.getElementById("level4Button").addEventListener("click", () => {
+bindUIEvent("level4Button", "click", () => {
     showDeployment(4);
 });
 
-document.getElementById("level5Button").addEventListener("click", () => {
+bindUIEvent("level5Button", "click", () => {
     showDeployment(5);
 });
 
-document.getElementById("level6Button").addEventListener("click", () => {
+bindUIEvent("level6Button", "click", () => {
     showDeployment(6);
 });
-document.getElementById("backToLevelsButton").addEventListener("click", showLevelSelect);
-document.getElementById("startDefenseButton").addEventListener("click", startDefense);
+bindUIEvent("backToLevelsButton", "click", showLevelSelect);
+bindUIEvent("startDefenseButton", "click", startDefense);
 
 
-document.getElementById("startWaveButton").addEventListener("click", startWave);
+bindUIEvent("startWaveButton", "click", startWave);
 
-document.getElementById("autoStartButton").addEventListener("click", () => {
+bindUIEvent("autoStartButton", "click", () => {
     setAutoStartWaves(!autoStartWaves);
 });
 
-document.getElementById("startOverButton").addEventListener("click", () => {
+bindUIEvent("startOverButton", "click", () => {
     cancelAutoStartWave();
     hideWaveCompleteToast();
     if (waveRunning && !gamePaused) {
@@ -3143,7 +3154,7 @@ document.getElementById("startOverButton").addEventListener("click", () => {
 
 
 
-document.getElementById("pauseButton").addEventListener("click", () => {
+bindUIEvent("pauseButton", "click", () => {
     if (!waveRunning) return;
 
     gamePaused = !gamePaused;
@@ -3158,7 +3169,7 @@ document.getElementById("pauseButton").addEventListener("click", () => {
 });
 let gameSpeed = 1;
 
-document.getElementById("speedButton").addEventListener("click", () => {
+bindUIEvent("speedButton", "click", () => {
     gameSpeed++;
 
     if (gameSpeed > 5) {
@@ -3170,25 +3181,25 @@ document.getElementById("speedButton").addEventListener("click", () => {
 
 
 
-document.getElementById("endlessButton").addEventListener("click", () => {
+bindUIEvent("endlessButton", "click", () => {
     gameMode = "endless";
     updateRosterSummary();
     showLevelSelect();
 });
 
-document.getElementById("leaderboardButton").addEventListener("click", showLeaderboard);
-document.getElementById("leaderboardBackButton").addEventListener("click", closeLeaderboard);
-document.getElementById("profileButton").addEventListener("click", showProfile);
-document.getElementById("profileBackButton").addEventListener("click", closeProfile);
-document.getElementById("profileCallsignForm").addEventListener("submit", event => {
+bindUIEvent("leaderboardButton", "click", showLeaderboard);
+bindUIEvent("leaderboardBackButton", "click", closeLeaderboard);
+bindUIEvent("profileButton", "click", showProfile);
+bindUIEvent("profileBackButton", "click", closeProfile);
+bindUIEvent("profileCallsignForm", "submit", event => {
     event.preventDefault();
     saveProfileCallsign();
 });
-document.getElementById("profilePortraitOptions").addEventListener("click", event => {
+bindUIEvent("profilePortraitOptions", "click", event => {
     const option = event.target.closest("button[data-profile-portrait]");
     if (option) saveProfilePortrait(option.dataset.profilePortrait);
 });
-document.getElementById("leaderboardMyRunsButton").addEventListener("click", () => {
+bindUIEvent("leaderboardMyRunsButton", "click", () => {
     activeLeaderboardScope = activeLeaderboardScope === "runs" ? "global" : "runs";
     renderLeaderboard();
 });
@@ -3207,12 +3218,12 @@ document.querySelectorAll("[data-leaderboard-map]").forEach(button => {
     });
 });
 
-document.getElementById("returnToMenuButton").addEventListener("click", () => {
+bindUIEvent("returnToMenuButton", "click", () => {
     document.getElementById("gameOverScreen").style.display = "none";
     showMenu();
 });
 
-document.getElementById("returnFromVictoryButton").addEventListener("click", showMenu);
+bindUIEvent("returnFromVictoryButton", "click", showMenu);
 
 /* SURVIVOR ROSTER SELECTION */
 
@@ -3379,7 +3390,7 @@ card.addEventListener("click", () => {
     rosterCountDisplay.textContent = selectedSurvivors.size + " UNITS";
 }
 
-document.getElementById("cancelPlacementButton").addEventListener("click", () => {
+bindUIEvent("cancelPlacementButton", "click", () => {
     selectedSurvivor = null;
 
     document.getElementById("survivorDetailsPanel").style.display = "none";
@@ -3447,7 +3458,7 @@ function updateSellButton() {
     sellButton.textContent = "SELL — " + refund + " SCRAP";
 }
 
-document.getElementById("upgradeSurvivorButton").addEventListener("click", () => {
+bindUIEvent("upgradeSurvivorButton", "click", () => {
     const survivor = inspectedSurvivor;
     if (!survivor || !survivors.includes(survivor) || selectedSurvivor || !gameRunning) return;
 
@@ -3468,7 +3479,7 @@ document.getElementById("upgradeSurvivorButton").addEventListener("click", () =>
     renderGame();
 });
 
-document.getElementById("sellSurvivorButton").addEventListener("click", () => {
+bindUIEvent("sellSurvivorButton", "click", () => {
     if (!inspectedSurvivor) return;
 
     const refund = Math.floor(getSurvivorTotalInvestment(inspectedSurvivor) * 0.75);
@@ -3489,7 +3500,7 @@ document.getElementById("sellSurvivorButton").addEventListener("click", () => {
     renderGame();
 });
 
-document.getElementById("moveSurvivorButton").addEventListener("click", () => {
+bindUIEvent("moveSurvivorButton", "click", () => {
     if (!inspectedSurvivor || waveRunning || !gameRunning) return;
 
     moveMode = true;
