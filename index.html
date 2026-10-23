@@ -1,0 +1,839 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wasteland Defense</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+
+<header class="game-header">
+    <button id="leaderboardButton" class="header-nav-button" type="button" aria-label="Open leaderboards">
+        <span class="header-nav-mark" aria-hidden="true">#</span>
+        <span class="header-nav-copy">
+            <strong>LEADERBOARD</strong>
+            <small>ENDLESS RANKINGS</small>
+        </span>
+    </button>
+
+    <h1>WASTELAND DEFENSE</h1>
+
+    <button id="profileButton" class="header-nav-button" type="button" aria-label="Open player profile">
+        <span class="header-nav-mark profile-header-avatar" aria-hidden="true">
+            <img id="profileButtonPortrait" src="Images/Mason.png" alt="">
+        </span>
+        <span class="header-nav-copy">
+            <strong>PROFILE</strong>
+            <small id="profileButtonCallsign">DEFENDER</small>
+        </span>
+    </button>
+
+    <button id="mainMenuButton" class="header-nav-button" type="button" style="visibility: hidden;">
+        <span class="header-nav-mark" aria-hidden="true">⌂</span>
+        <span>MAIN MENU</span>
+    </button>
+</header>
+
+
+<section id="mainMenu" class="main-menu" aria-labelledby="mainMenuTitle">
+    <div class="menu-statusbar" aria-label="Field terminal status">
+        <span>THE SAFEHOUSE <b>//</b> MAIN LOBBY</span>
+        <span class="menu-link-status"><i aria-hidden="true"></i> READY WHEN YOU ARE</span>
+    </div>
+
+    <div class="menu-hero">
+        <div class="menu-hero-copy">
+            <p class="menu-eyebrow" id="mainMenuGreeting">HEY, DEFENDER!</p>
+            <h2 id="mainMenuTitle">THE SPIDERS<br>ARE BACK<span aria-hidden="true">!</span></h2>
+            <p class="menu-description">
+                Rude of them, honestly. Pick a mode, choose your squad, and give the wasteland a story worth telling.
+            </p>
+
+            <div class="menu-briefing-note">
+                <span class="menu-signal-bars" aria-hidden="true"><i>✦</i></span>
+                <span>
+                    <strong>NO TWO RUNS HAVE TO END THE SAME</strong>
+                    <small>Try the campaign, or chase a new best in Endless.</small>
+                </span>
+            </div>
+        </div>
+
+        <aside class="menu-crew-panel" aria-labelledby="menuCrewTitle">
+            <div class="menu-crew-heading">
+                <div>
+                    <p class="menu-eyebrow">UNLOCKED SURVIVORS</p>
+                    <h3 id="menuCrewTitle">YOUR ROSTER</h3>
+                </div>
+                <div class="menu-crew-meta">
+                    <span class="menu-coins" aria-label="Coin balance">
+                        <span class="menu-coins-mark" aria-hidden="true">◉</span>
+                        <span>COINS</span>
+                        <strong id="coinBalanceDisplay">0</strong>
+                    </span>
+                    <span class="menu-crew-count">06 <small>AVAILABLE</small></span>
+                </div>
+            </div>
+
+            <div class="menu-crew-portraits" role="img" aria-label="Mason, James, Cody, Britney, Zach, and Brady">
+                <img src="Images/Mason.png" alt="" title="Mason">
+                <img src="Images/James.png" alt="" title="James">
+                <img src="Images/Cody.png" alt="" title="Cody">
+                <img src="Images/Britney.png" alt="" title="Britney">
+                <img src="Images/Zach.png" alt="" title="Zach">
+                <img src="Images/Brady.png" alt="" title="Brady">
+            </div>
+
+            <div class="menu-crew-footer">
+                <span>Pick from your unlocked survivors before each run.</span>
+                <span class="menu-crew-next">MORE UNLOCKS AHEAD <b aria-hidden="true">+</b></span>
+            </div>
+
+        </aside>
+    </div>
+
+    <div class="menu-mode-heading">
+        <h3 class="menu-section-title">PICK YOUR KIND OF TROUBLE</h3>
+        <span>Two ways to play. Plenty of ways to panic.</span>
+    </div>
+
+    <div class="menu-cards">
+        <button class="menu-card menu-card-campaign" id="campaignButton" type="button">
+            <span class="menu-card-icon" aria-hidden="true">01</span>
+            <span class="menu-card-copy">
+                <strong>CAMPAIGN</strong>
+                <span>Take the long road, one operation at a time.</span>
+            </span>
+            <span class="menu-card-cta">CHOOSE A STORY <b aria-hidden="true">→</b></span>
+        </button>
+
+        <button class="menu-card menu-card-endless" id="endlessButton" type="button">
+            <span class="menu-card-icon" aria-hidden="true">∞</span>
+            <span class="menu-card-copy">
+                <strong>ENDLESS</strong>
+                <span>See how long your crew can keep the chaos going.</span>
+            </span>
+            <span class="menu-card-cta">CHASE A HIGH SCORE <b aria-hidden="true">→</b></span>
+        </button>
+    </div>
+
+    <section class="menu-roadmap" aria-labelledby="menuRoadmapTitle">
+        <div class="menu-roadmap-heading">
+            <h3 id="menuRoadmapTitle">MORE FUN ON THE WAY</h3>
+            <span>THE WASTELAND IS GETTING BIGGER</span>
+        </div>
+
+        <div class="menu-roadmap-grid">
+            <article class="menu-roadmap-card menu-roadmap-daily">
+                <span class="menu-roadmap-icon" aria-hidden="true"><img src="Images/spider.png" alt=""></span>
+                <div>
+                    <span class="menu-roadmap-kicker">DAILY CHALLENGES</span>
+                    <strong>A fresh little disaster, every day.</strong>
+                    <p>Beat challenges to earn account credits.</p>
+                </div>
+                <span class="menu-roadmap-status">COMING SOON</span>
+            </article>
+
+            <article class="menu-roadmap-card menu-roadmap-recruits">
+                <span class="menu-roadmap-icon menu-recruit-icon" aria-hidden="true">+</span>
+                <div>
+                    <span class="menu-roadmap-kicker">SURVIVOR RECRUITS</span>
+                    <strong>Make room for new faces.</strong>
+                    <p>Spend your credits to grow the crew.</p>
+                </div>
+                <span class="menu-roadmap-status">COMING SOON</span>
+            </article>
+
+            <article class="menu-roadmap-card menu-roadmap-friends">
+                <span class="menu-roadmap-icon menu-friends-icon" aria-hidden="true">VS</span>
+                <div>
+                    <span class="menu-roadmap-kicker">FRIENDS LEADERBOARD</span>
+                    <strong>Bragging rights are on the line.</strong>
+                    <p>Compare runs and see who holds out longest.</p>
+                </div>
+                <span class="menu-roadmap-status">COMING SOON</span>
+            </article>
+        </div>
+    </section>
+
+    <div class="menu-footer">
+        <span>WASTELAND DEFENSE // v0.01</span>
+        <span>BE NICE TO YOUR SQUAD. THEY HAVE GUNS.</span>
+    </div>
+</section>
+
+<section id="profileScreen" class="profile-screen" style="display: none;" aria-labelledby="profileTitle">
+    <div class="profile-panel">
+        <div class="profile-heading-row">
+            <button id="profileBackButton" class="menu-button" type="button">&lt; MAIN MENU</button>
+            <div class="profile-heading-copy">
+                <p class="menu-eyebrow">SAFEHOUSE RECORD // LOCAL PROFILE</p>
+                <h2 id="profileTitle">DEFENDER PROFILE</h2>
+                <p class="menu-description">Your callsign and progress, saved on this device.</p>
+            </div>
+            <div class="profile-emblem" aria-hidden="true">
+                <img id="profilePortraitPreview" src="Images/Mason.png" alt="">
+                <small id="profilePortraitLabel">MASON</small>
+            </div>
+        </div>
+
+        <div class="profile-content">
+            <form id="profileCallsignForm" class="profile-identity-card">
+                <label for="profileCallsignInput">PLAYER CALLSIGN</label>
+                <div class="profile-name-entry">
+                    <input id="profileCallsignInput" name="callsign" type="text" maxlength="18" autocomplete="nickname" placeholder="Enter a callsign">
+                    <button id="saveProfileButton" class="profile-save-button" type="submit">SAVE PROFILE</button>
+                </div>
+                <p>Choose the name that will represent you on future leaderboards.</p>
+                <output id="profileSaveNotice" class="profile-save-notice" role="status" aria-live="polite"></output>
+                <div class="profile-portrait-section">
+                    <div class="profile-portrait-heading">
+                        <strong>PROFILE PORTRAIT</strong>
+                        <span>CHOOSE AN UNLOCKED SURVIVOR</span>
+                    </div>
+                    <div id="profilePortraitOptions" class="profile-portrait-options" role="group" aria-label="Choose a profile portrait"></div>
+                </div>
+            </form>
+
+            <div class="profile-stats" aria-label="Player progress">
+                <div class="profile-stat profile-stat-coins">
+                    <span>COIN WALLET</span>
+                    <strong id="profileCoinStat">0</strong>
+                </div>
+                <div class="profile-stat profile-stat-campaign">
+                    <span>OPERATIONS CLEARED</span>
+                    <strong id="profileCampaignStat">0 / 6</strong>
+                </div>
+                <div class="profile-stat profile-stat-endless">
+                    <span>BEST ENDLESS WAVE</span>
+                    <strong id="profileEndlessStat">0</strong>
+                </div>
+                <div class="profile-stat profile-stat-maps">
+                    <span>MAP RECORDS</span>
+                    <strong id="profileMapRecordsStat">0 / 6</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-footer">
+            <span>PROFILE SAVED LOCALLY</span>
+            <span>ONLINE SYNC NOT CONNECTED</span>
+        </div>
+    </div>
+</section>
+
+<section id="leaderboardScreen" class="leaderboard-screen" style="display: none;" aria-labelledby="leaderboardTitle">
+    <div class="leaderboard-panel">
+        <div class="leaderboard-heading-row">
+            <button id="leaderboardBackButton" class="menu-button" type="button">&lt; BACK</button>
+            <div class="leaderboard-heading-copy">
+                <p class="menu-eyebrow">ENDLESS // SCOREBOARD</p>
+                <h2 id="leaderboardTitle">LEADERBOARDS</h2>
+                <p class="menu-description">Hold out longer, climb the ranks, and earn your bragging rights.</p>
+            </div>
+            <button id="leaderboardMyRunsButton" class="leaderboard-my-runs" type="button" aria-pressed="false">
+                <span aria-hidden="true">▤</span> MY RUNS
+            </button>
+        </div>
+
+        <div class="leaderboard-toolbar">
+            <div class="leaderboard-scope-tabs" role="tablist" aria-label="Leaderboard group">
+                <button class="leaderboard-scope-tab is-active" type="button" role="tab" data-leaderboard-scope="global" aria-selected="true">GLOBAL</button>
+                <button class="leaderboard-scope-tab" type="button" role="tab" data-leaderboard-scope="friends" aria-selected="false">FRIENDS</button>
+            </div>
+            <span class="leaderboard-mode-tag"><i aria-hidden="true"></i> ENDLESS MODE</span>
+        </div>
+
+        <div class="leaderboard-map-heading">
+            <div>
+                <span class="leaderboard-overline">SELECT A MAP</span>
+                <h3 id="leaderboardMapTitle">THE OUTSKIRTS</h3>
+            </div>
+            <span id="leaderboardScopeLabel" class="leaderboard-scope-label">GLOBAL RANKING</span>
+        </div>
+
+        <div class="leaderboard-map-tabs" role="tablist" aria-label="Endless map">
+            <button class="leaderboard-map-tab is-active" type="button" role="tab" data-leaderboard-map="1" aria-selected="true"><span>01</span> OUTSKIRTS</button>
+            <button class="leaderboard-map-tab" type="button" role="tab" data-leaderboard-map="2" aria-selected="false"><span>02</span> HIGHWAY</button>
+            <button class="leaderboard-map-tab" type="button" role="tab" data-leaderboard-map="3" aria-selected="false"><span>03</span> DEAD ZONE</button>
+            <button class="leaderboard-map-tab" type="button" role="tab" data-leaderboard-map="4" aria-selected="false"><span>04</span> RUINS</button>
+            <button class="leaderboard-map-tab" type="button" role="tab" data-leaderboard-map="5" aria-selected="false"><span>05</span> INDUSTRIAL</button>
+            <button class="leaderboard-map-tab" type="button" role="tab" data-leaderboard-map="6" aria-selected="false"><span>06</span> SAFE ZONE</button>
+        </div>
+
+        <div id="leaderboardNotice" class="leaderboard-notice" role="status" aria-live="polite"></div>
+
+        <div class="leaderboard-table-wrap">
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">DEFENDER</th>
+                        <th scope="col">BEST WAVE</th>
+                        <th scope="col">RECORD</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboardRows"></tbody>
+            </table>
+        </div>
+
+        <div class="leaderboard-footer">
+            <span>WASTELAND DEFENSE <b>//</b> ENDLESS RECORDS</span>
+            <span id="leaderboardPersonalBest">YOUR BEST: 0 WAVES</span>
+        </div>
+    </div>
+</section>
+
+<section id="campaignSelect" class="campaign-select" style="display: none;" aria-labelledby="campaignSelectTitle">
+    <div class="level-select-header">
+        <button id="campaignBackButton" class="menu-button" type="button">&lt; BACK</button>
+        <div>
+            <p class="menu-eyebrow">STORY ARCHIVE // CAMPAIGNS</p>
+            <h2 id="campaignSelectTitle">PICK A CAMPAIGN</h2>
+            <p class="menu-description">Choose a story to see its operations. Your first route is ready to run.</p>
+        </div>
+    </div>
+
+    <div class="campaign-cards">
+        <button class="campaign-card" id="outskirtsCampaignButton" type="button">
+            <span class="campaign-card-art" aria-hidden="true">
+                <img class="campaign-card-map" id="campaignRoutePreview" alt="">
+                <span class="campaign-art-number">01</span>
+                <span class="campaign-art-label">THE OUTSKIRTS</span>
+                <span class="campaign-art-stamp">SIX OPERATIONS // ONE HOPEFUL PLAN</span>
+            </span>
+            <span class="campaign-card-copy">
+                <span class="campaign-status">CAMPAIGN 01 // READY TO PLAY</span>
+                <strong>ROAD TO THE SAFE ZONE</strong>
+                <span class="campaign-description">Six operations. One very hopeful plan: get your crew somewhere with fewer spiders.</span>
+                <span class="campaign-meta"><span>06 OPERATIONS</span><span>STORY MODE</span></span>
+                <span class="campaign-card-cta">VIEW THE OPERATIONS <span aria-hidden="true">→</span></span>
+            </span>
+        </button>
+
+        <article class="campaign-card campaign-card-locked" aria-label="More campaigns coming soon">
+            <span class="campaign-card-art" aria-hidden="true">
+                <span class="campaign-art-number">02</span>
+                <span class="campaign-art-label">ANOTHER ROAD AWAITS</span>
+                <span class="campaign-art-stamp">ROUTE NOT FOUND (YET)</span>
+            </span>
+            <span class="campaign-card-copy">
+                <span class="campaign-status">A LITTLE LATER</span>
+                <strong>MORE ROAD TRIPS</strong>
+                <span class="campaign-description">New stories and operations will show up here when they are ready.</span>
+                <span class="campaign-meta"><span>NEW ROUTES</span><span>COMING SOON</span></span>
+                <span class="campaign-card-cta">COMING SOON</span>
+            </span>
+        </article>
+    </div>
+</section>
+
+<section id="levelSelect" class="level-select" style="display: none;" aria-labelledby="levelSelectTitle">
+    <div class="level-select-header">
+        <button id="backToMenuButton" class="menu-button" type="button">
+            &lt; BACK
+        </button>
+
+        <div>
+            <p class="menu-eyebrow" id="levelSelectEyebrow">
+    ROAD TO THE SAFE ZONE // CAMPAIGN
+</p>
+
+<h2 id="levelSelectTitle">CAMPAIGN OPERATIONS</h2>
+
+<p class="menu-description" id="levelSelectDescription">
+    Select an operation and prepare your squad for deployment.
+</p>
+        </div>
+    </div>
+
+    <div class="level-cards">
+        <button class="level-card" id="level1Button" type="button">
+    <span class="level-number">LEVEL 01</span>
+
+    <img
+        id="level1MapPreview"
+        class="level-map-preview"
+        alt="Level 1 map preview"
+    >
+
+    <strong>THE OUTSKIRTS</strong>
+    <span class="level-status">AVAILABLE</span>
+    <span class="endless-record" id="endlessRecord1">
+    BEST WAVE: 0
+</span>
+            <span>Hold the road and survive the first wave.</span>
+</button>
+
+        <button class="level-card" id="level2Button" type="button">
+    <span class="level-number">LEVEL 02</span>
+    <img
+    id="level2MapPreview"
+    class="level-map-preview"
+    alt="Level 2 map preview"
+>
+    <strong>ABANDONED HIGHWAY</strong>
+    <span class="level-status">AVAILABLE</span>
+    <span class="endless-record" id="endlessRecord2">
+    BEST WAVE: 0
+</span>
+            <span>Secure the abandoned highway.</span>
+</button>
+
+        <button class="level-card" id="level3Button" type="button">
+            <span class="level-number">LEVEL 03</span>
+            <img id="level3MapPreview" class="level-map-preview" alt="Level 3 map preview">
+            <strong>THE DEAD ZONE</strong>
+            <span class="level-status">AVAILABLE</span>
+            <span class="endless-record" id="endlessRecord3">
+    BEST WAVE: 0
+</span>
+            <span>Expect heavy swarms in contaminated territory.</span>
+        </button>
+
+        <button class="level-card" id="level4Button" type="button">
+            <span class="level-number">LEVEL 04</span>
+            <img id="level4MapPreview" class="level-map-preview" alt="Level 4 map preview">
+            <strong>THE RUINS</strong>
+            <span class="level-status">AVAILABLE</span>
+            <span class="endless-record" id="endlessRecord4">
+    BEST WAVE: 0
+</span>
+            <span>Pick your way through the remains of the city.</span>
+        </button>
+
+        <button class="level-card" id="level5Button" type="button">
+            <span class="level-number">LEVEL 05</span>
+            <img id="level5MapPreview" class="level-map-preview" alt="Level 5 map preview">
+            <strong>INDUSTRIAL DISTRICT</strong>
+            <span class="level-status">AVAILABLE</span>
+            <span class="endless-record" id="endlessRecord5">
+    BEST WAVE: 0
+</span>
+            <span>Push through the industrial perimeter.</span>
+        </button>
+
+        <button class="level-card" id="level6Button" type="button">
+            <span class="level-number">LEVEL 06</span>
+            <img id="level6MapPreview" class="level-map-preview" alt="Level 6 map preview">
+            <strong>THE SAFE ZONE</strong>
+            <span class="level-status">AVAILABLE</span>
+            <span class="endless-record" id="endlessRecord6">
+    BEST WAVE: 0
+</span>
+            <span>Reach the last known safe zone.</span>
+        </button>
+    </div>
+</section>
+
+
+<section id="deploymentScreen" class="deployment-screen" style="display: none;" aria-labelledby="deploymentTitle">
+    <div class="deployment-header">
+        <button id="backToLevelsButton" class="menu-button" type="button">
+            &lt; LEVEL SELECT
+        </button>
+
+        <div>
+            <p class="menu-eyebrow">SURVIVOR ROSTER // DEPLOYMENT</p>
+            <h2 id="deploymentTitle">PICK YOUR SQUAD</h2>
+            <p class="deployment-location" id="deploymentLocation">CHOOSE YOUR OPERATION</p>
+            <p class="deployment-subtitle">Pick the survivors you want to bring. Tap a card again to swap them out.</p>
+        </div>
+
+
+</div>
+
+    <div class="deployment-info">
+        <div>
+            <span>SQUAD SIZE</span>
+            <small>Choose who rides with you.</small>
+            <strong id="rosterCount" role="status" aria-live="polite">0/4</strong>
+        </div>
+</div>
+
+<div class="deployment-roster" id="deploymentRoster">
+
+    <button class="deploy-card rarity-common" data-survivor="mason" type="button" aria-pressed="false">
+    <img
+    class="survivor-portrait-placeholder"
+    src="Images/Mason.png"
+    alt="Mason's portrait"
+>
+    <div class="survivor-card-info">
+        <strong>Mason</strong>
+        <span>HANDGUN</span>
+        <small>A dependable sidearm</small>
+    </div>
+    <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
+</button>
+
+
+
+        <button class="deploy-card rarity-common" data-survivor="james" type="button" aria-pressed="false">
+                
+<img
+    class="survivor-portrait-placeholder"
+    src="Images/James.png"
+    alt="James's portrait"
+>
+
+                    <div class="survivor-card-info">
+            <strong>JAMES</strong>
+            <span>FLAMETHROWER</span>
+            <small>Close-range fire</small>
+            </div>
+            <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
+        </button>
+
+        <button class="deploy-card rarity-common" data-survivor="cody" type="button" aria-pressed="false">
+                
+<img
+    class="survivor-portrait-placeholder"
+    src="Images/Cody.png"
+    alt="Cody's portrait"
+>
+
+                    <div class="survivor-card-info">
+            <strong>CODY</strong>
+            <span>GRENADE LAUNCHER</span>
+            <small>Heavy direct hits</small>
+            </div>
+            <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
+        </button>
+
+        <button class="deploy-card rarity-common" data-survivor="britney" type="button" aria-pressed="false">
+                
+<img
+    class="survivor-portrait-placeholder"
+    src="Images/Britney.png"
+    alt="Britney's portrait"
+>
+
+                    <div class="survivor-card-info">
+            <strong>BRITNEY</strong>
+            <span>SNIPER RIFLE</span>
+            <small>Long-range precision</small>
+            </div>
+            <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
+        </button>
+
+        <button class="deploy-card rarity-common" data-survivor="zach" type="button" aria-pressed="false">
+                
+<img
+    class="survivor-portrait-placeholder"
+    src="Images/Zach.png"
+    alt="Zach's portrait"
+>
+
+                    <div class="survivor-card-info">
+            <strong>ZACH</strong>
+            <span>SMG</span>
+            <small>Rapid close-range fire</small>
+            </div>
+            <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
+        </button>
+
+        <button class="deploy-card rarity-common" data-survivor="brady" type="button" aria-pressed="false">
+                
+<img
+    class="survivor-portrait-placeholder"
+    src="Images/Brady.png"
+    alt="Brady's portrait"
+>
+
+                    <div class="survivor-card-info">
+            <strong>BRADY T.</strong>
+            <span>SHOTGUN</span>
+            <small>Tight spread, one target</small>
+            </div>
+            <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
+        </button>
+    </div>
+
+    <p id="deploymentMessage" role="status" aria-live="polite">
+        
+    </p>
+
+    <button id="startDefenseButton" class="menu-button" type="button">
+        LOCK IN &amp; DEPLOY <span aria-hidden="true">→</span>
+    </button>
+</section>
+
+<section id="gameOverScreen" class="game-over-screen" style="display: none;">
+    <div class="game-over-panel">
+        <p class="menu-eyebrow">DEFENSE FAILED // RUN ENDED</p>
+        <h2>GAME OVER</h2>
+        <p id="gameOverMessage">
+            Your defenses have fallen. The wasteland is lost.
+        </p>
+        <strong id="finalWaveDisplay">WAVE REACHED: 1</strong>
+
+        <p class="run-recap-heading">RUN RECAP</p>
+        <div class="run-recap" role="group" aria-label="Run recap">
+            <div class="run-recap-stat">
+                <span>WAVES CLEARED</span>
+                <strong id="gameOverWavesCleared">0</strong>
+            </div>
+            <div class="run-recap-stat">
+                <span>ENEMIES DEFEATED</span>
+                <strong id="gameOverEnemiesDefeated">0</strong>
+            </div>
+            <div class="run-recap-stat">
+                <span>SURVIVORS LEFT</span>
+                <strong id="gameOverSurvivorsLeft">0</strong>
+            </div>
+            <div class="run-recap-stat">
+                <span>SCRAP ON HAND</span>
+                <strong id="gameOverScrapLeft">0</strong>
+            </div>
+        </div>
+
+        <button id="returnToMenuButton" class="menu-button" type="button">
+            RETURN TO MENU
+        </button>
+    </div>
+</section>
+
+<section id="victoryScreen" class="game-over-screen victory-screen" style="display: none;" aria-labelledby="victoryTitle">
+    <div class="game-over-panel">
+        <p class="menu-eyebrow">OPERATION SECURED // SAFE ZONE</p>
+        <h2 id="victoryTitle">OPERATION COMPLETE</h2>
+        <p id="victoryMessage">The route is secure. Your squad held the line.</p>
+        <p class="run-recap-heading">FINAL RESULTS</p>
+        <div class="run-recap" role="group" aria-label="Final results">
+            <div class="run-recap-stat">
+                <span>WAVES CLEARED</span>
+                <strong id="victoryWavesCleared">0</strong>
+            </div>
+            <div class="run-recap-stat">
+                <span>ENEMIES DEFEATED</span>
+                <strong id="victoryEnemiesDefeated">0</strong>
+            </div>
+            <div class="run-recap-stat">
+                <span>SURVIVORS LEFT</span>
+                <strong id="victorySurvivorsLeft">0</strong>
+            </div>
+            <div class="run-recap-stat">
+                <span>SCRAP ON HAND</span>
+                <strong id="victoryScrapLeft">0</strong>
+            </div>
+        </div>
+        <div class="victory-coin-reward" role="status" aria-live="polite">
+            <span class="victory-coin-mark" aria-hidden="true">◉</span>
+            <span class="victory-coin-copy">
+                <small>CAMPAIGN LEVEL CLEAR</small>
+                <strong id="victoryCoinsEarned">+100 COINS</strong>
+            </span>
+            <span class="victory-coin-total">WALLET <strong id="victoryCoinsTotal">100</strong></span>
+        </div>
+        <button id="returnFromVictoryButton" class="menu-button" type="button">RETURN TO MENU</button>
+    </div>
+</section>
+
+<section id="returnMenuConfirm" class="return-confirm-screen" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="returnMenuTitle">
+    <div class="return-confirm-panel">
+        <p class="menu-eyebrow">LEAVE OPERATION // CONFIRM</p>
+        <h2 id="returnMenuTitle">Return to menu?</h2>
+
+        <p>Are you sure you want to return to the main menu? All progress will be lost.</p>
+
+        <div class="return-confirm-buttons">
+            <button id="confirmReturnButton" class="menu-button" type="button">
+                YES, RETURN
+            </button>
+
+            <button id="cancelReturnButton" class="menu-button" type="button">
+                KEEP PLAYING
+            </button>
+        </div>
+    </div>
+</section>
+
+<section id="restartConfirm" class="return-confirm-screen" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="restartTitle">
+    <div class="return-confirm-panel">
+        <p class="menu-eyebrow">REDEPLOY // RESTART OPERATION</p>
+        <h2 id="restartTitle">Start over?</h2>
+        <p>Restart this operation from Wave 1? Progress in this run will be lost.</p>
+        <div class="return-confirm-buttons">
+            <button id="confirmRestartButton" class="menu-button" type="button">RESTART OPERATION</button>
+            <button id="cancelRestartButton" class="menu-button" type="button">KEEP DEFENDING</button>
+        </div>
+    </div>
+</section>
+
+<main class="game-layout">
+    <section class="battlefield">
+        <canvas id="gameCanvas" width="960" height="540" aria-label="Battlefield. Choose a survivor from the roster, then click an open position to deploy them."></canvas>
+        <div id="storyDialogue" class="story-dialogue" style="display: none;">
+    <img src="Images/James.png" alt="James" class="dialogue-portrait">
+
+    <div class="dialogue-content">
+        <strong class="dialogue-speaker">JAMES // FIRESTARTER</strong>
+        <p id="dialogueText"></p>
+        <button id="dialogueContinue" type="button">CONTINUE ▼</button>
+    </div>
+    </section>
+
+    <aside class="control-panel">
+        <!-- HEALTH, SCRAP AND WAVE GRID -->
+        <div class="stat-grid">
+            <div class="stat-box health-stat">
+                <span>HEALTH</span>
+                <div class="health-row">
+                    <strong id="healthDisplay">100 HP</strong>
+                    <span>100%</span>
+                </div>
+                <div class="health-track" role="progressbar" aria-label="Survivor health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+                    <div class="health-fill" aria-hidden="true"></div>
+                </div>
+            </div>
+
+            <div class="stat-box">
+                <span>SCRAP</span>
+                <strong id="scrapDisplay">250</strong>
+            </div>
+
+            <div class="stat-box">
+                <span>WAVE</span>
+                <strong id="waveDisplay">0 / 15</strong>
+            </div>
+        </div>
+
+        <div class="wave-controls">
+            <button id="startWaveButton" class="menu-button" type="button">
+                START WAVE 1
+            </button>
+
+            <button id="pauseButton" class="menu-button" type="button" title="Pause or resume the current wave" disabled>
+                PAUSE
+            </button>
+
+<button id="startOverButton" class="menu-button" type="button" title="Start over from Wave 1">
+    ↶ START OVER
+</button>
+
+
+            <button id="speedButton" type="button" class="speed-toggle" title="Change game speed" aria-label="Change game speed">1×</button>
+            <button id="autoStartButton" class="auto-start-button" type="button" aria-pressed="false" title="Automatically start the next wave after a short break">
+                <span>AUTO START NEXT WAVE</span>
+                <strong id="autoStartState">OFF</strong>
+            </button>
+            <div id="waveStatus" role="status" aria-live="polite">Prepare your defenses.</div>
+
+        </div>
+
+        <div class="wave-preview" id="wavePreview">
+            <div class="wave-preview-header">
+                <span>NEXT WAVE</span>
+                <span id="previewThreat">LOW</span>
+            </div>
+
+            <h3 id="previewWaveTitle">WAVE 1 INTEL</h3>
+
+            <div class="preview-enemy">
+                <img id="previewEnemyImage" src="Images/spider.png" alt="Spider">
+                <div class="preview-enemy-info">
+                    <strong id="previewEnemyName">SPIDER</strong>
+                    <span id="previewEnemyHint">10 hostile contacts expected</span>
+                </div>
+                <span id="previewEnemyCount">×10</span>
+            </div>
+        </div>
+
+        <div class="roster-heading">
+            <h2>SURVIVOR ROSTER</h2>
+            <span id="inGameRosterCount">0 UNITS</span>
+        </div>
+
+        <div class="survivor-details" id="survivorDetailsPanel" style="display: none;">
+            <div class="survivor-details-header">
+                <img
+    class="survivor-portrait"
+    id="survivorPortrait"
+    src=""
+    alt="Survivor portrait"
+>
+
+                <div class="survivor-details-title">
+                    <h3 id="survivorDetailName">SURVIVOR NAME</h3>
+                    <span id="survivorDetailRole">ROLE</span>
+                    <strong id="survivorDetailCost">0 SCRAP</strong>
+                </div>
+
+                <button id="cancelPlacementButton" type="button" title="Cancel placement" aria-label="Cancel placement">X</button>
+            </div>
+
+            <div class="survivor-detail-stats">
+                <div>
+                    <span>DAMAGE</span>
+                    <strong id="survivorDetailDamage">0</strong>
+                </div>
+                <div>
+                    <span>RANGE</span>
+                    <strong id="survivorDetailRange">0</strong>
+                </div>
+                <div>
+                    <span>FIRE RATE</span>
+                    <strong id="survivorDetailFireRate">0</strong>
+                </div>
+            </div>
+
+            <div class="survivor-detail-stats">
+                <div>
+                    <span>DAMAGE DEALT</span>
+                    <strong id="survivorDamageDealt">0</strong>
+                </div>
+                <div>
+                    <span>ENEMIES KILLED</span>
+                    <strong id="survivorKills">0</strong>
+                </div>
+            </div>
+
+            <p id="survivorDetailDescription">Select a survivor to view their details.</p>
+            <p class="placement-hint">CLICK THE BATTLEFIELD TO DEPLOY</p>
+
+            <div id="survivorUpgradeControl" class="survivor-upgrade-control" style="display: none;">
+                <button id="upgradeSurvivorButton" type="button">
+                    <span class="survivor-upgrade-copy">
+                        <strong id="survivorUpgradeLabel">UPGRADE TO LEVEL 1</strong>
+                        <small id="survivorUpgradeCost">0 SCRAP</small>
+                    </span>
+                    <span id="survivorUpgradeLevel" class="survivor-upgrade-level">LEVEL 0 / 2</span>
+                </button>
+            </div>
+
+<div class="survivor-action-buttons">
+    <button id="moveSurvivorButton" type="button">
+        MOVE
+    </button>
+    <button id="sellSurvivorButton" type="button">
+        SELL
+    </button>
+</div>
+
+
+        </div>
+
+        <div class="survivor-list" id="inGameSurvivorList">
+            <!-- Selected survivors will appear here -->
+        </div>
+
+        <div class="deployment-note"></div>
+
+    </aside>
+</main>
+
+<div id="waveCompleteToast" class="wave-complete-toast" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true">
+    <span class="wave-complete-mark" aria-hidden="true">+</span>
+    <span class="wave-complete-copy">
+        <small id="waveCompleteNumber">WAVE 1</small>
+        <strong>WAVE COMPLETE!</strong>
+        <span id="waveCompleteReward">+40 SCRAP EARNED · CLEAN WAVE</span>
+    </span>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
