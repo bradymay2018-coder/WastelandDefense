@@ -7598,3 +7598,251 @@ main.game-layout > .control-panel {
         letter-spacing: 0.6px;
     }
 }
+
+/* Mobile gameplay: keep the full battlefield visible above a full-width panel. */
+@media (max-width: 900px) {
+    body {
+        padding: 12px;
+        overflow-x: hidden;
+    }
+
+    .game-header {
+        width: min(100%, 620px);
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+
+    .game-header h1 {
+        grid-column: 2;
+        grid-row: 1;
+        font-size: clamp(12px, 3.4vw, 16px);
+        letter-spacing: 1px;
+        white-space: nowrap;
+    }
+
+    #leaderboardButton {
+        grid-column: 1;
+        grid-row: 1;
+        justify-self: start;
+    }
+
+    #profileButton,
+    #mainMenuButton {
+        grid-column: 3;
+        grid-row: 1;
+        justify-self: end;
+    }
+
+    .header-nav-button {
+        min-height: 40px;
+        padding: 7px 9px;
+        font-size: 9px;
+        letter-spacing: 0.5px;
+    }
+
+    main.game-layout {
+        width: min(100%, 620px);
+        max-width: 620px;
+        min-width: 0;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        gap: 10px;
+        align-items: start;
+        margin: 0 auto 18px;
+        container-type: normal;
+    }
+
+    main.game-layout > .battlefield,
+    main.game-layout > .control-panel {
+        grid-column: 1;
+        width: 100%;
+        min-width: 0;
+    }
+
+    main.game-layout > .battlefield {
+        grid-row: 1;
+    }
+
+    main.game-layout > .control-panel {
+        grid-row: 2;
+        min-height: 0;
+        height: auto;
+        max-height: none;
+        overflow: visible;
+        padding: 12px;
+    }
+
+    #gameCanvas {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 9;
+        touch-action: manipulation;
+    }
+
+    .control-panel .stat-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        margin-top: 0;
+    }
+
+    .control-panel .stat-grid .stat-box {
+        min-height: 64px;
+        padding: 8px 6px;
+    }
+
+    .control-panel .stat-grid .stat-box:nth-child(3) {
+        grid-column: auto;
+    }
+
+    .control-panel .wave-controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    .control-panel .wave-controls button {
+        width: 100%;
+        min-width: 0;
+        min-height: 46px;
+        flex: initial;
+        padding: 8px;
+        font-size: 10px;
+        touch-action: manipulation;
+    }
+
+    .control-panel #startWaveButton {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .control-panel #pauseButton {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .control-panel #startOverButton {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .control-panel #speedButton {
+        width: 100%;
+        height: 46px;
+        min-height: 46px;
+        grid-column: 2;
+        grid-row: 2;
+        flex: initial;
+    }
+
+    .control-panel #autoStartButton {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        display: flex;
+        min-height: 46px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+    }
+
+    .control-panel #waveStatus {
+        grid-column: 1 / -1;
+        grid-row: 4;
+        flex-basis: auto;
+        font-size: 10px;
+    }
+
+    .control-panel .survivor-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    .control-panel .survivor-list .survivor-card {
+        min-height: 58px;
+        touch-action: manipulation;
+    }
+
+    .control-panel .survivor-action-buttons button {
+        min-height: 44px;
+        touch-action: manipulation;
+    }
+
+    .battlefield #storyDialogue {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+        gap: 9px;
+        padding: 10px;
+    }
+
+    .game-layout #storyDialogue .dialogue-portrait {
+        width: 52px;
+        height: 52px;
+    }
+
+    #storyDialogue #dialogueText {
+        min-height: 0;
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    #storyDialogue #dialogueContinue {
+        min-height: 42px;
+    }
+}
+
+@media (max-width: 560px) {
+    body {
+        padding: 8px;
+    }
+
+    .game-header {
+        gap: 4px;
+    }
+
+    .game-header h1 {
+        font-size: 11px;
+        letter-spacing: 0.7px;
+    }
+
+    .header-nav-button {
+        min-height: 38px;
+        padding: 6px 7px;
+        font-size: 8px;
+    }
+
+    .header-nav-copy small {
+        font-size: 6px;
+    }
+
+    main.game-layout {
+        gap: 8px;
+    }
+
+    main.game-layout > .control-panel {
+        padding: 10px;
+    }
+
+    .control-panel .stat-grid .stat-box > span {
+        font-size: 8px;
+        letter-spacing: 0.5px;
+    }
+
+    .control-panel .stat-grid .stat-box > strong,
+    .control-panel .health-row strong {
+        font-size: 13px;
+    }
+
+    .control-panel .survivor-list .survivor-card {
+        min-height: 54px;
+        gap: 5px;
+        padding: 5px;
+    }
+
+    .control-panel .survivor-list .survivor-portrait-placeholder {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        flex-basis: 40px;
+    }
+}
