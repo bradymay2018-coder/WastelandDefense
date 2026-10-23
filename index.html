@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wasteland Defense</title>
-    <link rel="stylesheet" href="style.css?v=20261023-01">
+    <link rel="stylesheet" href="style.css?v=20261023-06">
 </head>
 <body>
 
@@ -19,6 +19,13 @@
                 <small id="muteButtonState">ON</small>
             </span>
         </button>
+        <div id="livePlayerCount" class="live-player-count" data-status="connecting" role="status" aria-live="polite" aria-label="Live player count">
+            <span class="live-player-dot" aria-hidden="true"></span>
+            <span class="live-player-copy">
+                <strong id="livePlayerCountValue">—</strong>
+                <small id="livePlayerCountLabel">CONNECTING</small>
+            </span>
+        </div>
         <button id="leaderboardButton" class="header-nav-button" type="button" aria-label="Open leaderboards">
             <span class="header-nav-mark" aria-hidden="true">#</span>
             <span class="header-nav-copy">
@@ -30,13 +37,14 @@
 
     <h1>WASTELAND DEFENSE</h1>
 
-    <button id="profileButton" class="header-nav-button" type="button" aria-label="Open player profile">
+    <button id="profileButton" class="header-nav-button" type="button" aria-label="Sign in or create a player account">
         <span class="header-nav-mark profile-header-avatar" aria-hidden="true">
-            <img id="profileButtonPortrait" src="Images/Mason.png" alt="">
+            <img id="profileButtonPortrait" src="Images/Mason.png" alt="" hidden>
+            <span id="profileButtonSignInMark" class="profile-header-login-mark">↗</span>
         </span>
         <span class="header-nav-copy">
-            <strong>PROFILE</strong>
-            <small id="profileButtonUsername">PLAYER</small>
+            <strong id="profileButtonAction">SIGN IN</strong>
+            <small id="profileButtonUsername" hidden></small>
         </span>
     </button>
 
@@ -183,7 +191,7 @@
     </section>
 
     <div class="menu-footer">
-        <span>WASTELAND DEFENSE // v0.01</span>
+        <span>WASTELAND DEFENSE // v0.6</span>
         <span>BE NICE TO YOUR SQUAD. THEY HAVE GUNS.</span>
     </div>
 </section>
@@ -193,9 +201,9 @@
         <div class="profile-heading-row">
             <button id="profileBackButton" class="menu-button" type="button">&lt; MAIN MENU</button>
             <div class="profile-heading-copy">
-                <p class="menu-eyebrow">PLAYER ACCOUNT // PROFILE</p>
-                <h2 id="profileTitle">PLAYER PROFILE</h2>
-                <p id="profileIntro" class="menu-description">Sign in to carry your username and progress between devices.</p>
+                <p id="profileEyebrow" class="menu-eyebrow">ACCOUNT ACCESS</p>
+                <h2 id="profileTitle">SIGN IN OR CREATE ACCOUNT</h2>
+                <p id="profileIntro" class="menu-description">Sign in or create an account to create a profile and sync your progress.</p>
             </div>
             <div class="profile-emblem" aria-hidden="true">
                 <img id="profilePortraitPreview" src="Images/Mason.png" alt="">
@@ -205,8 +213,8 @@
 
         <section class="profile-account-panel" aria-labelledby="profileAccountTitle">
             <div class="profile-account-copy">
-                <p class="profile-account-eyebrow">CROSS-DEVICE SAVE</p>
-                <h3 id="profileAccountTitle">PLAYER ACCOUNT</h3>
+                <p class="profile-account-eyebrow">ACCOUNT ACCESS</p>
+                <h3 id="profileAccountTitle">SIGN IN OR CREATE ACCOUNT</h3>
                 <p id="profileAccountState">Sign in or create an account to sync your game progress.</p>
             </div>
             <div id="profileAccountFields" class="profile-account-fields">
@@ -276,7 +284,7 @@
         </div>
 
         <div class="profile-footer">
-            <span id="profileStorageStatus">PROFILE SAVED ON THIS DEVICE</span>
+            <span id="profileStorageStatus">LOCAL PROGRESS SAVED ON THIS DEVICE</span>
             <span>WASTELAND DEFENSE // ACCOUNT SYNC</span>
         </div>
     </div>
@@ -907,7 +915,7 @@
     </span>
 </div>
 
-<script src="supabase-config.js?v=20261023-01"></script>
-<script src="game.js?v=20261023-01"></script>
+<script src="supabase-config.js?v=20261023-02"></script>
+<script src="game.js?v=20261023-04"></script>
 </body>
 </html>

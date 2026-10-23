@@ -7417,10 +7417,27 @@ main.game-layout > .control-panel {
 }
 
 .profile-header-avatar {
+    display: grid;
     overflow: hidden;
     padding: 0;
     background: #17181c;
     image-rendering: pixelated;
+}
+
+.profile-header-login-mark {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    color: #f0c765;
+    font-size: 17px;
+    line-height: 1;
+}
+
+#profileButtonPortrait[hidden],
+#profileButtonUsername[hidden],
+#profileButtonSignInMark[hidden] {
+    display: none;
 }
 
 .profile-header-avatar img {
@@ -7573,6 +7590,19 @@ main.game-layout > .control-panel {
     align-items: stretch;
     gap: clamp(18px, 3vw, 30px);
     padding: clamp(20px, 4vw, 38px) 0;
+}
+
+.profile-panel.is-auth-only .profile-emblem,
+.profile-panel.is-auth-only .profile-content {
+    display: none;
+}
+
+.profile-panel.is-auth-only .profile-account-panel {
+    grid-template-columns: minmax(180px, 0.72fr) minmax(0, 1.5fr);
+}
+
+.profile-panel.is-auth-only .profile-account-session {
+    display: none;
 }
 
 .profile-identity-card {
@@ -7963,6 +7993,10 @@ main.game-layout > .control-panel {
         grid-template-columns: 1fr auto;
         gap: 11px;
         padding: 13px;
+    }
+
+    .profile-panel.is-auth-only .profile-account-panel {
+        grid-template-columns: 1fr;
     }
 
     .profile-account-copy { grid-column: 1 / -1; }
@@ -8396,4 +8430,205 @@ main.game-layout > .control-panel {
     #mainMenu .menu-statusbar {
         font-size: 8px;
     }
+}
+
+/* Larger, matched header actions make the two main navigation targets easier to spot and hit. */
+#leaderboardButton,
+#profileButton {
+    width: 190px;
+    min-width: 190px;
+    min-height: 58px;
+    padding: 10px 14px;
+    gap: 11px;
+    border-radius: 5px;
+}
+
+#leaderboardButton .header-nav-mark,
+#profileButton .header-nav-mark {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    font-size: 12px;
+}
+
+#profileButton .profile-header-login-mark {
+    font-size: 21px;
+}
+
+#leaderboardButton .header-nav-copy strong,
+#profileButton .header-nav-copy strong {
+    font-size: 10px;
+    letter-spacing: 1.1px;
+}
+
+#leaderboardButton .header-nav-copy small,
+#profileButton .header-nav-copy small {
+    font-size: 8px;
+    letter-spacing: 0.9px;
+}
+
+#leaderboardButton:focus-visible,
+#profileButton:focus-visible {
+    outline: 3px solid #edbd7a;
+    outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+    #leaderboardButton,
+    #profileButton {
+        width: 164px;
+        min-width: 164px;
+        min-height: 52px;
+        padding: 8px 10px;
+        gap: 8px;
+    }
+
+    #leaderboardButton .header-nav-mark,
+    #profileButton .header-nav-mark {
+        width: 30px;
+        height: 30px;
+        flex-basis: 30px;
+    }
+
+    #leaderboardButton .header-nav-copy strong,
+    #profileButton .header-nav-copy strong {
+        font-size: 9px;
+    }
+
+    #leaderboardButton .header-nav-copy small,
+    #profileButton .header-nav-copy small {
+        font-size: 7px;
+    }
+}
+
+@media (max-width: 440px) {
+    #leaderboardButton,
+    .game-header #profileButton {
+        width: 46px;
+        min-width: 46px;
+        min-height: 46px;
+        padding: 5px;
+    }
+
+    #profileButton .header-nav-mark {
+        display: grid;
+    }
+
+    #leaderboardButton .header-nav-mark,
+    #profileButton .header-nav-mark {
+        width: 30px;
+        height: 30px;
+        flex-basis: 30px;
+    }
+}
+
+.live-player-count {
+    display: inline-flex;
+    min-width: 104px;
+    min-height: 58px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background:
+        radial-gradient(circle, #a6d0b20c 1px, transparent 1.6px) 0 0 / 14px 14px,
+        linear-gradient(145deg, #242a29, #1b1d20);
+    border: 1px solid #52665e;
+    border-bottom: 3px solid #131418;
+    border-radius: 4px;
+    box-shadow: inset 0 1px #ffffff0a, 0 3px 0 #090a0c;
+}
+
+.live-player-dot {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    background: #a6d0b2;
+    border: 1px solid #d2f2d7;
+    border-radius: 50%;
+    box-shadow: 0 0 9px #8dc8c177;
+}
+
+.live-player-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.live-player-copy strong {
+    color: #d4efcc;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.live-player-copy small {
+    color: #b5c9b7;
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.65px;
+    white-space: nowrap;
+}
+
+.live-player-count[data-status="connecting"] .live-player-dot {
+    background: #d8a15d;
+    border-color: #f0ca8a;
+    box-shadow: 0 0 8px #d8a15d55;
+}
+
+.live-player-count[data-status="offline"] {
+    border-color: #514b57;
+}
+
+.live-player-count[data-status="offline"] .live-player-dot {
+    background: #77717c;
+    border-color: #aaa4af;
+    box-shadow: none;
+}
+
+.live-player-count[data-status="offline"] .live-player-copy strong,
+.live-player-count[data-status="offline"] .live-player-copy small {
+    color: #aaa4af;
+}
+
+@media (max-width: 900px) {
+    .live-player-count {
+        min-width: 94px;
+        min-height: 52px;
+        gap: 6px;
+        padding: 5px 7px;
+    }
+
+    .live-player-copy small {
+        font-size: 6px;
+    }
+}
+
+@media (max-width: 440px) {
+    .live-player-count {
+        min-width: 62px;
+        min-height: 46px;
+        gap: 5px;
+        padding: 4px 6px;
+    }
+
+    .live-player-dot {
+        width: 7px;
+        height: 7px;
+        flex-basis: 7px;
+    }
+
+    .live-player-copy strong {
+        font-size: 10px;
+    }
+
+    .live-player-copy small {
+        font-size: 6px;
+        letter-spacing: 0.2px;
+    }
+}
+
+/* Keep the lobby controls inside the homepage panels instead of spanning wider than them. */
+.game-header.is-main-menu {
+    width: min(100%, 1100px);
 }

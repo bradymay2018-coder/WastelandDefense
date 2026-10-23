@@ -2389,12 +2389,24 @@ requestAnimationFrame(gameLoop);
 /* MENU AND DEPLOYMENT NAVIGATION */
 
 const mainMenu = document.getElementById("mainMenu");
+const gameHeader = document.querySelector(".game-header");
 const profileScreen = document.getElementById("profileScreen");
 const campaignSelect = document.getElementById("campaignSelect");
 const levelSelect = document.getElementById("levelSelect");
 const leaderboardScreen = document.getElementById("leaderboardScreen");
 const deploymentScreen = document.getElementById("deploymentScreen");
 const gameLayout = document.querySelector(".game-layout");
+
+function syncMainMenuHeaderAlignment() {
+    if (!gameHeader || !mainMenu) return;
+    gameHeader.classList.toggle("is-main-menu", getComputedStyle(mainMenu).display !== "none");
+}
+
+syncMainMenuHeaderAlignment();
+new MutationObserver(syncMainMenuHeaderAlignment).observe(mainMenu, {
+    attributes: true,
+    attributeFilter: ["style"]
+});
 
 const endlessRecordKey = "wastelandDefense.endlessRecords.v1";
 const coinBalanceKey = "wastelandDefense.coins.v1";
@@ -2405,6 +2417,7 @@ const campaignLevelCoinReward = 100;
 let supabaseClient = null;
 let supabaseUser = null;
 let supabaseSdkPromise = null;
+let livePresenceChannel = null;
 let cloudLoadGeneration = 0;
 let leaderboardLoadGeneration = 0;
 const leaderboardMapNames = {
@@ -2433,17 +2446,9 @@ function readPlayerProfile() {
         const campaignLevels = Array.isArray(saved.campaignLevels)
             ? [...new Set(saved.campaignLevels.map(Number).filter(level => level >= 1 && level <= 6))]
             : [];
-        const portrait = typeof saved.portrait === "string" &&
-            Object.prototype.hasOwnProperty.call(profilePortraitSources, saved.portrait)
-            ? saved.portrait
-            : "mason";
-
-        return {
-            campaignLevels,
-            portrait
-        };
+        return { campaignLevels };
     } catch {
-        return { campaignLevels: [], portrait: "mason" };
+        return { campaignLevels: [] };
     }
 }
 
@@ -2451,28 +2456,47 @@ let playerProfile = readPlayerProfile();
 
 function persistPlayerProfile() {
     try {
-        localStorage.setItem(playerProfileKey, JSON.stringify(playerProfile));
+        const saved = { campaignLevels: playerProfile.campaignLevels };
+        if (supabaseUser && profilePortraitSources[playerProfile.portrait]) {
+            saved.portrait = playerProfile.portrait;
+        }
+        localStorage.setItem(playerProfileKey, JSON.stringify(saved));
     } catch {
         // Keep the profile usable for this session if browser storage is unavailable.
     }
 }
 
+// Keep campaign completion locally, but do not retain an offline profile or portrait.
+persistPlayerProfile();
+
 function updateProfileIdentity() {
-    const displayName = supabaseUser ? accountUsername() : "PLAYER";
+    const signedIn = Boolean(supabaseUser);
+    const displayName = signedIn ? accountUsername() : "DEFENDER";
     const upperUsername = displayName.toLocaleUpperCase();
     const unlockedPortraits = getUnlockedProfilePortraits();
-    if (!unlockedPortraits.some(([id]) => id === playerProfile.portrait)) {
+    if (signedIn && !unlockedPortraits.some(([id]) => id === playerProfile.portrait)) {
         playerProfile.portrait = unlockedPortraits[0]?.[0] || "mason";
     }
-    const survivor = survivorDetails[playerProfile.portrait];
+    const survivor = survivorDetails[playerProfile.portrait] || survivorDetails.mason;
     const portraitSource = profilePortraitSources[playerProfile.portrait] || profilePortraitSources.mason;
+    const profileButton = document.getElementById("profileButton");
+    const profileButtonImage = document.getElementById("profileButtonPortrait");
 
-    document.getElementById("profileButtonUsername").textContent = upperUsername;
+    document.getElementById("profileButtonAction").textContent = signedIn ? "PROFILE" : "SIGN IN";
+    document.getElementById("profileButtonUsername").textContent = signedIn ? upperUsername : "";
+    document.getElementById("profileButtonUsername").hidden = !signedIn;
+    profileButtonImage.hidden = !signedIn;
+    document.getElementById("profileButtonSignInMark").hidden = signedIn;
+    profileButton.setAttribute("aria-label", signedIn ? `Open ${displayName}'s player profile` : "Sign in or create a player account");
     document.getElementById("mainMenuGreeting").textContent = `HEY, ${upperUsername}!`;
-    document.getElementById("profileButtonPortrait").src = portraitSource;
-    document.getElementById("profilePortraitPreview").src = portraitSource;
-    document.getElementById("profilePortraitLabel").textContent = survivor.name.toUpperCase();
-    document.getElementById("profileTitle").textContent = `${upperUsername} // PROFILE`;
+    document.getElementById("profileScreen").querySelector(".profile-panel").classList.toggle("is-auth-only", !signedIn);
+    document.getElementById("profileEyebrow").textContent = signedIn ? "PLAYER ACCOUNT // PROFILE" : "ACCOUNT ACCESS";
+    document.getElementById("profileTitle").textContent = signedIn ? `${upperUsername} // PROFILE` : "SIGN IN OR CREATE ACCOUNT";
+    if (signedIn) {
+        profileButtonImage.src = portraitSource;
+        document.getElementById("profilePortraitPreview").src = portraitSource;
+        document.getElementById("profilePortraitLabel").textContent = survivor.name.toUpperCase();
+    }
 }
 
 function getUnlockedProfilePortraits() {
@@ -2482,6 +2506,10 @@ function getUnlockedProfilePortraits() {
 
 function renderProfilePortraitOptions() {
     const options = document.getElementById("profilePortraitOptions");
+    if (!supabaseUser) {
+        options.replaceChildren();
+        return;
+    }
     const fragment = document.createDocumentFragment();
 
     getUnlockedProfilePortraits().forEach(([id, survivor]) => {
@@ -2507,6 +2535,7 @@ function renderProfilePortraitOptions() {
 }
 
 function saveProfilePortrait(id) {
+    if (!supabaseUser) return;
     const survivor = survivorDetails[id];
     if (!survivor || survivor.unlocked !== true || !profilePortraitSources[id]) return;
 
@@ -2515,9 +2544,7 @@ function saveProfilePortrait(id) {
     updateProfileIdentity();
     renderProfilePortraitOptions();
     const notice = document.getElementById("profileSaveNotice");
-    notice.textContent = supabaseUser
-        ? `${survivor.name.toUpperCase()} PORTRAIT SAVED. SYNCING...`
-        : `${survivor.name.toUpperCase()} PORTRAIT SAVED ON THIS DEVICE.`;
+    notice.textContent = `${survivor.name.toUpperCase()} PORTRAIT SAVED. SYNCING...`;
     syncRemoteProfile().then(error => {
         if (supabaseUser) notice.textContent = error
             ? "SAVED ON THIS DEVICE. ONLINE SYNC FAILED."
@@ -2833,6 +2860,71 @@ async function ensureSupabaseClient() {
     return supabaseClient;
 }
 
+function setLivePlayerCountOffline() {
+    const badge = document.getElementById("livePlayerCount");
+    const value = document.getElementById("livePlayerCountValue");
+    const label = document.getElementById("livePlayerCountLabel");
+    if (!badge || !value || !label) return;
+    badge.dataset.status = "offline";
+    value.textContent = "—";
+    label.textContent = "COUNT OFFLINE";
+}
+
+function updateLivePlayerCount(status = "online") {
+    const badge = document.getElementById("livePlayerCount");
+    const value = document.getElementById("livePlayerCountValue");
+    const label = document.getElementById("livePlayerCountLabel");
+    if (!badge || !value || !label || !livePresenceChannel) return;
+
+    const presence = livePresenceChannel.presenceState();
+    const count = Object.values(presence).reduce((total, clients) =>
+        total + (Array.isArray(clients) ? clients.length : 0), 0);
+    badge.dataset.status = status;
+    value.textContent = status === "online" ? String(count) : "—";
+    label.textContent = status === "online" ? "PLAYERS ONLINE" : "COUNT OFFLINE";
+}
+
+function startLivePlayerCount(client) {
+    if (livePresenceChannel || typeof client?.channel !== "function") return;
+
+    const badge = document.getElementById("livePlayerCount");
+    const value = document.getElementById("livePlayerCountValue");
+    const label = document.getElementById("livePlayerCountLabel");
+    if (!badge || !value || !label) return;
+
+    badge.dataset.status = "connecting";
+    value.textContent = "—";
+    label.textContent = "CONNECTING";
+
+    try {
+        const channel = client.channel("wasteland-defense-live-players");
+        livePresenceChannel = channel;
+        channel.on("presence", { event: "sync" }, () => updateLivePlayerCount());
+        channel.subscribe(async status => {
+            if (status === "SUBSCRIBED") {
+                badge.dataset.status = "online";
+                label.textContent = "PLAYERS ONLINE";
+                try {
+                    const trackStatus = await channel.track({ connected_at: new Date().toISOString() });
+                    if (trackStatus !== "ok") throw new Error("Realtime presence could not be tracked.");
+                    updateLivePlayerCount();
+                } catch (error) {
+                    console.warn("Live player count could not publish presence:", error.message || error);
+                    updateLivePlayerCount("offline");
+                }
+            } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
+                updateLivePlayerCount("offline");
+            }
+        });
+    } catch (error) {
+        livePresenceChannel = null;
+        badge.dataset.status = "offline";
+        value.textContent = "—";
+        label.textContent = "COUNT OFFLINE";
+        console.warn("Live player count could not start:", error.message || error);
+    }
+}
+
 function updateAccountUI(user = supabaseUser) {
     const connected = Boolean(user);
     const config = getSupabaseConfig();
@@ -2852,10 +2944,10 @@ function updateAccountUI(user = supabaseUser) {
     friendsTools.hidden = !connected;
     usernameLabel.textContent = connected ? `@${accountUsername(user)}` : "";
     accountPanel.classList.toggle("is-connected", connected);
-    accountTitle.textContent = connected ? "ACCOUNT CONNECTED" : "PLAYER ACCOUNT";
+    accountTitle.textContent = connected ? "ACCOUNT CONNECTED" : "SIGN IN OR CREATE ACCOUNT";
     profileIntro.textContent = connected
         ? "Your account keeps your username and progress synced across devices."
-        : "Sign in to carry your username and progress between devices.";
+        : "Sign in or create an account to create a profile and sync your progress.";
     updateProfileIdentity();
 
     if (connected) {
@@ -2869,10 +2961,10 @@ function updateAccountUI(user = supabaseUser) {
         storageStatus.textContent = "ACCOUNT SYNC ACTIVE";
     } else if (!config.url || !config.key) {
         state.textContent = "The account service still needs its Supabase project URL and publishable key.";
-        storageStatus.textContent = "LOCAL SAVE // SETUP REQUIRED";
+        storageStatus.textContent = "LOCAL PROGRESS SAVED // SETUP REQUIRED";
     } else {
         state.textContent = "Sign in or create a username and password account to sync your save.";
-        storageStatus.textContent = "LOCAL SAVE // ACCOUNT NOT CONNECTED";
+        storageStatus.textContent = "LOCAL PROGRESS SAVED ON THIS DEVICE";
     }
 }
 
@@ -2966,7 +3058,7 @@ async function importLocalProgress(client, progress) {
         p_completed_campaign_levels: isSwitchingAccounts ? [] : playerProfile.campaignLevels,
         p_endless_scores: {},
         p_callsign: accountUsername(),
-        p_portrait_id: isSwitchingAccounts ? "mason" : playerProfile.portrait
+        p_portrait_id: isSwitchingAccounts ? "mason" : (playerProfile.portrait || "mason")
     });
     if (error) throw error;
     const { data, error: reloadError } = await client
@@ -2984,6 +3076,7 @@ async function handleSupabaseSession(session) {
     supabaseUser = user;
     updateAccountUI(user);
     if (!user) {
+        persistPlayerProfile();
         cloudLoadGeneration++;
         renderLeaderboard();
         return;
@@ -3088,6 +3181,7 @@ async function initializeSupabaseAccount() {
     updateAccountUI(null);
     try {
         const client = await ensureSupabaseClient();
+        startLivePlayerCount(client);
         const { data, error } = await client.auth.getSession();
         if (error) throw error;
         await handleSupabaseSession(data.session);
@@ -3096,6 +3190,7 @@ async function initializeSupabaseAccount() {
         });
     } catch (error) {
         console.error("Supabase initialization failed:", error.message || error);
+        setLivePlayerCountOffline();
         setAccountNotice(error.message || "SUPABASE COULD NOT START.", true);
     }
 }
@@ -3440,18 +3535,21 @@ function renderLeaderboard() {
     const playerCell = document.createElement("td");
     const player = document.createElement("div");
     player.className = "leaderboard-player-name";
-    const avatar = document.createElement("img");
-    avatar.className = "leaderboard-player-avatar";
-    avatar.src = profilePortraitSources[playerProfile.portrait] || profilePortraitSources.mason;
-    const localUsername = supabaseUser ? accountUsername() : "PLAYER";
-    avatar.alt = `${localUsername}'s profile portrait`;
+    const localUsername = supabaseUser ? accountUsername() : "LOCAL RECORD";
     const localName = document.createElement("strong");
     localName.textContent = localUsername;
     const localLabel = document.createElement("small");
-    localLabel.textContent = "THIS DEVICE";
+    localLabel.textContent = supabaseUser ? "THIS DEVICE" : "UNLINKED SAVE";
     const nameCopy = document.createElement("span");
     nameCopy.append(localName, localLabel);
-    player.append(avatar, nameCopy);
+    if (supabaseUser) {
+        const avatar = document.createElement("img");
+        avatar.className = "leaderboard-player-avatar";
+        avatar.src = profilePortraitSources[playerProfile.portrait] || profilePortraitSources.mason;
+        avatar.alt = `${localUsername}'s profile portrait`;
+        player.append(avatar);
+    }
+    player.append(nameCopy);
     playerCell.append(player);
 
     const scoreCell = document.createElement("td");
