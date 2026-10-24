@@ -769,7 +769,7 @@ const enemyDamage = 12;
 const enemyProfiles = {
     spider: {
         image: spiderImage,
-        baseHealth: 100,
+        baseHealth: 32,
         speed: 69,
         size: 22,
         spriteWidth: 44,
@@ -778,8 +778,8 @@ const enemyProfiles = {
     },
     skitter: {
         image: skitterImage,
-        baseHealth: 72,
-        speed: 100,
+        baseHealth: 20,
+        speed: 110,
         size: 22,
         spriteWidth: 44,
         spriteHeight: 44,
@@ -787,8 +787,8 @@ const enemyProfiles = {
     },
     hollow: {
         image: hollowImage,
-        baseHealth: 220,
-        speed: 50,
+        baseHealth: 140,
+        speed: 75,
         size: 32,
         spriteWidth: 32,
         spriteHeight: 64,
@@ -797,8 +797,8 @@ const enemyProfiles = {
     },
     fogkeeper: {
         image: fogkeeperImage,
-        baseHealth: 185,
-        speed: 54,
+        baseHealth: 300,
+        speed: 40,
         size: 28,
         spriteWidth: 32,
         spriteHeight: 64,
@@ -807,8 +807,8 @@ const enemyProfiles = {
     },
     heavymutant: {
         image: heavyMutantImage,
-        baseHealth: 205,
-        speed: 48,
+        baseHealth: 380,
+        speed: 35,
         size: 28,
         spriteWidth: 32,
         spriteHeight: 64,
@@ -817,8 +817,8 @@ const enemyProfiles = {
     },
     wastelandcow: {
         image: wastelandCowImage,
-        baseHealth: 100,
-        speed: 69,
+        baseHealth: 140,
+        speed: 50,
         size: 22,
         spriteWidth: 44,
         spriteHeight: 44,
@@ -826,8 +826,8 @@ const enemyProfiles = {
     },
     mutantman: {
         image: mutantManImage,
-        baseHealth: 100,
-        speed: 69,
+        baseHealth: 110,
+        speed: 60,
         size: 22,
         spriteWidth: 44,
         spriteHeight: 44,
@@ -859,21 +859,10 @@ function getEnemyProfile(type) {
     return enemyProfiles[type] || enemyProfiles.spider;
 }
 
-function interleaveEnemyTypes(typeCounts) {
-    const remaining = Object.entries(typeCounts)
+function groupEnemyTypes(typeCounts) {
+    return Object.entries(typeCounts)
         .filter(([, count]) => count > 0)
-        .map(([type, count]) => ({ type, count, spawned: 0 }));
-    const sequence = [];
-
-    while (sequence.length < remaining.reduce((total, entry) => total + entry.count, 0)) {
-        for (const entry of remaining) {
-            if (entry.spawned >= entry.count) continue;
-            sequence.push(entry.type);
-            entry.spawned++;
-        }
-    }
-
-    return sequence;
+        .flatMap(([type, count]) => Array(count).fill(type));
 }
 
 function updatePlayerHealthDisplay() {
@@ -897,13 +886,12 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
     const endlessDifficultyTier = gameMode === "endless" && currentWave >= 10
         ? Math.floor((currentWave - 10) / 5) + 1
         : 0;
-    // Endless enemies gain durability faster so a fully upgraded squad cannot
-    // flatten later waves at the same pace as the campaign.
+    // Endless enemies gain per-wave health and a compounding 10% bonus
+    // every five waves starting at wave 10.
     const healthGrowthPerWave = gameMode === "endless" ? 0.065 : 0.045;
     const waveHealthScale =
         (1 + Math.max(0, currentWave - 3) * healthGrowthPerWave) *
-        (1 + endlessDifficultyTier * 0.12);
-    const endlessStartingHealthScale = gameMode === "endless" ? 0.5 : 1;
+        (1.1 ** endlessDifficultyTier);
     const specialHealthScale = specialRole === "boss"
         ? 1.5
         : specialRole === "miniBoss"
@@ -920,7 +908,7 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
             ? 1.25
             : 1;
     const health = Math.round(
-        profile.baseHealth * waveHealthScale * endlessStartingHealthScale * specialHealthScale
+        profile.baseHealth * waveHealthScale * specialHealthScale
     );
 
     enemies.push({
@@ -993,13 +981,13 @@ function getWaveGroups(wave) {
         standardCount - cowCount - mutantManCount - heavyCount
     );
 
-    const standardTypes = interleaveEnemyTypes({
+    const standardTypes = groupEnemyTypes({
         spider: spiderCount,
         wastelandcow: cowCount,
         mutantman: mutantManCount,
         [heavyType]: heavyCount
     });
-    const fastTypes = interleaveEnemyTypes({
+    const fastTypes = groupEnemyTypes({
         skitter: skitterCount,
         mutantsnake: snakeCount
     });
@@ -1430,9 +1418,9 @@ const survivorStats = {
     mason: { range: 140, damage: 13, fireRate: 1.05 },
     james: { range: 120, damage: 14, fireRate: 0.8 },
     cody: { range: 140, damage: 26, fireRate: 1.6 },
-    britney: { range: 230, damage: 38, fireRate: 2.1 },
-    zach: { range: 108, damage: 4, fireRate: 0.275 },
-    brady: { range: 142, damage: 16, fireRate: 1.1 }
+    britney: { range: 230, damage: 46, fireRate: 2.1 },
+    zach: { range: 108, damage: 3, fireRate: 0.275 },
+    brady: { range: 142, damage: 24, fireRate: 1.4 }
 };
 
 const survivorDamageMultipliers = {
@@ -1465,12 +1453,17 @@ function getSurvivorStats(survivorOrType) {
     const bradyAutoShotty = isSurvivor && type === "brady" && level >= 3;
     const levelTwoMasonDamage = Math.round(base.damage * 1.4);
     const levelTwoBritneyDamage = Math.round(base.damage * 1.4);
+    const levelTwoZachDamage = Math.round(base.damage * 1.4);
     const damage = masonHighCaliber
         ? Math.round(levelTwoMasonDamage * 2)
         : britneySemiAuto
             ? Math.round(levelTwoBritneyDamage * 0.7)
             : Math.round(base.damage * (1 + 0.2 * level));
-    const levelAdjustedDamage = level >= 3 ? damage * 2 : damage;
+    const levelAdjustedDamage = zachDualWield
+        ? levelTwoZachDamage * 0.5
+        : level >= 3 && !masonHighCaliber && !bradyAutoShotty
+            ? damage * 2
+            : damage;
     const damageMultiplier = survivorDamageMultipliers[type] || 1;
     return {
         damage: Number((levelAdjustedDamage * damageMultiplier).toFixed(2)),
@@ -1513,7 +1506,7 @@ function getJamesBurnStats(survivor) {
 function getSurvivorUpgradeCost(type, level) {
     const baseCost = survivorCosts[type];
     if (!baseCost || level < 1 || level > maxSurvivorUpgradeLevel) return 0;
-    const upgradeCostMultipliers = [0, 0.75, 1.25, 3.5];
+    const upgradeCostMultipliers = [0, 0.75, 1.25, 10];
     return Math.round(baseCost * upgradeCostMultipliers[level]);
 }
 
@@ -1567,7 +1560,7 @@ function updateSurvivorUpgradeButton(survivor) {
         costLabel.textContent = "FULLY UPGRADED";
         button.disabled = true;
         button.title = hasHighCaliber
-            ? "High Caliber is active: 4× level 2 damage with a 25% longer attack interval."
+            ? "High Caliber is active: 2× level 2 damage with a 25% longer attack interval."
             : hasNapalmThrower
                 ? "Napalm Thrower is active: level 3 damage is doubled, burning lasts 25% longer, and burn damage per tick is doubled again."
                 : hasHighlyExplosive
@@ -1575,9 +1568,9 @@ function updateSurvivorUpgradeButton(survivor) {
                     : hasSemiAuto
                         ? "Semi Auto is active: about 40% more damage than level 2, firing 80% faster."
                         : hasDualWield
-                            ? "Dual Wield is active: doubled level 3 damage, fires twice as fast, and hits the first two targets in range."
+                            ? "Dual Wield is active: half damage per target, fires twice as fast, and hits the first two targets in range."
                             : hasAutoShotty
-                                ? "Auto Shotty is active: doubled level 3 damage and fires twice as fast."
+                                ? "Auto Shotty is active: increased shot damage and fires twice as fast."
                                 : "This survivor has reached the maximum upgrade level.";
         return;
     }
@@ -1606,7 +1599,7 @@ function updateSurvivorUpgradeButton(survivor) {
     button.title = scrap < cost
         ? `Need ${cost - scrap} more scrap to upgrade.`
         : unlocksHighCaliber
-            ? `High Caliber deals 4× Mason's level 2 damage, with a 25% longer attack interval.`
+            ? "High Caliber deals 2× Mason's level 2 damage, with a 25% longer attack interval."
             : unlocksNapalmThrower
                 ? "Napalm Thrower doubles level 3 damage, extends burning 25%, and doubles burn damage per tick again."
                 : unlocksHighlyExplosive
@@ -1614,9 +1607,9 @@ function updateSurvivorUpgradeButton(survivor) {
                         : unlocksSemiAuto
                             ? "Semi Auto doubles its level 3 damage, then fires 80% faster than level 2."
                             : unlocksDualWield
-                                ? "Dual Wield doubles level 3 damage and attack speed, and hits the first two targets in range at once."
+                                ? "Dual Wield fires twice as fast and hits two targets at once, dealing half damage to each target."
                                 : unlocksAutoShotty
-                                    ? "Auto Shotty doubles level 3 damage and Brady's attack rate."
+                                    ? "Auto Shotty increases shot damage and doubles Brady's attack rate."
                                     : `Upgrade this survivor for ${cost} scrap.`;
 }
 
@@ -1672,8 +1665,8 @@ const deployedUpgradeLevel = getSurvivorUpgradeLevel(deployedUnit);
 let detailDescription = survivorDescriptions[id];
 if (deployedUnit?.type === "mason" && deployedUpgradeLevel >= 2) {
     detailDescription = deployedUpgradeLevel >= 3
-        ? "High Caliber active: 4× level 2 damage, with a 25% longer attack interval."
-        : "Next upgrade: High Caliber deals 4× level 2 damage, with a 25% longer attack interval.";
+        ? "High Caliber active: 2× level 2 damage, with a 25% longer attack interval."
+        : "Next upgrade: High Caliber deals 2× level 2 damage, with a 25% longer attack interval.";
 } else if (deployedUnit?.type === "james" && deployedUpgradeLevel >= 2) {
     detailDescription = deployedUpgradeLevel >= 3
         ? "Napalm Thrower active: level 3 damage is doubled, burning lasts 25% longer, and burn damage per tick doubles again."
@@ -1688,12 +1681,12 @@ if (deployedUnit?.type === "mason" && deployedUpgradeLevel >= 2) {
         : "Next upgrade: Semi Auto doubles its level 3 damage, then fires 80% faster than level 2.";
 } else if (deployedUnit?.type === "zach" && deployedUpgradeLevel >= 2) {
     detailDescription = deployedUpgradeLevel >= 3
-        ? "Dual Wield active: doubled level 3 damage, fires twice as fast, and hits the first two targets in range at once."
-        : "Next upgrade: Dual Wield doubles level 3 damage and attack speed, and hits the first two targets in range at once.";
+        ? "Dual Wield active: fires twice as fast, hits two targets at once, and deals half damage to each target."
+        : "Next upgrade: Dual Wield fires twice as fast, hits two targets at once, and deals half damage to each target.";
 } else if (deployedUnit?.type === "brady" && deployedUpgradeLevel >= 2) {
     detailDescription = deployedUpgradeLevel >= 3
-        ? "Auto Shotty active: doubled level 3 damage and attack rate."
-        : "Next upgrade: Auto Shotty doubles level 3 damage and Brady's attack rate.";
+        ? "Auto Shotty active: increased shot damage and doubles Brady's attack rate."
+        : "Next upgrade: Auto Shotty increases shot damage and doubles Brady's attack rate.";
 }
 document.getElementById("survivorDetailDescription").textContent = detailDescription;
 
