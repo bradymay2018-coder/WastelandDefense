@@ -3672,6 +3672,7 @@ main.game-layout > .control-panel {
 #mainMenu .menu-crew-portraits img:nth-child(5) { border-bottom-color: #88c3c6; }
 #mainMenu .menu-crew-portraits img:nth-child(6) { border-bottom-color: #e4b777; }
 
+
 #mainMenu .menu-crew-footer {
     display: flex;
     flex-wrap: wrap;
@@ -9064,4 +9065,247 @@ body.is-survivor-dragging {
     border-color: #527960;
     background: #26372d;
     color: #a9d8b4;
+}
+
+/* Unified pixel-art survivor portrait frames */
+#deploymentScreen [data-survivor="mason"],
+#inGameSurvivorList [data-survivor="mason"],
+.profile-portrait-option[data-profile-portrait="mason"] { --portrait-accent: #edc85f; }
+#deploymentScreen [data-survivor="james"],
+#inGameSurvivorList [data-survivor="james"],
+.profile-portrait-option[data-profile-portrait="james"] { --portrait-accent: #ef9258; }
+#deploymentScreen [data-survivor="cody"],
+#inGameSurvivorList [data-survivor="cody"],
+.profile-portrait-option[data-profile-portrait="cody"] { --portrait-accent: #a895d2; }
+#deploymentScreen [data-survivor="britney"],
+#inGameSurvivorList [data-survivor="britney"],
+.profile-portrait-option[data-profile-portrait="britney"] { --portrait-accent: #df91b6; }
+#deploymentScreen [data-survivor="zach"],
+#inGameSurvivorList [data-survivor="zach"],
+.profile-portrait-option[data-profile-portrait="zach"] { --portrait-accent: #83c8ce; }
+#deploymentScreen [data-survivor="brady"],
+#inGameSurvivorList [data-survivor="brady"],
+.profile-portrait-option[data-profile-portrait="brady"] { --portrait-accent: #e5b777; }
+
+#mainMenu .menu-crew-portraits img:nth-child(1) { --portrait-accent: #edc85f; }
+#mainMenu .menu-crew-portraits img:nth-child(2) { --portrait-accent: #ef9258; }
+#mainMenu .menu-crew-portraits img:nth-child(3) { --portrait-accent: #a895d2; }
+#mainMenu .menu-crew-portraits img:nth-child(4) { --portrait-accent: #df91b6; }
+#mainMenu .menu-crew-portraits img:nth-child(5) { --portrait-accent: #83c8ce; }
+#mainMenu .menu-crew-portraits img:nth-child(6) { --portrait-accent: #e5b777; }
+img[data-portrait-id="mason"] { --portrait-accent: #edc85f; }
+img[data-portrait-id="james"] { --portrait-accent: #ef9258; }
+img[data-portrait-id="cody"] { --portrait-accent: #a895d2; }
+img[data-portrait-id="britney"] { --portrait-accent: #df91b6; }
+img[data-portrait-id="zach"] { --portrait-accent: #83c8ce; }
+img[data-portrait-id="brady"] { --portrait-accent: #e5b777; }
+
+#mainMenu .menu-crew-portraits img,
+#profileButtonPortrait,
+#profilePortraitPreview,
+.profile-portrait-option img,
+.profile-friend-avatar,
+.leaderboard-player-avatar,
+.dialogue-portrait,
+.survivor-portrait,
+img.survivor-portrait-placeholder {
+    box-sizing: border-box;
+    border: 2px solid #101116;
+    border-radius: 4px;
+    background-color: #24232b;
+    box-shadow:
+        0 0 0 1px var(--portrait-accent, #766c7b),
+        0 3px 0 #0c0d11;
+    image-rendering: pixelated;
+}
+
+#mainMenu .menu-crew-portraits img,
+.survivor-portrait,
+img.survivor-portrait-placeholder,
+.dialogue-portrait {
+    transition: filter 120ms ease, box-shadow 120ms ease;
+}
+
+#deploymentScreen .deploy-card[aria-pressed="true"] img.survivor-portrait-placeholder,
+#inGameSurvivorList .survivor-card.selected img.survivor-portrait-placeholder,
+.profile-portrait-option[aria-pressed="true"] img {
+    box-shadow:
+        0 0 0 1px var(--portrait-accent, #edbd7a),
+        0 0 10px #edbd7a66,
+        0 3px 0 #0c0d11;
+    filter: brightness(1.08) saturate(1.12);
+}
+
+#deploymentScreen .deploy-card:hover img.survivor-portrait-placeholder,
+#inGameSurvivorList .survivor-card:hover img.survivor-portrait-placeholder,
+.profile-portrait-option:hover img {
+    filter: brightness(1.08) saturate(1.08);
+}
+
+/* Keep portrait silhouettes square and crisp at every display size. */
+#mainMenu .menu-crew-portraits img,
+#deploymentScreen img.survivor-portrait-placeholder,
+#inGameSurvivorList img.survivor-portrait-placeholder,
+#profileButtonPortrait,
+#profilePortraitPreview,
+.profile-portrait-option img,
+.profile-friend-avatar,
+.leaderboard-player-avatar,
+.dialogue-portrait,
+.control-panel .survivor-portrait,
+.control-panel .survivor-list .survivor-portrait-placeholder {
+    border-radius: 0;
+}
+
+/* Match the homepage roster's original square portrait tiles. */
+#mainMenu .menu-crew-portraits img {
+    border: 1px solid #514e59;
+    border-bottom: 3px solid #f0c765;
+    border-radius: 0;
+    box-shadow: 0 3px 0 #111116;
+}
+
+#mainMenu button.menu-roadmap-card {
+    width: 100%;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+#mainMenu #dailyChallengeButton:hover {
+    transform: translateY(-2px);
+    border-color: #e5b95e;
+    background: linear-gradient(145deg, #302a28, #202127);
+}
+
+#mainMenu #dailyChallengeButton:focus-visible {
+    outline: 2px solid #f0c765;
+    outline-offset: 3px;
+}
+
+.leaderboard-mode-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 0 0;
+}
+
+.leaderboard-mode-tab {
+    min-height: 38px;
+    padding: 0 18px;
+    background: #222126;
+    border: 1px solid #48434d;
+    color: #c3bdc8;
+    font: 700 9px Consolas, "Courier New", monospace;
+    letter-spacing: 1px;
+    cursor: pointer;
+}
+
+.leaderboard-mode-tab.is-active {
+    background: #d9a35e;
+    border-color: #edbd7a;
+    color: #211a15;
+}
+
+.daily-leaderboard-date-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 4px 0 16px;
+}
+
+.daily-leaderboard-date-control[hidden] { display: none !important; }
+
+.daily-leaderboard-date-control label {
+    color: #aaa3ae;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.daily-leaderboard-date-control input {
+    min-height: 36px;
+    padding: 5px 9px;
+    background: #17181e;
+    border: 1px solid #48434d;
+    border-radius: 3px;
+    color: #e9e1eb;
+    color-scheme: dark;
+    font: 700 10px Consolas, "Courier New", monospace;
+}
+
+#leaderboardScreen [hidden] { display: none !important; }
+
+#submitDailyScoreButton,
+#submitVictoryDailyScoreButton {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 14px;
+    background: linear-gradient(180deg, #f0c579, #d99e55);
+    border: 1px solid #f4d297;
+    border-bottom: 3px solid #805638;
+    border-radius: 3px;
+    color: #211a16;
+    font: 800 10px Consolas, "Courier New", monospace;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: filter 120ms ease, transform 120ms ease;
+}
+
+#submitDailyScoreButton:hover:not(:disabled),
+#submitVictoryDailyScoreButton:hover:not(:disabled) {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+}
+
+#submitDailyScoreButton:disabled,
+#submitVictoryDailyScoreButton:disabled { cursor: default; opacity: 0.72; }
+
+#submitDailyScoreButton.is-submitted,
+#submitVictoryDailyScoreButton.is-submitted {
+    background: linear-gradient(180deg, #a6d0b2, #6e9f84);
+    border-color: #bde0c7;
+    border-bottom-color: #385d4a;
+}
+
+.daily-score-submission[hidden] { display: none; }
+.daily-score-submission { display: grid; gap: 7px; margin: 0 0 10px; }
+#gameOverDailyScoreNotice,
+#victoryDailyScoreNotice {
+    min-height: 14px;
+    margin: 0;
+    color: #b8b1bb;
+    font-size: 8px;
+    line-height: 1.45;
+}
+#gameOverDailyScoreNotice.is-success,
+#victoryDailyScoreNotice.is-success { color: #a6d0b2; }
+#gameOverDailyScoreNotice.is-error,
+#victoryDailyScoreNotice.is-error { color: #e99a8c; }
+
+.daily-challenge-details {
+    margin: 10px auto 0;
+    color: #e7c881;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    line-height: 1.6;
+}
+
+#victoryCoinRewardStatus:empty { display: none; }
+#victoryCoinRewardStatus { color: #a6d0b2 !important; font-size: 7px !important; letter-spacing: 0.5px !important; }
+
+#dailyChallengeDetails[hidden] { display: none !important; }
+
+#deploymentRoster .deploy-card[hidden] { display: none !important; }
+
+@media (max-width: 620px) {
+    .leaderboard-mode-tabs { padding-top: 12px; }
+    .leaderboard-mode-tab { min-height: 42px; flex: 1; padding: 0 8px; font-size: 8px; }
+    .daily-leaderboard-date-control { align-items: flex-start; flex-direction: column; padding-bottom: 10px; }
+    .daily-leaderboard-date-control input { width: 100%; }
+    .daily-challenge-details { font-size: 8px; }
 }

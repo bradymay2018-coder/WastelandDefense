@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wasteland Defense</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1">
-    <link rel="stylesheet" href="style.css?v=20261023-27">
+    <link rel="stylesheet" href="style.css?v=20261024-05">
 </head>
 <body>
 
@@ -129,7 +129,7 @@
 
     <div class="menu-mode-heading">
         <h3 class="menu-section-title">PICK YOUR KIND OF TROUBLE</h3>
-        <span>Two ways to play. Plenty of ways to panic.</span>
+        <span>Three ways to play. Plenty of ways to panic.</span>
     </div>
 
     <div class="menu-cards">
@@ -154,20 +154,20 @@
 
     <section class="menu-roadmap" aria-labelledby="menuRoadmapTitle">
         <div class="menu-roadmap-heading">
-            <h3 id="menuRoadmapTitle">MORE FUN ON THE WAY</h3>
-            <span>THE WASTELAND IS GETTING BIGGER</span>
+            <h3 id="menuRoadmapTitle">DAILY CHALLENGE</h3>
+            <span>NEW SHARED SETUP EVERY UTC DAY</span>
         </div>
 
         <div class="menu-roadmap-grid">
-            <article class="menu-roadmap-card menu-roadmap-daily">
+            <button class="menu-roadmap-card menu-roadmap-daily" id="dailyChallengeButton" type="button">
                 <span class="menu-roadmap-icon" aria-hidden="true"><img src="Images/spider.png" alt=""></span>
                 <div>
-                    <span class="menu-roadmap-kicker">DAILY CHALLENGES</span>
-                    <strong>A fresh little disaster, every day.</strong>
-                    <p>Beat challenges to earn account credits.</p>
+                    <span class="menu-roadmap-kicker">DAILY CHALLENGE</span>
+                    <strong>One map. Three survivors. Fifteen waves.</strong>
+                    <p>Take on today's shared challenge and earn 250 coins for clearing it.</p>
                 </div>
-                <span class="menu-roadmap-status">COMING SOON</span>
-            </article>
+                <span class="menu-roadmap-status">PLAY TODAY'S CHALLENGE →</span>
+            </button>
 
             <article class="menu-roadmap-card menu-roadmap-recruits">
                 <span class="menu-roadmap-icon menu-recruit-icon" aria-hidden="true">+</span>
@@ -288,6 +288,13 @@
                     </div>
                     <div id="profileTrophyCounts" class="profile-trophy-counts" role="group" aria-label="Endless trophies by type"></div>
                 </section>
+                <section class="profile-stat profile-stat-trophies profile-stat-daily-trophies" aria-labelledby="profileDailyTrophyTitle">
+                    <div class="profile-trophy-summary">
+                        <span id="profileDailyTrophyTitle">DAILY CHALLENGE TROPHIES</span>
+                        <small>Podium awards are kept in your collection.</small>
+                    </div>
+                    <div id="profileDailyTrophyCounts" class="profile-trophy-counts" role="group" aria-label="Daily challenge trophies by type"></div>
+                </section>
             </div>
         </div>
 
@@ -312,20 +319,30 @@
             </button>
         </div>
 
+        <div class="leaderboard-mode-tabs" role="tablist" aria-label="Leaderboard mode">
+            <button class="leaderboard-mode-tab is-active" id="endlessLeaderboardTab" type="button" role="tab" aria-selected="true">ENDLESS</button>
+            <button class="leaderboard-mode-tab" id="dailyLeaderboardTab" type="button" role="tab" aria-selected="false">DAILY CHALLENGE</button>
+        </div>
+
         <div class="leaderboard-toolbar">
             <div class="leaderboard-scope-tabs" role="tablist" aria-label="Leaderboard group">
                 <button class="leaderboard-scope-tab is-active" type="button" role="tab" data-leaderboard-scope="global" aria-selected="true">GLOBAL</button>
                 <button class="leaderboard-scope-tab" type="button" role="tab" data-leaderboard-scope="friends" aria-selected="false">FRIENDS</button>
             </div>
-            <span class="leaderboard-mode-tag"><i aria-hidden="true"></i> ENDLESS MODE</span>
+            <span class="leaderboard-mode-tag"><i aria-hidden="true"></i> <span id="leaderboardModeTag">ENDLESS MODE</span></span>
         </div>
 
         <div class="leaderboard-map-heading">
             <div>
-                <span class="leaderboard-overline">SELECT A MAP</span>
+                <span class="leaderboard-overline" id="leaderboardOverline">SELECT A MAP</span>
                 <h3 id="leaderboardMapTitle">THE OUTSKIRTS</h3>
             </div>
             <span id="leaderboardScopeLabel" class="leaderboard-scope-label">GLOBAL RANKING</span>
+        </div>
+
+        <div id="dailyLeaderboardDateControl" class="daily-leaderboard-date-control" hidden>
+            <label for="dailyLeaderboardDate">VIEW ANOTHER DATE</label>
+            <input id="dailyLeaderboardDate" type="date">
         </div>
 
         <div class="leaderboard-map-tabs" role="tablist" aria-label="Endless map">
@@ -346,6 +363,7 @@
                         <th scope="col">#</th>
                         <th scope="col">DEFENDER</th>
                         <th scope="col">BEST WAVE</th>
+                        <th id="leaderboardHealthHeader" scope="col" hidden>HEALTH LEFT</th>
                         <th scope="col">RECORD</th>
                     </tr>
                 </thead>
@@ -354,7 +372,7 @@
         </div>
 
         <div class="leaderboard-footer">
-            <span>WASTELAND DEFENSE <b>//</b> ENDLESS RECORDS</span>
+            <span id="leaderboardFooter">WASTELAND DEFENSE <b>//</b> ENDLESS RECORDS</span>
             <span id="leaderboardPersonalBest">YOUR BEST: 0 WAVES</span>
         </div>
     </div>
@@ -514,6 +532,7 @@
             <h2 id="deploymentTitle">PICK YOUR SQUAD</h2>
             <p class="deployment-location" id="deploymentLocation">CHOOSE YOUR OPERATION</p>
             <p class="deployment-subtitle">Pick the survivors you want to bring. Tap a card again to swap them out.</p>
+            <p id="dailyChallengeDetails" class="daily-challenge-details" hidden></p>
         </div>
 
 
@@ -678,6 +697,10 @@
             <button id="submitEndlessScoreButton" type="button">SUBMIT TO LEADERBOARD</button>
             <p id="endlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
         </div>
+        <div id="gameOverDailyScoreSubmission" class="daily-score-submission" hidden>
+            <button id="submitDailyScoreButton" type="button">SUBMIT TO DAILY LEADERBOARD</button>
+            <p id="gameOverDailyScoreNotice" role="status" aria-live="polite"></p>
+        </div>
 
         <button id="restartRunButton" class="menu-button" type="button">
             RESTART RUN
@@ -717,8 +740,13 @@
             <span class="victory-coin-copy">
                 <small>CAMPAIGN LEVEL CLEAR</small>
                 <strong id="victoryCoinsEarned">+100 COINS</strong>
+                <small id="victoryCoinRewardStatus"></small>
             </span>
             <span class="victory-coin-total">WALLET <strong id="victoryCoinsTotal">100</strong></span>
+        </div>
+        <div id="victoryDailyScoreSubmission" class="daily-score-submission" hidden>
+            <button id="submitVictoryDailyScoreButton" type="button">SUBMIT TO DAILY LEADERBOARD</button>
+            <p id="victoryDailyScoreNotice" role="status" aria-live="polite"></p>
         </div>
         <button id="returnFromVictoryButton" class="menu-button" type="button">RETURN TO MENU</button>
     </div>
@@ -745,6 +773,10 @@
             <button id="submitCompletedEndlessScoreButton" type="button">SUBMIT LAST CLEARED WAVE</button>
             <p id="returnEndlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
         </div>
+        <div id="returnDailyScoreSubmission" class="daily-score-submission" hidden>
+            <button id="submitReturnDailyScoreButton" type="button">SUBMIT TO DAILY LEADERBOARD</button>
+            <p id="returnDailyScoreNotice" role="status" aria-live="polite"></p>
+        </div>
     </div>
 </section>
 
@@ -761,6 +793,10 @@
             <button id="submitCompletedEndlessScoreFromRestartButton" type="button">SUBMIT TO LEADERBOARD</button>
             <p id="restartEndlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
         </div>
+        <div id="restartDailyScoreSubmission" class="daily-score-submission" hidden>
+            <button id="submitRestartDailyScoreButton" type="button">SUBMIT TO DAILY LEADERBOARD</button>
+            <p id="restartDailyScoreNotice" role="status" aria-live="polite"></p>
+        </div>
     </div>
 </section>
 
@@ -774,7 +810,7 @@
             </span>
         </div>
         <div id="storyDialogue" class="story-dialogue" style="display: none;">
-    <img src="Images/James.png" alt="James" class="dialogue-portrait">
+    <img src="Images/James.png" alt="James" class="dialogue-portrait" data-portrait-id="james">
 
     <div class="dialogue-content">
         <strong class="dialogue-speaker">JAMES // FIRESTARTER</strong>
@@ -937,6 +973,6 @@
 </div>
 
 <script src="supabase-config.js?v=20261023-02"></script>
-<script src="game.js?v=20261024-01"></script>
+<script src="game.js?v=20261024-04"></script>
 </body>
 </html>

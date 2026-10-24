@@ -112,6 +112,12 @@ const horizontalEnemyLaneVisualOffset = -7;
 
 let currentLevel = 1;
 let gameMode = "campaign";
+let currentDailyChallenge = null;
+let activeDailyChallenge = null;
+let pendingDailyScore = null;
+let returnDailyScoreSubmission = null;
+let restartDailyScoreSubmission = null;
+let dailyLastCompletedAt = null;
 let activeCampaignRunId = null;
 let activeEndlessRunId = null;
 let pendingEndlessScore = null;
@@ -888,7 +894,11 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
         : 0;
     // Endless enemies gain per-wave health and a compounding 10% bonus
     // every five waves starting at wave 10.
-    const healthGrowthPerWave = gameMode === "endless" ? 0.065 : 0.045;
+    const healthGrowthPerWave = gameMode === "endless"
+        ? 0.065
+        : gameMode === "daily"
+            ? 0.015
+            : 0.045;
     const waveHealthScale =
         (1 + Math.max(0, currentWave - 3) * healthGrowthPerWave) *
         (1.1 ** endlessDifficultyTier);
@@ -935,6 +945,20 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
 }
 
 function getWaveGroups(wave) {
+    if (gameMode === "daily" && activeDailyChallenge) {
+        const [firstType, secondType, heavyType] = activeDailyChallenge.enemyTypes;
+        const totalRegularEnemies = 4 + Math.floor(wave * 0.75);
+        const firstBatch = Math.ceil(totalRegularEnemies * 0.55);
+        const groups = [
+            { type: firstType, count: firstBatch },
+            { type: secondType, count: totalRegularEnemies - firstBatch }
+        ].filter(group => group.count > 0);
+        if (wave % 5 === 0) {
+            groups.push({ type: heavyType, count: 1 });
+        }
+        return groups;
+    }
+
     const waveGroups = {
         1: [{ type: "spider", count: 10 }],
         2: [
@@ -1651,6 +1675,7 @@ const portraitFiles = {
 
 const portrait = document.getElementById("survivorPortrait");
 portrait.src = "Images/" + portraitFiles[id];
+portrait.dataset.portraitId = id;
 portrait.alt = person.name + "'s portrait";    document.getElementById("survivorDetailName").textContent = person.name;
     document.getElementById("survivorDetailRole").textContent = person.role;
     document.getElementById("survivorDetailCost").textContent =
@@ -2939,6 +2964,7 @@ function updateWaveSystem(deltaTime) {
         gamePaused = false;
 
         const completedWave = currentWave;
+        if (gameMode === "daily") dailyLastCompletedAt = new Date().toISOString();
         const baseWaveReward = gameMode === "endless"
             ? 25 + (completedWave - 1) * 5
             : startingWaveScrapReward + (completedWave - 1) * waveScrapRewardIncrease;
@@ -2963,12 +2989,43 @@ function updateWaveSystem(deltaTime) {
             document.querySelector(".game-layout").style.display = "none";
             recordCampaignLevelClear(currentLevel);
             awardCampaignLevelCoins();
+            document.querySelector("#victoryScreen .menu-eyebrow").textContent = "OPERATION SECURED // SAFE ZONE";
+            document.getElementById("victoryTitle").textContent = "OPERATION COMPLETE";
+            document.querySelector("#victoryScreen .victory-coin-copy small").textContent = "CAMPAIGN LEVEL CLEAR";
             const missionTitle = document.querySelector(
                 `#level${currentLevel}Button strong`
             )?.textContent || `LEVEL ${String(currentLevel).padStart(2, "0")}`;
             document.getElementById("victoryMessage").textContent =
                 `${missionTitle} is secure. Your squad cleared every wave.`;
             updateRunRecap(totalWaves);
+            setMuteButtonVisible(false);
+            document.getElementById("victoryScreen").style.display = "flex";
+            return;
+        }
+
+        if (gameMode === "daily" && currentWave >= 15) {
+            cancelAutoStartWave();
+            awaitingNextWave = false;
+            gameRunning = false;
+            document.querySelector(".game-layout").style.display = "none";
+            const challengeDate = activeDailyChallenge?.date || getDailyChallengeDate();
+            pendingDailyScore = {
+                date: challengeDate,
+                bestWave: 15,
+                health: Math.max(0, Math.round(playerHealth)),
+                completedAt: dailyLastCompletedAt || new Date().toISOString(),
+                submitted: false,
+                submitting: false
+            };
+            document.querySelector("#victoryScreen .menu-eyebrow").textContent = "DAILY CHALLENGE // CLEARED";
+            document.getElementById("victoryTitle").textContent = "CHALLENGE COMPLETE";
+            document.getElementById("victoryMessage").textContent =
+                "All 15 waves cleared. Your run is ready for today's daily leaderboard.";
+            document.getElementById("victoryWavesCleared").textContent = "15";
+            document.getElementById("victoryDailyScoreSubmission").hidden = false;
+            updateRunRecap(15);
+            updateDailyScoreSubmissionUI();
+            awardDailyChallengeCoins(challengeDate);
             setMuteButtonVisible(false);
             document.getElementById("victoryScreen").style.display = "flex";
             return;
@@ -2986,10 +3043,9 @@ function updateWaveSystem(deltaTime) {
         startButton.style.display = "block";
         startButton.disabled = false;
 
-        document.getElementById("waveDisplay").textContent =
-    gameMode === "endless"
-        ? "WAVE " + currentWave
-        : currentWave + " / " + totalWaves;
+        document.getElementById("waveDisplay").textContent = gameMode === "endless"
+            ? "WAVE " + currentWave
+            : `${currentWave} / ${gameMode === "daily" ? 15 : totalWaves}`;
 
         document.getElementById("waveStatus").textContent =
             "Wave cleared! Reposition your survivors and prepare.";
@@ -3068,6 +3124,8 @@ const playerProfileKey = "wastelandDefense.profile.v1";
 const unlockedSurvivorsKey = "wastelandDefense.unlockedSurvivors.v1";
 const linkedCloudAccountKey = "wastelandDefense.cloudAccountId.v1";
 const campaignLevelCoinReward = 100;
+const dailyChallengeCoinReward = 250;
+const dailyChallengeRewardKey = "wastelandDefense.dailyRewards.v1";
 let supabaseClient = null;
 let supabaseUser = null;
 let supabaseSdkPromise = null;
@@ -3086,6 +3144,8 @@ const leaderboardMapNames = {
 };
 let activeLeaderboardMap = 1;
 let activeLeaderboardScope = "global";
+let activeLeaderboardMode = "endless";
+let activeDailyLeaderboardDate = null;
 let leaderboardReturnScreen = "menu";
 const profilePortraitSources = {
     mason: "Images/Mason.png",
@@ -3096,6 +3156,50 @@ const profilePortraitSources = {
     brady: "Images/Brady.png"
 };
 const trophyPlaceNames = { 1: "GOLD", 2: "SILVER", 3: "BRONZE" };
+
+function getDailyChallengeDate(date = new Date()) {
+    return date.toISOString().slice(0, 10);
+}
+
+function createDailyChallenge(dateKey = getDailyChallengeDate()) {
+    let seed = 2166136261;
+    for (let index = 0; index < dateKey.length; index++) {
+        seed ^= dateKey.charCodeAt(index);
+        seed = Math.imul(seed, 16777619);
+    }
+    const random = () => {
+        seed += 0x6D2B79F5;
+        let value = seed;
+        value = Math.imul(value ^ (value >>> 15), value | 1);
+        value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+        return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    };
+    const shuffled = values => {
+        const result = [...values];
+        for (let index = result.length - 1; index > 0; index--) {
+            const swapIndex = Math.floor(random() * (index + 1));
+            [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+        }
+        return result;
+    };
+    const survivorIds = shuffled(["mason", "james", "cody", "britney", "zach", "brady"]).slice(0, 3);
+    const regularTypes = shuffled(["spider", "skitter", "wastelandcow", "mutantman", "mutantsnake"]).slice(0, 2);
+    const heavyType = shuffled(["hollow", "fogkeeper", "heavymutant"])[0];
+    return {
+        date: dateKey,
+        mapId: 1 + Math.floor(random() * 6),
+        survivorIds,
+        enemyTypes: [...regularTypes, heavyType]
+    };
+}
+
+function getTodaysDailyChallenge() {
+    const today = getDailyChallengeDate();
+    if (!currentDailyChallenge || currentDailyChallenge.date !== today) {
+        currentDailyChallenge = createDailyChallenge(today);
+    }
+    return currentDailyChallenge;
+}
 
 function createTrophyIcon(place) {
     const trophy = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -3109,6 +3213,7 @@ function createTrophyIcon(place) {
 }
 
 let playerTrophyRecords = [];
+let playerDailyTrophyRecords = [];
 
 function readPlayerProfile() {
     try {
@@ -3151,6 +3256,8 @@ function updateProfileIdentity() {
     const portraitSource = profilePortraitSources[playerProfile.portrait] || profilePortraitSources.mason;
     const profileButton = document.getElementById("profileButton");
     const profileButtonImage = document.getElementById("profileButtonPortrait");
+    profileButtonImage.dataset.portraitId = playerProfile.portrait;
+    document.getElementById("profilePortraitPreview").dataset.portraitId = playerProfile.portrait;
 
     document.getElementById("profileButtonAction").textContent = signedIn ? "PROFILE" : "SIGN IN";
     document.getElementById("profileButtonUsername").textContent = signedIn ? upperUsername : "";
@@ -3192,6 +3299,7 @@ function renderProfilePortraitOptions() {
 
         const image = document.createElement("img");
         image.src = profilePortraitSources[id];
+        image.dataset.portraitId = id;
         image.alt = "";
         image.setAttribute("aria-hidden", "true");
 
@@ -3240,29 +3348,33 @@ function updateProfileStats() {
 }
 
 function renderProfileTrophyCounts() {
-    const countsPanel = document.getElementById("profileTrophyCounts");
-    if (!countsPanel) return;
-    countsPanel.replaceChildren();
+    const renderCounts = (countsPanel, records, ariaLabel) => {
+        if (!countsPanel) return;
+        countsPanel.replaceChildren();
+        countsPanel.setAttribute("aria-label", ariaLabel);
+        [1, 2, 3].forEach(place => {
+            const count = records.filter(trophy => Number(trophy.place) === place).length;
+            const counter = document.createElement("div");
+            counter.className = `profile-trophy-count trophy-place-${place}`;
+            counter.setAttribute("aria-label", `${trophyPlaceNames[place]} trophies: ${count}`);
+            counter.append(createTrophyIcon(place));
 
-    [1, 2, 3].forEach(place => {
-        const count = playerTrophyRecords.filter(trophy => Number(trophy.place) === place).length;
-        const counter = document.createElement("div");
-        counter.className = `profile-trophy-count trophy-place-${place}`;
-        counter.setAttribute("aria-label", `${trophyPlaceNames[place]} trophies: ${count}`);
-        counter.append(createTrophyIcon(place));
-
-        const amount = document.createElement("strong");
-        amount.textContent = `×${count}`;
-        const label = document.createElement("small");
-        label.textContent = trophyPlaceNames[place];
-        counter.append(amount, label);
-        countsPanel.append(counter);
-    });
+            const amount = document.createElement("strong");
+            amount.textContent = `×${count}`;
+            const label = document.createElement("small");
+            label.textContent = trophyPlaceNames[place];
+            counter.append(amount, label);
+            countsPanel.append(counter);
+        });
+    };
+    renderCounts(document.getElementById("profileTrophyCounts"), playerTrophyRecords, "Endless trophies by type");
+    renderCounts(document.getElementById("profileDailyTrophyCounts"), playerDailyTrophyRecords, "Daily challenge trophies by type");
 }
 
 async function refreshPlayerTrophies(client = supabaseClient) {
     if (!client || !supabaseUser) {
         playerTrophyRecords = [];
+        playerDailyTrophyRecords = [];
         updateProfileStats();
         return [];
     }
@@ -3275,6 +3387,18 @@ async function refreshPlayerTrophies(client = supabaseClient) {
     if (error) throw error;
     if (supabaseUser?.id !== userId) return playerTrophyRecords;
     playerTrophyRecords = data || [];
+    try {
+        const { data: dailyData, error: dailyError } = await client.from("daily_challenge_trophies")
+            .select("challenge_date,place,earned_at")
+            .eq("user_id", userId)
+            .order("challenge_date", { ascending: true })
+            .order("place", { ascending: true });
+        if (dailyError) throw dailyError;
+        if (supabaseUser?.id === userId) playerDailyTrophyRecords = dailyData || [];
+    } catch (dailyError) {
+        playerDailyTrophyRecords = [];
+        console.warn("Daily trophy history is unavailable. Apply the daily challenge Supabase migration to enable it:", dailyError.message || dailyError);
+    }
     updateProfileStats();
     return playerTrophyRecords;
 }
@@ -3332,6 +3456,62 @@ function renderCampaignCoinReward(reward) {
         `+${reward} COINS`;
     document.getElementById("victoryCoinsTotal").textContent =
         playerCoinBalance.toLocaleString();
+    document.getElementById("victoryCoinRewardStatus").textContent = "";
+}
+
+function renderDailyCoinReward(reward = dailyChallengeCoinReward, status = "") {
+    updateCoinBalanceDisplay();
+    updateProfileStats();
+    document.getElementById("victoryCoinsEarned").textContent = `+${reward.toLocaleString()} COINS`;
+    document.getElementById("victoryCoinsTotal").textContent = playerCoinBalance.toLocaleString();
+    document.querySelector("#victoryScreen .victory-coin-copy small").textContent = "DAILY CHALLENGE CLEAR";
+    document.getElementById("victoryCoinRewardStatus").textContent = status;
+}
+
+function awardDailyCoinsLocally(challengeDate) {
+    let rewardLedger = {};
+    try {
+        rewardLedger = JSON.parse(localStorage.getItem(dailyChallengeRewardKey) || "{}");
+    } catch {
+        rewardLedger = {};
+    }
+    const rewardOwner = supabaseUser?.id || "guest";
+    const awardedDates = Array.isArray(rewardLedger[rewardOwner]) ? rewardLedger[rewardOwner] : [];
+    if (awardedDates.includes(challengeDate)) {
+        renderDailyCoinReward(0, "TODAY'S REWARD ALREADY CLAIMED");
+        return 0;
+    }
+    playerCoinBalance += dailyChallengeCoinReward;
+    rewardLedger[rewardOwner] = [...awardedDates, challengeDate].slice(-60);
+    try {
+        localStorage.setItem(dailyChallengeRewardKey, JSON.stringify(rewardLedger));
+    } catch {
+        // The current session still receives the completion reward if storage is unavailable.
+    }
+    persistCoinBalance();
+    renderDailyCoinReward(dailyChallengeCoinReward, supabaseUser ? "SYNC UNAVAILABLE · SAVED ON THIS DEVICE" : "ADDED TO THIS DEVICE SAVE");
+    return dailyChallengeCoinReward;
+}
+
+function awardDailyChallengeCoins(challengeDate) {
+    if (!supabaseClient || !supabaseUser) {
+        awardDailyCoinsLocally(challengeDate);
+        return;
+    }
+    renderDailyCoinReward(dailyChallengeCoinReward, "SAVING REWARD TO YOUR ACCOUNT…");
+    supabaseClient.rpc("award_daily_challenge_completion", {
+        p_challenge_date: challengeDate
+    }).then(({ data, error }) => {
+        if (error) throw error;
+        const result = Array.isArray(data) ? data[0] : data;
+        playerCoinBalance = Math.max(0, Number(result?.total_coins) || 0);
+        persistCoinBalance();
+        const awarded = Math.max(0, Number(result?.coins_awarded) || 0);
+        renderDailyCoinReward(awarded, awarded > 0 ? "REWARD SAVED TO YOUR ACCOUNT" : "TODAY'S REWARD ALREADY CLAIMED");
+    }).catch(error => {
+        console.warn("Daily challenge reward could not sync to Supabase:", error.message || error);
+        awardDailyCoinsLocally(challengeDate);
+    });
 }
 
 const endlessCoinsPerWave = 10;
@@ -3588,6 +3768,29 @@ function prepareReturnEndlessSubmission() {
     updateCompletedEndlessSubmissionUIs();
 }
 
+function createDailyConfirmationScore() {
+    if (gameMode !== "daily" || !activeDailyChallenge) return null;
+    return {
+        date: activeDailyChallenge.date,
+        bestWave: Math.max(0, currentWave - 1),
+        health: Math.max(0, Math.round(playerHealth)),
+        completedAt: dailyLastCompletedAt || new Date().toISOString(),
+        submitted: false,
+        submitting: false
+    };
+}
+
+function prepareDailyConfirmationSubmissions() {
+    if (gameMode !== "daily") {
+        returnDailyScoreSubmission = null;
+        restartDailyScoreSubmission = null;
+    } else {
+        returnDailyScoreSubmission = createDailyConfirmationScore();
+        restartDailyScoreSubmission = createDailyConfirmationScore();
+    }
+    updateDailyScoreSubmissionUI();
+}
+
 async function persistEndlessLeaderboardScore(score) {
     const client = await ensureSupabaseClient();
     const submittedWave = Math.max(0, Math.floor(Number(score.bestWave) || 0));
@@ -3613,6 +3816,99 @@ async function persistEndlessLeaderboardScore(score) {
     } catch (trophyError) {
         // Score verification succeeded; the trophy panel can retry on the next account sync.
         console.warn("Could not refresh the trophy collection:", trophyError.message || trophyError);
+    }
+}
+
+function updateDailyScoreSubmissionUI(message = "", state = "") {
+    const score = pendingDailyScore;
+    const panels = [
+        ["gameOverDailyScoreSubmission", "submitDailyScoreButton", "gameOverDailyScoreNotice"],
+        ["victoryDailyScoreSubmission", "submitVictoryDailyScoreButton", "victoryDailyScoreNotice"],
+        ["returnDailyScoreSubmission", "submitReturnDailyScoreButton", "returnDailyScoreNotice", returnDailyScoreSubmission],
+        ["restartDailyScoreSubmission", "submitRestartDailyScoreButton", "restartDailyScoreNotice", restartDailyScoreSubmission]
+    ];
+    panels.forEach(([panelId, buttonId, noticeId, confirmationScore]) => {
+        const panel = document.getElementById(panelId);
+        const button = document.getElementById(buttonId);
+        const notice = document.getElementById(noticeId);
+        const displayedScore = confirmationScore || score;
+        panel.hidden = gameMode !== "daily" || !displayedScore;
+        if (panel.hidden) return;
+        button.disabled = Boolean(displayedScore.submitted || displayedScore.submitting || displayedScore.bestWave < 1);
+        button.classList.toggle("is-submitted", Boolean(displayedScore.submitted));
+        button.textContent = displayedScore.submitted
+            ? "SUCCESSFULLY SUBMITTED"
+            : displayedScore.submitting
+                ? "VERIFYING SUBMISSION…"
+                : "SUBMIT TO DAILY LEADERBOARD";
+        notice.classList.toggle("is-error", state === "error");
+        notice.classList.toggle("is-success", state === "success" || Boolean(displayedScore.submitted));
+        if (message) {
+            notice.textContent = message;
+        } else if (displayedScore.submitting) {
+            notice.textContent = `Submitting ${displayedScore.bestWave} cleared wave${displayedScore.bestWave === 1 ? "" : "s"} with ${displayedScore.health} health…`;
+        } else if (displayedScore.submitted) {
+            notice.textContent = "Successfully submitted to today's leaderboard.";
+        } else if (displayedScore.bestWave < 1) {
+            notice.textContent = "Clear at least one wave to submit a Daily Challenge score.";
+        } else if (!supabaseUser) {
+            notice.textContent = "Sign in to submit this run. You can return here after signing in.";
+        } else {
+            notice.textContent = `WAVE ${displayedScore.bestWave} · ${displayedScore.health} HEALTH · UTC ${displayedScore.date}`;
+        }
+    });
+}
+
+async function persistDailyLeaderboardScore(score) {
+    const client = await ensureSupabaseClient();
+    const { error } = await client.rpc("submit_daily_challenge_score", {
+        p_challenge_date: score.date,
+        p_best_wave: Math.max(0, Math.floor(Number(score.bestWave) || 0)),
+        p_health: Math.max(0, Math.min(100, Math.floor(Number(score.health) || 0))),
+        p_completed_at: score.completedAt
+    });
+    if (error) throw error;
+
+    const { data: savedScore, error: verificationError } = await client
+        .from("daily_challenge_scores")
+        .select("best_wave,health,completed_at")
+        .eq("user_id", supabaseUser.id)
+        .eq("challenge_date", score.date)
+        .maybeSingle();
+    if (verificationError) throw verificationError;
+    const verified = savedScore && (
+        Number(savedScore.best_wave) > score.bestWave ||
+        (Number(savedScore.best_wave) === score.bestWave && Number(savedScore.health) >= score.health)
+    );
+    if (!verified) throw new Error("The leaderboard could not verify this score. Please try again.");
+    try {
+        await refreshPlayerTrophies(client);
+    } catch (trophyError) {
+        console.warn("Could not refresh the daily trophy collection:", trophyError.message || trophyError);
+    }
+}
+
+async function submitDailyChallengeScore(score = pendingDailyScore) {
+    if (!score || score.bestWave < 1 || score.submitted || score.submitting) return;
+    if (!supabaseUser) {
+        showProfile();
+        setAccountNotice("SIGN IN OR CREATE AN ACCOUNT TO SUBMIT THIS DAILY CHALLENGE.");
+        return;
+    }
+    score.submitting = true;
+    updateDailyScoreSubmissionUI();
+    try {
+        await persistDailyLeaderboardScore(score);
+        score.submitting = false;
+        score.submitted = true;
+        updateDailyScoreSubmissionUI();
+    } catch (error) {
+        console.error("Daily Challenge score submission failed:", error.message || error);
+        score.submitting = false;
+        updateDailyScoreSubmissionUI(
+            `SUBMISSION FAILED: ${error.message || "CHECK YOUR CONNECTION AND TRY AGAIN."}`,
+            "error"
+        );
     }
 }
 
@@ -4218,6 +4514,9 @@ async function renderProfileFriends() {
         const avatar = document.createElement("img");
         avatar.className = "profile-friend-avatar";
         avatar.src = profilePortraitSources[profile.portrait_id] || profilePortraitSources.mason;
+        avatar.dataset.portraitId = profilePortraitSources[profile.portrait_id]
+            ? profile.portrait_id
+            : "mason";
         avatar.alt = `${profile.username}'s profile portrait`;
 
         const copy = document.createElement("div");
@@ -4277,7 +4576,7 @@ function appendLeaderboardEmpty(titleText, descriptionText) {
     const row = document.createElement("tr");
     row.className = "leaderboard-empty-row";
     const cell = document.createElement("td");
-    cell.colSpan = 4;
+    cell.colSpan = activeLeaderboardMode === "daily" ? 5 : 4;
     const empty = document.createElement("div");
     empty.className = "leaderboard-empty-state";
     const mark = document.createElement("span");
@@ -4313,6 +4612,9 @@ function appendCloudLeaderboardRow(score, profile, rank, isSelf = false) {
     const avatar = document.createElement("img");
     avatar.className = "leaderboard-player-avatar";
     avatar.src = profilePortraitSources[profile.portrait_id] || profilePortraitSources.mason;
+    avatar.dataset.portraitId = profilePortraitSources[profile.portrait_id]
+        ? profile.portrait_id
+        : "mason";
     avatar.alt = `${profile.username}'s profile portrait`;
     const nameCopy = document.createElement("span");
     const name = document.createElement("strong");
@@ -4406,6 +4708,111 @@ async function loadCloudLeaderboard() {
     }
 }
 
+function appendDailyLeaderboardRow(score, profile, rank) {
+    const row = document.createElement("tr");
+    row.className = "leaderboard-player-row";
+    if (score.user_id === supabaseUser?.id) row.classList.add("is-you");
+
+    const rankCell = document.createElement("td");
+    rankCell.className = "leaderboard-rank";
+    const rankContent = document.createElement("span");
+    rankContent.className = "leaderboard-rank-content";
+    if (rank <= 3) rankContent.append(createTrophyIcon(rank));
+    const rankNumber = document.createElement("span");
+    rankNumber.textContent = String(rank);
+    rankContent.append(rankNumber);
+    rankCell.append(rankContent);
+
+    const playerCell = document.createElement("td");
+    const player = document.createElement("div");
+    player.className = "leaderboard-player-name";
+    const avatar = document.createElement("img");
+    avatar.className = "leaderboard-player-avatar";
+    avatar.src = profilePortraitSources[profile.portrait_id] || profilePortraitSources.mason;
+    avatar.dataset.portraitId = profilePortraitSources[profile.portrait_id] ? profile.portrait_id : "mason";
+    avatar.alt = `${profile.username}'s profile portrait`;
+    const nameCopy = document.createElement("span");
+    const name = document.createElement("strong");
+    name.textContent = profile.username;
+    const username = document.createElement("small");
+    username.textContent = score.user_id === supabaseUser?.id ? `@${profile.username} · YOU` : `@${profile.username}`;
+    nameCopy.append(name, username);
+    player.append(avatar, nameCopy);
+    playerCell.append(player);
+
+    const waveCell = document.createElement("td");
+    waveCell.className = "leaderboard-score";
+    waveCell.textContent = String(score.best_wave);
+    const healthCell = document.createElement("td");
+    healthCell.className = "leaderboard-score leaderboard-health-score";
+    healthCell.textContent = `${score.health} HP`;
+    const completedCell = document.createElement("td");
+    const completed = document.createElement("span");
+    completed.className = "leaderboard-record-tag";
+    completed.textContent = new Date(score.completed_at).toLocaleString([], {
+        dateStyle: "medium",
+        timeStyle: "short"
+    });
+    completedCell.append(completed);
+    row.append(rankCell, playerCell, waveCell, healthCell, completedCell);
+    document.getElementById("leaderboardRows").append(row);
+}
+
+async function loadDailyLeaderboard() {
+    const generation = ++leaderboardLoadGeneration;
+    const rows = document.getElementById("leaderboardRows");
+    const notice = document.getElementById("leaderboardNotice");
+    const date = activeDailyLeaderboardDate || getDailyChallengeDate();
+    rows.replaceChildren();
+    notice.textContent = "CONNECTING TO TODAY'S CHALLENGE RECORDS…";
+    try {
+        const client = await ensureSupabaseClient();
+        const { data: scores, error: scoreError } = await client.from("daily_challenge_scores")
+            .select("user_id,best_wave,health,completed_at")
+            .eq("challenge_date", date)
+            .order("best_wave", { ascending: false })
+            .order("health", { ascending: false })
+            .order("completed_at", { ascending: true })
+            .order("user_id", { ascending: true })
+            .limit(50);
+        if (scoreError) throw scoreError;
+        if (generation !== leaderboardLoadGeneration) return;
+        if (!scores?.length) {
+            notice.textContent = `DAILY CHALLENGE · ${date} · NO SCORES SUBMITTED YET.`;
+            document.getElementById("leaderboardPersonalBest").textContent = supabaseUser
+                ? "YOUR DAILY SCORE: NOT SUBMITTED"
+                : "SIGN IN TO SUBMIT A DAILY SCORE";
+            appendLeaderboardEmpty("NO DAILY SCORES YET", "Complete at least one wave and submit today's challenge run to claim the first spot.");
+            return;
+        }
+        const ids = [...new Set(scores.map(score => score.user_id))];
+        const { data: profiles, error: profileError } = await client.from("player_profiles")
+            .select("id,username,portrait_id").in("id", ids);
+        if (profileError) throw profileError;
+        if (generation !== leaderboardLoadGeneration) return;
+        const profileById = new Map((profiles || []).map(profile => [profile.id, profile]));
+        let rank = 0;
+        let personalScore = null;
+        scores.forEach(score => {
+            const profile = profileById.get(score.user_id);
+            if (!profile) return;
+            rank++;
+            appendDailyLeaderboardRow(score, profile, rank);
+            if (score.user_id === supabaseUser?.id) personalScore = score;
+        });
+        document.getElementById("leaderboardPersonalBest").textContent = personalScore
+            ? `YOUR SCORE: WAVE ${personalScore.best_wave} · ${personalScore.health} HP`
+            : supabaseUser ? "YOUR DAILY SCORE: NOT SUBMITTED" : "SIGN IN TO SUBMIT A DAILY SCORE";
+        notice.textContent = `DAILY CHALLENGE · ${date} · ${rank} PLAYER${rank === 1 ? "" : "S"} RANKED.`;
+    } catch (error) {
+        console.error("Could not load Daily Challenge leaderboard:", error.message || error);
+        if (generation !== leaderboardLoadGeneration) return;
+        notice.textContent = `LEADERBOARD UNAVAILABLE: ${error.message || "CHECK THE DATABASE SETUP."}`;
+        document.getElementById("leaderboardPersonalBest").textContent = "DAILY SCORE UNAVAILABLE";
+        appendLeaderboardEmpty("DAILY BOARD COULD NOT LOAD", "Apply the daily challenge Supabase migration and confirm the project is online.");
+    }
+}
+
 function renderLeaderboard() {
     const rows = document.getElementById("leaderboardRows");
     const records = readEndlessRecords();
@@ -4414,9 +4821,40 @@ function renderLeaderboard() {
     const notice = document.getElementById("leaderboardNotice");
     const scopeLabel = document.getElementById("leaderboardScopeLabel");
 
-    document.getElementById("leaderboardMapTitle").textContent = mapName;
-    document.getElementById("leaderboardPersonalBest").textContent =
-        `YOUR BEST: ${bestWave} ${bestWave === 1 ? "WAVE" : "WAVES"}`;
+    const isDaily = activeLeaderboardMode === "daily";
+    const dailyDate = activeDailyLeaderboardDate || getDailyChallengeDate();
+    document.getElementById("leaderboardTitle").textContent = isDaily ? "DAILY CHALLENGE" : "LEADERBOARDS";
+    document.querySelector(".leaderboard-heading-copy .menu-eyebrow").textContent = isDaily
+        ? "DAILY // SCOREBOARD"
+        : "ENDLESS // SCOREBOARD";
+    document.querySelector(".leaderboard-heading-copy .menu-description").textContent = isDaily
+        ? "One shared challenge. Ranked by waves cleared, health left, then completion time."
+        : "Hold out longer, climb the ranks, and earn your bragging rights.";
+    document.getElementById("leaderboardModeTag").textContent = isDaily ? "DAILY CHALLENGE" : "ENDLESS MODE";
+    document.getElementById("leaderboardOverline").textContent = isDaily ? "UTC CHALLENGE DATE" : "SELECT A MAP";
+    document.getElementById("leaderboardMapTitle").textContent = isDaily
+        ? new Intl.DateTimeFormat(undefined, { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${dailyDate}T12:00:00Z`))
+        : mapName;
+    document.getElementById("leaderboardPersonalBest").textContent = isDaily
+        ? (supabaseUser ? "YOUR DAILY SCORE: LOADING" : "SIGN IN TO SUBMIT A DAILY SCORE")
+        : `YOUR BEST: ${bestWave} ${bestWave === 1 ? "WAVE" : "WAVES"}`;
+    document.getElementById("leaderboardScopeLabel").textContent = isDaily ? "GLOBAL DAILY RANKING" : "GLOBAL RANKING";
+    document.querySelector(".leaderboard-scope-tabs").hidden = isDaily;
+    document.querySelector(".leaderboard-map-tabs").hidden = isDaily;
+    document.getElementById("dailyLeaderboardDateControl").hidden = !isDaily;
+    const dateControl = document.getElementById("dailyLeaderboardDate");
+    dateControl.max = getDailyChallengeDate();
+    dateControl.value = dailyDate;
+    document.getElementById("leaderboardMyRunsButton").hidden = isDaily;
+    document.getElementById("leaderboardHealthHeader").hidden = !isDaily;
+    document.getElementById("leaderboardFooter").textContent = isDaily
+        ? "WASTELAND DEFENSE // DAILY RECORDS"
+        : "WASTELAND DEFENSE // ENDLESS RECORDS";
+    document.querySelectorAll(".leaderboard-mode-tab").forEach(button => {
+        const active = button.id === (isDaily ? "dailyLeaderboardTab" : "endlessLeaderboardTab");
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", String(active));
+    });
 
     document.querySelectorAll("[data-leaderboard-map]").forEach(button => {
         const isActive = Number(button.dataset.leaderboardMap) === activeLeaderboardMap;
@@ -4435,7 +4873,10 @@ function renderLeaderboard() {
     myRunsButton.classList.toggle("is-active", isMyRuns);
     myRunsButton.setAttribute("aria-pressed", String(isMyRuns));
 
-    if (activeLeaderboardScope === "global") {
+    if (isDaily) {
+        scopeLabel.textContent = "GLOBAL DAILY RANKING";
+        notice.textContent = "DAILY SCORES RANK BY WAVES, HEALTH, THEN COMPLETION TIME.";
+    } else if (activeLeaderboardScope === "global") {
         scopeLabel.textContent = "GLOBAL RANKING";
         notice.textContent = "GLOBAL SCORES NEED AN ONLINE CONNECTION. YOUR LOCAL BESTS ARE AVAILABLE UNDER MY RUNS.";
     } else if (activeLeaderboardScope === "friends") {
@@ -4447,6 +4888,11 @@ function renderLeaderboard() {
     }
 
     rows.replaceChildren();
+
+    if (isDaily) {
+        loadDailyLeaderboard();
+        return;
+    }
 
     if (activeLeaderboardScope !== "runs") {
         loadCloudLeaderboard();
@@ -4506,6 +4952,7 @@ function renderLeaderboard() {
         const avatar = document.createElement("img");
         avatar.className = "leaderboard-player-avatar";
         avatar.src = profilePortraitSources[playerProfile.portrait] || profilePortraitSources.mason;
+        avatar.dataset.portraitId = playerProfile.portrait;
         avatar.alt = `${localUsername}'s profile portrait`;
         player.append(avatar);
     }
@@ -4565,7 +5012,9 @@ function showProfile() {
             ? "restartconfirm"
             : document.getElementById("gameOverScreen").style.display !== "none"
                 ? "gameover"
-                : "menu";
+                : document.getElementById("victoryScreen").style.display !== "none"
+                    ? "victory"
+                    : "menu";
     setMuteButtonVisible(false);
     gameRunning = false;
     previousTime = 0;
@@ -4606,6 +5055,7 @@ function closeProfile() {
         gameRunning = true;
         previousTime = 0;
         updateReturnEndlessSubmissionUI();
+        updateDailyScoreSubmissionUI();
         return;
     }
 
@@ -4621,6 +5071,7 @@ function closeProfile() {
         gameRunning = true;
         previousTime = 0;
         updateRestartEndlessSubmissionUI();
+        updateDailyScoreSubmissionUI();
         return;
     }
 
@@ -4632,6 +5083,18 @@ function closeProfile() {
         document.getElementById("profileButton").style.visibility = "hidden";
         document.getElementById("mainMenuButton").style.visibility = "visible";
         updateEndlessSubmissionUI();
+        updateDailyScoreSubmissionUI();
+        return;
+    }
+
+    if (profileReturnScreen === "victory") {
+        profileReturnScreen = "menu";
+        profileScreen.style.display = "none";
+        document.getElementById("victoryScreen").style.display = "flex";
+        document.getElementById("leaderboardButton").style.visibility = "hidden";
+        document.getElementById("profileButton").style.visibility = "hidden";
+        document.getElementById("mainMenuButton").style.visibility = "visible";
+        updateDailyScoreSubmissionUI();
         return;
     }
     showMenu();
@@ -4684,6 +5147,18 @@ function endGame() {
     } else {
         pendingEndlessScore = null;
         renderEndlessCoinReward(0);
+        if (gameMode === "daily") {
+            pendingDailyScore = {
+                date: activeDailyChallenge?.date || getDailyChallengeDate(),
+                bestWave: Math.max(0, currentWave - 1),
+                health: Math.max(0, Math.round(playerHealth)),
+                completedAt: dailyLastCompletedAt || new Date().toISOString(),
+                submitted: false,
+                submitting: false
+            };
+        } else {
+            pendingDailyScore = null;
+        }
     }
 
     gameRunning = false;
@@ -4696,13 +5171,23 @@ function endGame() {
     document.getElementById("gameOverMessage").textContent =
         "Your defenses have fallen. The wasteland is lost.";
 
-    document.getElementById("finalWaveDisplay").textContent =
-        gameMode === "endless"
-            ? `WAVE REACHED: ${currentWave}`
-            : `WAVE REACHED: ${currentWave} / ${totalWaves}`;
+    document.getElementById("finalWaveDisplay").textContent = gameMode === "endless"
+        ? `WAVE REACHED: ${currentWave}`
+        : `WAVE REACHED: ${currentWave} / ${gameMode === "daily" ? 15 : totalWaves}`;
+    document.querySelector("#gameOverScreen .menu-eyebrow").textContent = gameMode === "daily"
+        ? "DAILY CHALLENGE // RUN ENDED"
+        : "DEFENSE FAILED // RUN ENDED";
+    document.querySelector("#gameOverScreen h2").textContent = gameMode === "daily" ? "CHALLENGE OVER" : "GAME OVER";
+    if (gameMode === "daily") {
+        document.getElementById("gameOverMessage").textContent =
+            "The challenge is over. Submit your best cleared wave and remaining health to today's leaderboard.";
+    } else {
+        document.getElementById("gameOverMessage").textContent = "Your defenses have fallen. The wasteland is lost.";
+    }
 
     updateRunRecap(currentWave - 1);
     updateEndlessSubmissionUI();
+    updateDailyScoreSubmissionUI();
 
     document.getElementById("gameOverScreen").style.display = "flex";
 }
@@ -4726,9 +5211,14 @@ function showMenu() {
     document.getElementById("restartConfirm").style.display = "none";
     profileReturnScreen = "menu";
     pendingEndlessScore = null;
+    pendingDailyScore = null;
+    activeDailyChallenge = null;
+    returnDailyScoreSubmission = null;
+    restartDailyScoreSubmission = null;
     returnEndlessScoreSubmission = null;
     document.getElementById("returnEndlessScoreSubmission").hidden = true;
     updateEndlessSubmissionUI();
+    updateDailyScoreSubmissionUI();
 
     // Reset the selected roster.
     selectedSurvivors.clear();
@@ -4892,10 +5382,24 @@ function showDeployment(level = 1) {
     drawMap();
     const levelCard = document.getElementById(`level${level}Button`);
     const levelName = levelCard?.querySelector("strong")?.textContent.trim() || `LEVEL ${String(level).padStart(2, "0")}`;
-    document.getElementById("deploymentLocation").textContent =
-        `${gameMode === "endless" ? "ENDLESS RUN" : "CAMPAIGN"} // ${levelName}`;
-    document.querySelector(".deployment-subtitle").textContent =
-        `Choose up to ${getMaxRosterSize()} survivors. Tap a card to add or remove them.`;
+    const dailyDetails = document.getElementById("dailyChallengeDetails");
+    if (gameMode === "daily" && currentDailyChallenge) {
+        const squadNames = currentDailyChallenge.survivorIds.map(id => survivorDetails[id]?.name || id).join(" · ");
+        const enemyNames = currentDailyChallenge.enemyTypes.map(type => enemyLabels[type] || type.toUpperCase()).join(" · ");
+        document.getElementById("deploymentLocation").textContent =
+            `DAILY CHALLENGE // ${currentDailyChallenge.date} UTC // ${levelName}`;
+        document.querySelector(".deployment-subtitle").textContent =
+            "Choose your squad from today's three survivors. Clear all 15 waves for 250 coins.";
+        dailyDetails.textContent = `TODAY'S SQUAD: ${squadNames}  //  HOSTILES: ${enemyNames}`;
+        dailyDetails.hidden = false;
+    } else {
+        document.getElementById("deploymentLocation").textContent =
+            `${gameMode === "endless" ? "ENDLESS RUN" : "CAMPAIGN"} // ${levelName}`;
+        document.querySelector(".deployment-subtitle").textContent =
+            `Choose up to ${getMaxRosterSize()} survivors. Tap a card to add or remove them.`;
+        dailyDetails.hidden = true;
+    }
+    updateDeploymentRosterAvailability();
     updateRosterSummary();
 
     gameRunning = false;
@@ -4927,8 +5431,14 @@ function startDefense() {
     populateInGameRoster();
     setMuteButtonVisible(true);
     pendingEndlessScore = null;
+    pendingDailyScore = null;
+    returnDailyScoreSubmission = null;
+    restartDailyScoreSubmission = null;
+    dailyLastCompletedAt = null;
+    activeDailyChallenge = gameMode === "daily" ? currentDailyChallenge : null;
     returnEndlessScoreSubmission = null;
     updateEndlessSubmissionUI();
+    updateDailyScoreSubmissionUI();
     document.getElementById("endlessCoinReward").hidden = true;
 
     activeCampaignRunId = gameMode === "campaign" ? createRunId() : null;
@@ -4961,12 +5471,15 @@ function startDefense() {
     playerHealth = 100;
     totalEnemiesDefeated = 0;
     floatingDamageNumbers.length = 0;
-    scrap = gameMode === "endless" ? 150 : 250;
+    scrap = gameMode === "endless" ? 150 : gameMode === "daily" ? 410 : 250;
 
     document.getElementById("scrapDisplay").textContent = scrap;
     updatePlayerHealthDisplay();
-    document.getElementById("waveDisplay").textContent =
-    gameMode === "endless" ? "WAVE 0" : "0 / " + totalWaves;
+    document.getElementById("waveDisplay").textContent = gameMode === "endless"
+        ? "WAVE 0"
+        : gameMode === "daily"
+            ? "0 / 15"
+            : "0 / " + totalWaves;
 
     // Show the battlefield, but keep combat paused.
     gameRunning = true;
@@ -5038,6 +5551,7 @@ bindUIEvent("mainMenuButton", "click", () => {
     }
 
     prepareReturnEndlessSubmission();
+    prepareDailyConfirmationSubmissions();
     document.getElementById("returnMenuConfirm").style.display = "flex";
     document.getElementById("cancelReturnButton").focus();
 });
@@ -5057,6 +5571,8 @@ bindUIEvent("confirmReturnButton", "click", () => {
 });
 
 bindUIEvent("submitCompletedEndlessScoreButton", "click", submitCompletedEndlessWaveScore);
+bindUIEvent("submitReturnDailyScoreButton", "click", () => submitDailyChallengeScore(returnDailyScoreSubmission));
+bindUIEvent("submitRestartDailyScoreButton", "click", () => submitDailyChallengeScore(restartDailyScoreSubmission));
 bindUIEvent("submitCompletedEndlessScoreFromRestartButton", "click", submitCompletedEndlessWaveScore);
 
 bindUIEvent("cancelRestartButton", "click", () => {
@@ -5103,7 +5619,10 @@ bindUIEvent("level5Button", "click", () => {
 bindUIEvent("level6Button", "click", () => {
     showDeployment(6);
 });
-bindUIEvent("backToLevelsButton", "click", showLevelSelect);
+bindUIEvent("backToLevelsButton", "click", () => {
+    if (gameMode === "daily") showMenu();
+    else showLevelSelect();
+});
 bindUIEvent("startDefenseButton", "click", startDefense);
 bindUIEvent("restartRunButton", "click", startDefense);
 
@@ -5125,6 +5644,7 @@ bindUIEvent("startOverButton", "click", () => {
     }
 
     prepareReturnEndlessSubmission();
+    prepareDailyConfirmationSubmissions();
     document.getElementById("restartConfirm").style.display = "flex";
     document.getElementById("cancelRestartButton").focus();
 });
@@ -5160,8 +5680,22 @@ bindUIEvent("speedButton", "click", () => {
 
 bindUIEvent("endlessButton", "click", () => {
     gameMode = "endless";
+    activeDailyChallenge = null;
     updateRosterSummary();
     showLevelSelect();
+});
+
+bindUIEvent("dailyChallengeButton", "click", () => {
+    gameMode = "daily";
+    currentDailyChallenge = getTodaysDailyChallenge();
+    activeDailyChallenge = currentDailyChallenge;
+    selectedSurvivors.clear();
+    document.querySelectorAll("#deploymentRoster button[data-survivor]").forEach(card => {
+        card.classList.remove("selected");
+        card.setAttribute("aria-pressed", "false");
+    });
+    document.getElementById("deploymentMessage").textContent = "";
+    showDeployment(currentDailyChallenge.mapId);
 });
 
 bindUIEvent("leaderboardButton", "click", showLeaderboard);
@@ -5188,6 +5722,31 @@ bindUIEvent("leaderboardMyRunsButton", "click", () => {
     activeLeaderboardScope = activeLeaderboardScope === "runs" ? "global" : "runs";
     renderLeaderboard();
 });
+
+bindUIEvent("endlessLeaderboardTab", "click", () => {
+    activeLeaderboardMode = "endless";
+    activeLeaderboardScope = "global";
+    renderLeaderboard();
+});
+
+bindUIEvent("dailyLeaderboardTab", "click", () => {
+    activeLeaderboardMode = "daily";
+    activeLeaderboardScope = "global";
+    activeDailyLeaderboardDate = getDailyChallengeDate();
+    renderLeaderboard();
+});
+
+bindUIEvent("dailyLeaderboardDate", "change", event => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(event.target.value)) return;
+    if (event.target.value > getDailyChallengeDate()) {
+        event.target.value = getDailyChallengeDate();
+    }
+    activeDailyLeaderboardDate = event.target.value;
+    renderLeaderboard();
+});
+
+bindUIEvent("submitDailyScoreButton", "click", () => submitDailyChallengeScore());
+bindUIEvent("submitVictoryDailyScoreButton", "click", () => submitDailyChallengeScore());
 
 document.querySelectorAll("[data-leaderboard-scope]").forEach(button => {
     button.addEventListener("click", () => {
@@ -5280,19 +5839,19 @@ try {
 updateProfileIdentity();
 
 function getMaxRosterSize() {
-    return gameMode === "endless" ? 6 : 4;
+    return gameMode === "endless" ? 6 : gameMode === "daily" ? 3 : 4;
 }
 
 const rosterCount = document.getElementById("rosterCount");
 
-// Only render survivors that are available to the player. Locked cards and
-// placeholders are removed instead of reserving empty roster slots.
+// Retain the full roster so Daily Challenge can offer its date-seeded trial squad,
+// including survivors a player has not unlocked in their own save.
 const deploymentRoster = document.getElementById("deploymentRoster");
 deploymentRoster.querySelectorAll(".locked, .locked-slot, [data-unlocked='false']")
     .forEach(slot => slot.remove());
 deploymentRoster.querySelectorAll("button[data-survivor]").forEach(card => {
     const survivor = survivorDetails[card.dataset.survivor];
-    if (!survivor || survivor.unlocked !== true) card.remove();
+    if (!survivor) card.remove();
 });
 
 function updateRosterSummary() {
@@ -5302,6 +5861,21 @@ function updateRosterSummary() {
 const survivorCards = document.querySelectorAll(
     "#deploymentRoster button[data-survivor]"
 );
+
+function updateDeploymentRosterAvailability() {
+    survivorCards.forEach(card => {
+        const survivor = survivorDetails[card.dataset.survivor];
+        const dailyTrial = gameMode === "daily" && currentDailyChallenge?.survivorIds.includes(card.dataset.survivor);
+        const available = gameMode === "daily" ? dailyTrial : survivor?.unlocked === true;
+        card.hidden = !available;
+        card.disabled = !available;
+        if (!available) {
+            selectedSurvivors.delete(card.dataset.survivor);
+            card.classList.remove("selected");
+            card.setAttribute("aria-pressed", "false");
+        }
+    });
+}
 
 survivorCards.forEach(card => {
     card.addEventListener("click", () => {
@@ -5365,6 +5939,7 @@ const portraitFiles = {
 card.innerHTML = `
     <img
         class="survivor-portrait-placeholder"
+        data-portrait-id="${id}"
         src="Images/${portraitFiles[id]}"
         alt="${person.name}"
     >
