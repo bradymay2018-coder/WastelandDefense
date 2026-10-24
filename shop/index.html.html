@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shop // Wasteland Defense</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1">
+  <link rel="stylesheet" href="style.css?v=20261024-17">
+  <style>
+    body { min-height:100vh; padding:24px; }
+    .shop-page { width:min(1080px,100%); margin:auto; }
+    .shop-panel { border:1px solid #4b4651; border-top:3px solid #e5b95e; background:linear-gradient(145deg,#24232a,#17181c 72%); box-shadow:0 18px 50px #0006; }
+    .shop-header { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; padding:28px 32px; border-bottom:1px solid #45414b; }
+    .shop-header a { color:#e5b95e; font:700 10px Consolas,monospace; letter-spacing:1px; text-decoration:none; }
+    .shop-eyebrow { margin:26px 32px 0; color:#e5b95e; font:700 9px Consolas,monospace; letter-spacing:2px; }
+    .shop-header h1 { margin:8px 0; color:#f2edf3; font:800 clamp(28px,6vw,48px) Consolas,monospace; letter-spacing:3px; text-shadow:3px 3px 0 #433842; }
+    .shop-header p { margin:0; color:#aaa5b1; font-size:12px; line-height:1.6; }
+    .account-pill { padding:9px 12px; border:1px solid #79a978; color:#b8d9c1; font:700 9px Consolas,monospace; white-space:nowrap; }
+    .account-pill.is-guest { border-color:#806b42; color:#f0cf7b; }
+    .shop-content { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr); gap:16px; padding:24px 32px 32px; }
+    .mystery-box { position:relative; min-height:390px; display:grid; place-items:center; padding:28px; overflow:hidden; border:1px solid #806b42; background:radial-gradient(circle at 50% 0,#58452d,#29252c 58%,#1d1d23); text-align:center; }
+    .mystery-box::before { content:"?"; position:absolute; inset:20px; display:grid; place-items:center; border:1px solid #e5b95e33; color:#e5b95e14; font:800 220px Consolas,monospace; }
+    .box-copy { position:relative; z-index:1; }
+    .box-icon { width:86px; height:86px; margin:auto; display:grid; place-items:center; border:2px solid #f0cf7b; background:#3b3025; color:#f0cf7b; font:800 42px Consolas,monospace; box-shadow:0 5px 0 #161519; }
+    .box-copy h2 { margin:20px 0 7px; color:#fff0c2; font:800 22px Consolas,monospace; letter-spacing:1px; }
+    .box-copy p { max-width:420px; margin:0 auto; color:#bdb4b4; font-size:11px; line-height:1.6; }
+    .price { display:inline-flex; margin-top:20px; padding:8px 13px; border:1px solid #806b42; color:#f0cf7b; font:800 12px Consolas,monospace; letter-spacing:1px; }
+    .shop-action { width:100%; margin-top:18px; min-height:48px; border:1px solid #f4d297; border-bottom:3px solid #805638; background:linear-gradient(#f0c579,#d99e55); color:#211a16; font:800 10px Consolas,monospace; letter-spacing:1px; cursor:pointer; }
+    .shop-action:disabled { border-color:#5a5660; border-bottom-color:#171519; background:linear-gradient(#3a3840,#28272e); color:#a6a1aa; cursor:not-allowed; }
+    .shop-action:not(:disabled):hover { filter:brightness(1.08); transform:translateY(-1px); }
+    .recruit-reveal { position:absolute; inset:14px; z-index:5; display:none; place-items:center; padding:18px; border:1px solid var(--reveal-color,#e5b95e); background:linear-gradient(145deg,#292630f5,#121319f8 78%); box-shadow:0 16px 34px #0009, inset 0 0 0 1px #ffffff0b; text-align:center; }
+    .recruit-reveal.is-visible { display:grid; animation:reveal-in .28s ease-out both; }
+    .recruit-reveal-card { width:min(100%,300px); }
+    .reveal-kicker { color:var(--reveal-color,#e5b95e); font:700 9px Consolas,monospace; letter-spacing:2px; }
+    .reveal-sparkle { margin:8px auto 4px; color:var(--reveal-color,#e5b95e); font:800 22px Consolas,monospace; text-shadow:0 0 14px var(--reveal-color,#e5b95e); }
+    .reveal-portrait-frame { width:112px; height:112px; margin:2px auto 12px; display:grid; place-items:center; border:2px solid var(--reveal-color,#e5b95e); background:#17181d; box-shadow:0 0 0 5px #15151a, 0 0 22px color-mix(in srgb,var(--reveal-color,#e5b95e),transparent 55%); }
+    .reveal-portrait-frame img { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
+    .reveal-name { margin:0; color:#f7f0f4; font:800 20px Consolas,monospace; letter-spacing:1px; }
+    .reveal-rarity { display:inline-block; margin-top:6px; color:var(--reveal-color,#e5b95e); font:700 9px Consolas,monospace; letter-spacing:1.5px; }
+    .reveal-message { margin:12px auto 16px; max-width:280px; color:#c9c1ca; font:10px/1.6 Consolas,monospace; }
+    .reveal-close { min-width:150px; padding:10px 14px; border:1px solid var(--reveal-color,#e5b95e); border-bottom:3px solid color-mix(in srgb,var(--reveal-color,#e5b95e),#17151a 45%); background:#27232b; color:#f4e9d0; font:800 10px Consolas,monospace; letter-spacing:1px; cursor:pointer; }
+    .reveal-close:hover { background:#3a3440; filter:brightness(1.12); }
+    .recruit-reveal[data-rarity="common"] { --reveal-color:#79b982; }
+    .recruit-reveal[data-rarity="uncommon"] { --reveal-color:#83c8ce; }
+    .recruit-reveal[data-rarity="rare"] { --reveal-color:#a895d2; }
+    .recruit-reveal[data-rarity="legendary"] { --reveal-color:#edc85f; }
+    .recruit-reveal[data-result="duplicate"] .reveal-kicker { color:#e9b98b; }
+    @keyframes reveal-in { from { opacity:0; transform:scale(.97); } to { opacity:1; transform:scale(1); } }
+    .shop-side { display:grid; gap:12px; align-content:start; }
+    .side-card { padding:16px; border:1px solid #45414b; background:#1e1e24; }
+    .side-card h3 { margin:0 0 10px; color:#e5b95e; font:700 10px Consolas,monospace; letter-spacing:1.2px; }
+    .side-card p { margin:0; color:#aaa5b1; font-size:10px; line-height:1.65; }
+    .rarity-odds { display:grid; gap:7px; margin-top:13px; }
+    .rarity-row { display:grid; grid-template-columns:10px 1fr auto; align-items:center; gap:8px; color:#d8d3dc; font:700 10px Consolas,monospace; }
+    .rarity-row i { width:8px; height:8px; display:block; border-radius:50%; background:var(--rarity-color); box-shadow:0 0 8px color-mix(in srgb,var(--rarity-color),transparent 55%); }
+    .rarity-row small { color:#918b99; font-weight:400; }
+    .rarity-row strong { color:var(--rarity-color); }
+    .rarity-common { --rarity-color:#79b982; }
+    .rarity-uncommon { --rarity-color:#83c8ce; }
+    .rarity-rare { --rarity-color:#a895d2; }
+    .rarity-legendary { --rarity-color:#edc85f; }
+    .shop-status { min-height:18px; margin-top:12px; color:#b8d9c1; font:10px Consolas,monospace; }
+    .shop-status.is-error { color:#eea89d; }
+    .roster-state { display:flex; justify-content:space-between; gap:8px; color:#e9e6ed; font:700 11px Consolas,monospace; }
+    .roster-state strong { color:#f0cf7b; }
+    .shop-note { margin:0 32px 26px; padding:12px 14px; border-left:2px solid #8d76a5; background:#29252e; color:#bcb4c6; font-size:9px; line-height:1.6; }
+    @media(max-width:760px){ body{padding:12px}.shop-header{padding:22px 18px;display:block}.shop-header a{display:inline-block;margin-bottom:18px}.shop-eyebrow{margin-left:18px;margin-right:18px}.shop-content{grid-template-columns:1fr;padding:18px}.shop-note{margin-left:18px;margin-right:18px}.mystery-box{min-height:300px}}
+  </style>
+</head>
+<body>
+  <main class="shop-page">
+    <section class="shop-panel">
+      <p class="shop-eyebrow">WASTELAND MARKET // RECRUITMENT BAY</p>
+      <header class="shop-header">
+        <div><a href="index.html">← MAIN MENU</a><h1>SHOP / RECRUIT</h1><p>Use your hard-earned coins to bring new people into the safehouse.</p></div>
+        <div class="account-pill" id="accountState">SIGN IN TO LINK SAVE</div>
+      </header>
+      <div class="shop-content">
+        <section class="mystery-box" aria-labelledby="mysteryTitle">
+          <div class="box-copy">
+            <div class="box-icon" aria-hidden="true">?</div>
+            <h2 id="mysteryTitle">MYSTERY RECRUIT</h2>
+            <p>Open a sealed recruitment case for one random survivor outside the starting six. Duplicate pulls return half your coins.</p>
+            <span class="price">◉ 1,000 COINS</span>
+            <button id="purchaseMysteryButton" class="shop-action" type="button" disabled>CONNECT AN ACCOUNT TO RECRUIT</button>
+            <p id="shopStatus" class="shop-status" role="status" aria-live="polite"></p>
+          </div>
+          <div id="recruitReveal" class="recruit-reveal" data-rarity="common" aria-hidden="true" role="dialog" aria-labelledby="revealName" aria-describedby="revealMessage">
+            <div class="recruit-reveal-card">
+              <div id="revealKicker" class="reveal-kicker">RECRUITMENT COMPLETE</div>
+              <div class="reveal-sparkle" aria-hidden="true">✦</div>
+              <div id="revealPortraitFrame" class="reveal-portrait-frame"><img id="revealPortrait" alt=""></div>
+              <h3 id="revealName" class="reveal-name">NEW RECRUIT</h3>
+              <span id="revealRarity" class="reveal-rarity">COMMON</span>
+              <p id="revealMessage" class="reveal-message">Your roster has been updated.</p>
+              <button id="revealClose" class="reveal-close" type="button">CONTINUE</button>
+            </div>
+          </div>
+        </section>
+        <aside class="shop-side">
+          <section class="side-card"><h3>YOUR COIN WALLET</h3><div class="roster-state"><span>AVAILABLE COINS</span><strong id="coinBalance">—</strong></div></section>
+          <section class="side-card"><h3>RECRUITMENT ODDS</h3><p>Base rarity chances for every case. If a rarity has no available recruits, its chance is redistributed across the current pool.</p><div class="rarity-odds"><div class="rarity-row rarity-common"><i></i><span>COMMON <small>starting talent</small></span><strong>45%</strong></div><div class="rarity-row rarity-uncommon"><i></i><span>UNCOMMON <small>specialists</small></span><strong>30%</strong></div><div class="rarity-row rarity-rare"><i></i><span>RARE <small>standout recruits</small></span><strong>18%</strong></div><div class="rarity-row rarity-legendary"><i></i><span>LEGENDARY <small>exceptional survivors</small></span><strong>7%</strong></div></div></section>
+          <section class="side-card"><h3>ACCOUNT ROSTER</h3><p>Your unlocked survivors and coin wallet are saved with your signed-in account and carried across devices.</p><div class="roster-state" style="margin-top:14px"><span>STARTING SURVIVORS</span><strong>06</strong></div><div class="roster-state" style="margin-top:8px"><span>RECRUITED</span><strong id="recruitedCount">00</strong></div></section>
+          <section class="side-card"><h3>HOW DUPLICATES WORK</h3><p>A duplicate still costs 1,000 coins, but 500 coins are immediately refunded and your roster stays unchanged.</p></section>
+        </aside>
+      </div>
+      <p class="shop-note">Recruitment cases are account-bound. The result is saved only after Supabase confirms the purchase, so refreshing cannot spend the same case twice.</p>
+    </section>
+  </main>
+  <script src="supabase-config.js?v=20261023-02"></script>
+  <script src="custom-survivors.js?v=20261024-2"></script>
+  <script>
+    (() => {
+      const STARTER_IDS = new Set(['mason', 'james', 'cody', 'britney', 'zach', 'brady']);
+      const PRICE = 1000;
+      const REFUND = 500;
+      const ODDS = { common: 45, uncommon: 30, rare: 18, legendary: 7 };
+      const coinDisplay = document.getElementById('coinBalance');
+      const accountState = document.getElementById('accountState');
+      const purchaseButton = document.getElementById('purchaseMysteryButton');
+      const statusDisplay = document.getElementById('shopStatus');
+      const recruitedCount = document.getElementById('recruitedCount');
+      const reveal = document.getElementById('recruitReveal');
+      const revealKicker = document.getElementById('revealKicker');
+      const revealPortrait = document.getElementById('revealPortrait');
+      const revealName = document.getElementById('revealName');
+      const revealRarity = document.getElementById('revealRarity');
+      const revealMessage = document.getElementById('revealMessage');
+      const revealClose = document.getElementById('revealClose');
+      const pool = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_CUSTOM_SURVIVORS : [])
+        .filter(survivor => survivor && !STARTER_IDS.has(String(survivor.id).toLowerCase()) && survivor.mysteryBoxOnly === true)
+        .map(survivor => ({
+          id: String(survivor.id).toLowerCase(),
+          name: String(survivor.name || 'NEW SURVIVOR'),
+          rarity: ['common', 'uncommon', 'rare', 'legendary'].includes(survivor.rarity) ? survivor.rarity : 'common',
+          portrait: survivor.portraitData || ''
+        }));
+      let client = null;
+      let session = null;
+      let coins = 0;
+      let unlocked = new Set(STARTER_IDS);
+
+      function setStatus(message, error = false) {
+        statusDisplay.textContent = message;
+        statusDisplay.classList.toggle('is-error', error);
+      }
+
+      function closeReveal() {
+        reveal.classList.remove('is-visible');
+        reveal.setAttribute('aria-hidden', 'true');
+        purchaseButton.focus();
+      }
+
+      function showReveal(recruit, duplicate) {
+        reveal.dataset.rarity = recruit.rarity;
+        reveal.dataset.result = duplicate ? 'duplicate' : 'new';
+        revealKicker.textContent = duplicate ? 'DUPLICATE RECRUIT' : 'NEW RECRUIT ACQUIRED';
+        revealPortrait.src = recruit.portrait || '';
+        revealPortrait.alt = `${recruit.name} portrait`;
+        revealName.textContent = recruit.name.toUpperCase();
+        revealRarity.textContent = recruit.rarity.toUpperCase();
+        revealMessage.textContent = duplicate
+          ? `${recruit.name} is already in your roster. ${REFUND.toLocaleString()} coins were returned.`
+          : `${recruit.name} has joined your roster. Your account save is synced.`;
+        reveal.classList.add('is-visible');
+        reveal.setAttribute('aria-hidden', 'false');
+        revealClose.focus();
+      }
+
+      function renderWallet() {
+        coinDisplay.textContent = coins.toLocaleString();
+        recruitedCount.textContent = String(Math.max(0, unlocked.size - STARTER_IDS.size)).padStart(2, '0');
+        purchaseButton.disabled = !session || pool.length === 0 || coins < PRICE;
+        if (!session) purchaseButton.textContent = 'CONNECT AN ACCOUNT TO RECRUIT';
+        else if (!pool.length) purchaseButton.textContent = 'NO RECRUITS IN THE POOL';
+        else if (coins < PRICE) purchaseButton.textContent = `NEED ${(PRICE - coins).toLocaleString()} MORE COINS`;
+        else purchaseButton.textContent = 'OPEN MYSTERY CASE · 1,000 COINS';
+      }
+
+      function chooseRecruit() {
+        const available = pool.filter(recruit => !unlocked.has(recruit.id));
+        const candidates = available.length ? available : pool;
+        const byRarity = new Map();
+        candidates.forEach(recruit => {
+          if (!byRarity.has(recruit.rarity)) byRarity.set(recruit.rarity, []);
+          byRarity.get(recruit.rarity).push(recruit);
+        });
+        const tiers = [...byRarity.keys()];
+        const totalWeight = tiers.reduce((sum, rarity) => sum + (ODDS[rarity] || 0), 0);
+        let roll = Math.random() * totalWeight;
+        const rarity = tiers.find(tier => (roll -= ODDS[tier] || 0) <= 0) || tiers[tiers.length - 1];
+        const options = byRarity.get(rarity) || candidates;
+        return options[Math.floor(Math.random() * options.length)];
+      }
+
+      function setGuest() {
+        session = null;
+        accountState.textContent = 'SIGN IN TO LINK SAVE';
+        accountState.classList.add('is-guest');
+        coins = 0;
+        unlocked = new Set(STARTER_IDS);
+        renderWallet();
+      }
+
+      async function loadAccountSave() {
+        if (!window.supabase?.createClient || !window.WD_SUPABASE_CONFIG) return setGuest();
+        client = window.supabase.createClient(WD_SUPABASE_CONFIG.url, WD_SUPABASE_CONFIG.publishableKey);
+        const result = await client.auth.getSession();
+        session = result.data?.session || null;
+        if (!session?.user) return setGuest();
+        accountState.textContent = 'ACCOUNT SAVE · LINKED';
+        accountState.classList.remove('is-guest');
+        const progressResponse = await client.from('player_progress').select('coins,unlocked_survivors').eq('user_id', session.user.id).maybeSingle();
+        if (progressResponse.error) throw progressResponse.error;
+        coins = Math.max(0, Number(progressResponse.data?.coins) || 0);
+        unlocked = new Set([...[...STARTER_IDS], ...(progressResponse.data?.unlocked_survivors || [])]);
+        renderWallet();
+      }
+
+      async function purchaseRecruit() {
+        if (!session || !client || coins < PRICE) return;
+        const recruit = chooseRecruit();
+        purchaseButton.disabled = true;
+        setStatus('SEAL CHECK IN PROGRESS…');
+        const response = await client.rpc('purchase_mystery_recruit', { p_survivor_id: recruit.id });
+        if (response.error) {
+          setStatus('PURCHASE COULD NOT BE VERIFIED. RUN THE SHOP SQL MIGRATION FIRST.', true);
+          renderWallet();
+          return;
+        }
+        const result = response.data?.[0] || response.data;
+        if (!result?.success) {
+          setStatus(result?.result === 'insufficient_coins' ? 'NOT ENOUGH COINS FOR THIS CASE.' : 'PURCHASE COULD NOT BE COMPLETED.', true);
+          coins = Number(result?.coins) || coins;
+          renderWallet();
+          return;
+        }
+        coins = Number(result.coins) || 0;
+        unlocked = new Set(result.unlocked_survivors || [...unlocked]);
+        renderWallet();
+        if (result.result === 'duplicate_refund') {
+          setStatus(`${recruit.name.toUpperCase()} WAS ALREADY IN YOUR ROSTER · 500 COINS REFUNDED.`);
+          showReveal(recruit, true);
+        } else {
+          setStatus(`${recruit.name.toUpperCase()} JOINED YOUR ROSTER · SAVE SYNCED.`);
+          showReveal(recruit, false);
+        }
+      }
+
+      purchaseButton.addEventListener('click', purchaseRecruit);
+      revealClose.addEventListener('click', closeReveal);
+      renderWallet();
+      const supabaseScript = document.createElement('script');
+      supabaseScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+      supabaseScript.onload = () => loadAccountSave().catch(() => setGuest());
+      supabaseScript.onerror = setGuest;
+      document.head.append(supabaseScript);
+    })();
+  </script>
+</body>
+</html>

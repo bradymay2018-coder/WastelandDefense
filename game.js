@@ -5979,7 +5979,7 @@ bindUIEvent("dailyChallengeButton", "click", () => {
     document.getElementById("deploymentMessage").textContent = "";
     showDeployment(currentDailyChallenge.mapId);
 });
-bindUIEvent("shopRecruitButton", "click", () => { window.location.href = "shop.html"; });
+bindUIEvent("shopRecruitButton", "click", () => { window.location.href = "shop/"; });
 
 bindUIEvent("leaderboardButton", "click", showLeaderboard);
 bindUIEvent("muteButton", "click", () => setGameAudioMuted(!gameAudioMuted));
