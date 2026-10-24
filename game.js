@@ -57,6 +57,7 @@ mutantManImage.src = "Images/Mutantman.png";
 
 const mutantSnakeImage = new Image();
 mutantSnakeImage.src = "Images/MutantSnake.png";
+
 canvas.addEventListener("contextmenu", function(event) {
     event.preventDefault();
 });
@@ -759,6 +760,7 @@ let inspectedSurvivor = null;
 const enemies = [];
 const bullets = [];
 const impactPixels = [];
+const blastEffects = [];
 const floatingDamageNumbers = [];
 let playerHealth = 100;
 let totalEnemiesDefeated = 0;
@@ -890,7 +892,7 @@ function updatePlayerHealthDisplay() {
             : "#b8bac1";
 }
 
-function spawnEnemy(type = "spider") {
+function spawnEnemy(type = "spider", specialRole = "normal") {
     const profile = getEnemyProfile(type);
     const endlessDifficultyTier = gameMode === "endless" && currentWave >= 10
         ? Math.floor((currentWave - 10) / 5) + 1
@@ -901,7 +903,25 @@ function spawnEnemy(type = "spider") {
     const waveHealthScale =
         (1 + Math.max(0, currentWave - 3) * healthGrowthPerWave) *
         (1 + endlessDifficultyTier * 0.12);
-    const health = Math.round(profile.baseHealth * waveHealthScale);
+    const endlessStartingHealthScale = gameMode === "endless" ? 0.5 : 1;
+    const specialHealthScale = specialRole === "boss"
+        ? 1.5
+        : specialRole === "miniBoss"
+            ? 1.25
+            : 1;
+    const specialSpeedScale = specialRole === "boss"
+        ? 0.5
+        : specialRole === "miniBoss"
+            ? 0.75
+            : 1;
+    const sizeScale = specialRole === "boss"
+        ? 1.5
+        : specialRole === "miniBoss"
+            ? 1.25
+            : 1;
+    const health = Math.round(
+        profile.baseHealth * waveHealthScale * endlessStartingHealthScale * specialHealthScale
+    );
 
     enemies.push({
         type: type,
@@ -911,8 +931,11 @@ function spawnEnemy(type = "spider") {
         visualLaneOffsetY: roadPoints[0].y === roadPoints[1]?.y
             ? horizontalEnemyLaneVisualOffset
             : 0,
-        speed: profile.speed * (1 + endlessDifficultyTier * 0.035),
-        size: profile.size,
+        speed: profile.speed * (1 + endlessDifficultyTier * 0.035) * specialSpeedScale,
+        size: profile.size * sizeScale,
+        sizeScale,
+        isMiniBoss: specialRole === "miniBoss",
+        isWaveBoss: specialRole === "boss",
         health: health,
         maxHealth: health
     });
@@ -939,7 +962,7 @@ function getWaveGroups(wave) {
         ]
     };
 
-    if (waveGroups[wave] && !(gameMode === "endless" && wave >= 6)) {
+    if (waveGroups[wave] && !(gameMode === "endless" && wave >= 5)) {
         return waveGroups[wave];
     }
 
@@ -956,7 +979,7 @@ function getWaveGroups(wave) {
     const snakeCount = wave >= 8
         ? Math.max(1, Math.floor(totalEnemies * 0.08))
         : 0;
-    const heavyCount = wave >= 10 && wave % 5 === 0
+    const heavyCount = gameMode !== "endless" && wave >= 10 && wave % 5 === 0
         ? Math.min(3, 1 + Math.floor((wave - 10) / 10))
         : 0;
     const standardCount = Math.max(0, totalEnemies - skitterCount - snakeCount);
@@ -985,15 +1008,46 @@ function getWaveGroups(wave) {
         { types: fastTypes, count: fastTypes.length }
     ].filter(group => group.count > 0);
 
-    // Tough hulks return as milestone threats instead of disappearing after wave 5.
-    const hollowCount = wave === 9 || wave === 12
-        ? 1
-        : wave === 15
-            ? 2
-            : wave > 15 && wave % 5 === 0
-                ? Math.min(3, Math.floor(wave / 8))
-                : 0;
-    if (hollowCount > 0) groups.push({ type: "hollow", count: hollowCount });
+    if (gameMode === "endless") {
+        const isBossWave = wave % 10 === 0;
+        const isMiniBossWave = wave % 5 === 0;
+
+        if (isMiniBossWave) {
+            const miniBossCount = isBossWave ? wave / 10 : 1;
+            const miniBossTypes = [
+                "spider",
+                "skitter",
+                "wastelandcow",
+                "mutantman",
+                "mutantsnake",
+                "fogkeeper",
+                "heavymutant",
+                "hollow"
+            ];
+            const types = Array.from({ length: miniBossCount }, (_, index) =>
+                miniBossTypes[(Math.floor(wave / 5) + index) % miniBossTypes.length]
+            );
+            groups.push({ types, count: miniBossCount, specialRole: "miniBoss" });
+        }
+
+        if (isBossWave) {
+            const bossCount = wave > 50 ? 2 : 1;
+            const types = Array.from({ length: bossCount }, (_, index) =>
+                (Math.floor(wave / 10) + index) % 2 === 0 ? "fogkeeper" : "heavymutant"
+            );
+            groups.push({ types, count: bossCount, specialRole: "boss" });
+        }
+    } else {
+        // Keep the campaign's existing Hollow milestone encounters.
+        const hollowCount = wave === 9 || wave === 12
+            ? 1
+            : wave === 15
+                ? 2
+                : wave > 15 && wave % 5 === 0
+                    ? Math.min(3, Math.floor(wave / 8))
+                    : 0;
+        if (hollowCount > 0) groups.push({ type: "hollow", count: hollowCount });
+    }
 
     return groups;
 }
@@ -1277,6 +1331,28 @@ canvas.addEventListener("click", function(event) {
 
 
 
+function drawSurvivorLevelPips(centerX, centerY, level) {
+    const pipCount = level >= 3 ? 1 : Math.min(2, Math.floor(level));
+    const pipSize = 4;
+    const outlineSize = 1;
+    const pipBoxSize = pipSize + outlineSize * 2;
+    const gap = 2;
+    const totalWidth = pipCount * pipBoxSize + (pipCount - 1) * gap;
+    const startX = Math.round(centerX - totalWidth / 2);
+    const y = Math.round(centerY - pipBoxSize / 2);
+    const accent = level >= 3 ? "#c49bea" : "#f3c45d";
+
+    ctx.save();
+    for (let index = 0; index < pipCount; index++) {
+        const x = startX + index * (pipBoxSize + gap);
+        ctx.fillStyle = "#09090a";
+        ctx.fillRect(x, y, pipBoxSize, pipBoxSize);
+        ctx.fillStyle = accent;
+        ctx.fillRect(x + outlineSize, y + outlineSize, pipSize, pipSize);
+    }
+    ctx.restore();
+}
+
 function drawSurvivors() {
     const survivorImages = {
         mason: masonImage,
@@ -1331,6 +1407,19 @@ survivor.y + survivor.recoilY - height / 2 + bounce,
     height
 );
 
+        const upgradeLevel = getSurvivorUpgradeLevel(survivor);
+        const upgradePipsY = Math.max(
+            4,
+            survivor.y + survivor.recoilY - height / 2 - 6 + bounce
+        );
+        if (upgradeLevel > 0) {
+            drawSurvivorLevelPips(
+                survivor.x + survivor.recoilX,
+                upgradePipsY,
+                upgradeLevel
+            );
+        }
+
         ctx.restore();
     }
 }
@@ -1338,15 +1427,15 @@ survivor.y + survivor.recoilY - height / 2 + bounce,
 
 
 const survivorStats = {
-    mason: { range: 165, damage: 13, fireRate: 1.05 },
+    mason: { range: 140, damage: 13, fireRate: 1.05 },
     james: { range: 120, damage: 14, fireRate: 0.8 },
     cody: { range: 140, damage: 26, fireRate: 1.6 },
     britney: { range: 230, damage: 38, fireRate: 2.1 },
-    zach: { range: 108, damage: 8, fireRate: 0.55 },
+    zach: { range: 108, damage: 4, fireRate: 0.275 },
     brady: { range: 142, damage: 16, fireRate: 1.1 }
 };
 
-const maxSurvivorUpgradeLevel = 2;
+const maxSurvivorUpgradeLevel = 3;
 
 function getSurvivorUpgradeLevel(survivor) {
     const level = Math.floor(Number(survivor?.upgradeLevel) || 0);
@@ -1360,17 +1449,61 @@ function getSurvivorStats(survivorOrType) {
     if (!base) return null;
 
     const level = isSurvivor ? getSurvivorUpgradeLevel(survivorOrType) : 0;
+    const masonHighCaliber = isSurvivor && type === "mason" && level >= 3;
+    const codyHighlyExplosive = isSurvivor && type === "cody" && level >= 3;
+    const britneySemiAuto = isSurvivor && type === "britney" && level >= 3;
+    const zachDualWield = isSurvivor && type === "zach" && level >= 3;
+    const bradyAutoShotty = isSurvivor && type === "brady" && level >= 3;
+    const levelTwoMasonDamage = Math.round(base.damage * 1.4);
+    const levelTwoBritneyDamage = Math.round(base.damage * 1.4);
+    const damage = masonHighCaliber
+        ? Math.round(levelTwoMasonDamage * 2)
+        : britneySemiAuto
+            ? Math.round(levelTwoBritneyDamage * 0.7)
+            : Math.round(base.damage * (1 + 0.2 * level));
     return {
-        damage: Math.round(base.damage * (1 + 0.2 * level)),
+        damage: level >= 3 ? damage * 2 : damage,
         range: Math.round(base.range * (1 + 0.1 * level)),
-        fireRate: base.fireRate * (1 - 0.1 * level)
+        fireRate: masonHighCaliber
+            ? base.fireRate * (1 - 0.1 * 2) * 1.25
+            : codyHighlyExplosive
+                ? base.fireRate * (1 - 0.1 * 2) * 1.25
+                : britneySemiAuto
+                    ? base.fireRate * (1 - 0.1 * 2) / 1.8
+                    : zachDualWield
+                        ? base.fireRate * (1 - 0.1 * 2) / 2
+                        : bradyAutoShotty
+                            ? base.fireRate * (1 - 0.1 * 2) / 2
+                            : base.fireRate * (1 - 0.1 * level)
+    };
+}
+
+function getCodyBlastRadius(survivor) {
+    const level = getSurvivorUpgradeLevel(survivor);
+    const levelTwoRadius = Math.round(36 * (1 + 0.1 * 2));
+    return level >= 3
+        ? Math.round(levelTwoRadius * 1.5)
+        : Math.round(36 * (1 + 0.1 * level));
+}
+
+function getJamesBurnStats(survivor) {
+    const level = getSurvivorUpgradeLevel(survivor);
+    const napalmThrower = level >= 3;
+    const standardTickDamage = Math.round(6 * (1 + 0.2 * level));
+
+    return {
+        duration: napalmThrower ? 5 : 4,
+        damage: napalmThrower
+            ? standardTickDamage * 4
+            : standardTickDamage
     };
 }
 
 function getSurvivorUpgradeCost(type, level) {
     const baseCost = survivorCosts[type];
     if (!baseCost || level < 1 || level > maxSurvivorUpgradeLevel) return 0;
-    return Math.round(baseCost * (level === 1 ? 0.75 : 1.25));
+    const upgradeCostMultipliers = [0, 0.75, 1.25, 3.5];
+    return Math.round(baseCost * upgradeCostMultipliers[level]);
 }
 
 function getSurvivorTotalInvestment(survivor) {
@@ -1399,33 +1532,90 @@ function updateSurvivorUpgradeButton(survivor) {
 
     control.style.display = "block";
     const level = getSurvivorUpgradeLevel(survivor);
+    button.classList.toggle("level-three-upgrade", level >= 2);
     levelLabel.textContent = `LEVEL ${level} / ${maxSurvivorUpgradeLevel}`;
 
     if (level >= maxSurvivorUpgradeLevel) {
-        label.textContent = "MAX LEVEL REACHED";
+        const hasHighCaliber = survivor.type === "mason" && level >= 3;
+        const hasNapalmThrower = survivor.type === "james" && level >= 3;
+        const hasHighlyExplosive = survivor.type === "cody" && level >= 3;
+        const hasSemiAuto = survivor.type === "britney" && level >= 3;
+        const hasDualWield = survivor.type === "zach" && level >= 3;
+        const hasAutoShotty = survivor.type === "brady" && level >= 3;
+        label.textContent = hasHighCaliber
+            ? "HIGH CALIBER"
+            : hasNapalmThrower
+                ? "NAPALM THROWER"
+                : hasHighlyExplosive
+                    ? "HIGHLY EXPLOSIVE"
+                    : hasSemiAuto
+                        ? "SEMI AUTO"
+                        : hasDualWield
+                            ? "DUAL WIELD"
+                            : hasAutoShotty ? "AUTO SHOTTY" : "MAX LEVEL REACHED";
         costLabel.textContent = "FULLY UPGRADED";
         button.disabled = true;
-        button.title = "This survivor has reached the maximum upgrade level.";
+        button.title = hasHighCaliber
+            ? "High Caliber is active: 4× level 2 damage with a 25% longer attack interval."
+            : hasNapalmThrower
+                ? "Napalm Thrower is active: level 3 damage is doubled, burning lasts 25% longer, and burn damage per tick is doubled again."
+                : hasHighlyExplosive
+                    ? "Highly Explosive is active: doubled level 3 damage, a larger blast, 50% splash damage, and a 25% longer attack interval."
+                    : hasSemiAuto
+                        ? "Semi Auto is active: about 40% more damage than level 2, firing 80% faster."
+                        : hasDualWield
+                            ? "Dual Wield is active: doubled level 3 damage, fires twice as fast, and hits the first two targets in range."
+                            : hasAutoShotty
+                                ? "Auto Shotty is active: doubled level 3 damage and fires twice as fast."
+                                : "This survivor has reached the maximum upgrade level.";
         return;
     }
 
     const nextLevel = level + 1;
     const cost = getSurvivorUpgradeCost(survivor.type, nextLevel);
-    label.textContent = `UPGRADE TO LEVEL ${nextLevel}`;
+    const unlocksHighCaliber = survivor.type === "mason" && nextLevel === 3;
+    const unlocksNapalmThrower = survivor.type === "james" && nextLevel === 3;
+    const unlocksHighlyExplosive = survivor.type === "cody" && nextLevel === 3;
+    const unlocksSemiAuto = survivor.type === "britney" && nextLevel === 3;
+    const unlocksDualWield = survivor.type === "zach" && nextLevel === 3;
+    const unlocksAutoShotty = survivor.type === "brady" && nextLevel === 3;
+    label.textContent = unlocksHighCaliber
+        ? "HIGH CALIBER"
+        : unlocksNapalmThrower
+            ? "NAPALM THROWER"
+            : unlocksHighlyExplosive
+                ? "HIGHLY EXPLOSIVE"
+                    : unlocksSemiAuto
+                        ? "SEMI AUTO"
+                        : unlocksDualWield
+                            ? "DUAL WIELD"
+                            : unlocksAutoShotty ? "AUTO SHOTTY" : `UPGRADE TO LEVEL ${nextLevel}`;
     costLabel.textContent = `${cost} SCRAP`;
     button.disabled = scrap < cost;
     button.title = scrap < cost
         ? `Need ${cost - scrap} more scrap to upgrade.`
-        : `Upgrade this survivor for ${cost} scrap.`;
+        : unlocksHighCaliber
+            ? `High Caliber deals 4× Mason's level 2 damage, with a 25% longer attack interval.`
+            : unlocksNapalmThrower
+                ? "Napalm Thrower doubles level 3 damage, extends burning 25%, and doubles burn damage per tick again."
+                : unlocksHighlyExplosive
+                    ? "Highly Explosive doubles level 3 damage, increases blast size, deals 50% damage to splash targets, and fires more slowly."
+                        : unlocksSemiAuto
+                            ? "Semi Auto doubles its level 3 damage, then fires 80% faster than level 2."
+                            : unlocksDualWield
+                                ? "Dual Wield doubles level 3 damage and attack speed, and hits the first two targets in range at once."
+                                : unlocksAutoShotty
+                                    ? "Auto Shotty doubles level 3 damage and Brady's attack rate."
+                                    : `Upgrade this survivor for ${cost} scrap.`;
 }
 
 const survivorDescriptions = {
     mason: "Handgun. A dependable sidearm with balanced range and damage.",
     james: "Flamethrower. A close-range stream that ignites its target.",
-    cody: "Grenade launcher. A heavy round that hits one target directly.",
+    cody: "Grenade launcher. Explosive rounds blast nearby enemies.",
     britney: "Sniper rifle. Precise, long-range shots with high damage.",
     zach: "SMG. A rapid burst of light rounds at close range.",
-    brady: "Shotgun. A tight pellet spread focused on a single target."
+    brady: "Shotgun. A tight pellet spread knocks enemies back."
 };
 
 function showSurvivorDetails(id) {
@@ -1467,8 +1657,34 @@ document.getElementById("survivorKills").textContent =
         (detail.damage / detail.fireRate).toFixed(1);
 
    
-document.getElementById("survivorDetailDescription").textContent =
-    survivorDescriptions[id];
+const deployedUpgradeLevel = getSurvivorUpgradeLevel(deployedUnit);
+let detailDescription = survivorDescriptions[id];
+if (deployedUnit?.type === "mason" && deployedUpgradeLevel >= 2) {
+    detailDescription = deployedUpgradeLevel >= 3
+        ? "High Caliber active: 4× level 2 damage, with a 25% longer attack interval."
+        : "Next upgrade: High Caliber deals 4× level 2 damage, with a 25% longer attack interval.";
+} else if (deployedUnit?.type === "james" && deployedUpgradeLevel >= 2) {
+    detailDescription = deployedUpgradeLevel >= 3
+        ? "Napalm Thrower active: level 3 damage is doubled, burning lasts 25% longer, and burn damage per tick doubles again."
+        : "Next upgrade: Napalm Thrower doubles level 3 damage, extends burning 25%, and doubles burn damage per tick again.";
+} else if (deployedUnit?.type === "cody" && deployedUpgradeLevel >= 2) {
+    detailDescription = deployedUpgradeLevel >= 3
+        ? "Highly Explosive active: doubled level 3 damage, a larger blast, 50% damage to nearby targets, and a 25% longer attack interval."
+        : "Next upgrade: Highly Explosive doubles level 3 damage, adds a larger blast, deals 50% damage to nearby targets, and fires more slowly.";
+} else if (deployedUnit?.type === "britney" && deployedUpgradeLevel >= 2) {
+    detailDescription = deployedUpgradeLevel >= 3
+        ? "Semi Auto active: about 40% more damage than level 2, firing 80% faster."
+        : "Next upgrade: Semi Auto doubles its level 3 damage, then fires 80% faster than level 2.";
+} else if (deployedUnit?.type === "zach" && deployedUpgradeLevel >= 2) {
+    detailDescription = deployedUpgradeLevel >= 3
+        ? "Dual Wield active: doubled level 3 damage, fires twice as fast, and hits the first two targets in range at once."
+        : "Next upgrade: Dual Wield doubles level 3 damage and attack speed, and hits the first two targets in range at once.";
+} else if (deployedUnit?.type === "brady" && deployedUpgradeLevel >= 2) {
+    detailDescription = deployedUpgradeLevel >= 3
+        ? "Auto Shotty active: doubled level 3 damage and attack rate."
+        : "Next upgrade: Auto Shotty doubles level 3 damage and Brady's attack rate.";
+}
+document.getElementById("survivorDetailDescription").textContent = detailDescription;
 
 updateSurvivorUpgradeButton(deployedUnit || null);
 updateSellButton();
@@ -1477,6 +1693,46 @@ updateMoveButton();
 
 
 
+
+function knockEnemyBackAlongRoad(enemy, distance) {
+    let remaining = distance;
+
+    while (remaining > 0.01 && enemy.targetPoint > 0) {
+        const segmentStart = roadPoints[enemy.targetPoint - 1];
+        const segmentEnd = roadPoints[enemy.targetPoint];
+        if (!segmentStart || !segmentEnd) return;
+
+        const segmentX = segmentEnd.x - segmentStart.x;
+        const segmentY = segmentEnd.y - segmentStart.y;
+        const segmentLength = Math.hypot(segmentX, segmentY);
+        if (segmentLength <= 0) {
+            if (enemy.targetPoint <= 1) break;
+            enemy.targetPoint--;
+            continue;
+        }
+
+        const directionX = segmentX / segmentLength;
+        const directionY = segmentY / segmentLength;
+        const offsetX = enemy.x - segmentStart.x;
+        const offsetY = enemy.y - segmentStart.y;
+        const progress = Math.max(0, Math.min(
+            segmentLength,
+            offsetX * directionX + offsetY * directionY
+        ));
+        const step = Math.min(progress, remaining);
+
+        enemy.x -= directionX * step;
+        enemy.y -= directionY * step;
+        remaining -= step;
+
+        if (remaining > 0.01) {
+            enemy.x = segmentStart.x;
+            enemy.y = segmentStart.y;
+            if (enemy.targetPoint <= 1) break;
+            enemy.targetPoint--;
+        }
+    }
+}
 
 function drawSurvivorPreview() {
     const movingSurvivor = moveMode && inspectedSurvivor;
@@ -1740,6 +1996,27 @@ function addImpactPixels(enemy, type, dx, dy) {
     }
 }
 
+function addBlastEffect(x, y, radius) {
+    blastEffects.push({ x, y, radius, life: 0.28, maxLife: 0.28 });
+}
+
+function applySurvivorDamage(survivor, enemy, damage, isSplash = false) {
+    const actualDamage = Math.min(damage, enemy.health);
+    enemy.health -= actualDamage;
+    enemy.lastHitBy = survivor;
+    enemy.hitFlash = 0.15;
+    survivor.damageDealt += actualDamage;
+
+    floatingDamageNumbers.push({
+        x: enemy.x,
+        y: enemy.y - 25,
+        amount: Math.round(actualDamage),
+        life: 0.8,
+        maxLife: 0.8,
+        isSplash
+    });
+}
+
 function updateSurvivorCombat(deltaTime) {
     for (const survivor of survivors) {
         if (survivor.damageDealt === undefined) survivor.damageDealt = 0;
@@ -1752,6 +2029,11 @@ if (survivor.kills === undefined) survivor.kills = 0;
 
         if (survivor.attackCooldown > 0) continue;
 
+        const dualWield = survivor.type === "zach" &&
+            getSurvivorUpgradeLevel(survivor) >= 3;
+        const targetsPerAttack = dualWield ? 2 : 1;
+        const attackTargets = [];
+
         for (const enemy of enemies) {
             if (enemy.finished || enemy.health <= 0) continue;
 
@@ -1760,50 +2042,70 @@ if (survivor.kills === undefined) survivor.kills = 0;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance <= stats.range) {
-                enemy.lastHitBy = survivor;
-
-const actualDamage = Math.min(stats.damage, enemy.health);
-enemy.health -= actualDamage;
-
-floatingDamageNumbers.push({
-    x: enemy.x,
-    y: enemy.y - 25,
-    amount: Math.round(actualDamage),
-    life: 0.8,
-    maxLife: 0.8
-});
-                
-                // James ignites the target, but every attack sound plays only
-                // once here at the instant the hit is registered.
-                if (survivor.type === "james") {
-                    enemy.burnTimer = 4;
-                    enemy.burnDamage = Math.round(
-                        6 * (1 + 0.2 * getSurvivorUpgradeLevel(survivor))
-                    );
-                    if (enemy.burnTickTimer === undefined) {
-                        enemy.burnTickTimer = 1;
-                    }
-                    enemy.burnSource = survivor;
-                }
-
-                playWeaponAttackSound(survivor.type);
-
-                // Jolt backward, away from the enemy being shot.
-const recoilStrength = 7;
-survivor.recoilX -= (dx / distance) * recoilStrength;
-survivor.recoilY -= (dy / distance) * recoilStrength;
-                enemy.hitFlash = 0.15;
-                enemy.hitOffsetX = Math.max(-5, Math.min(5,
-                    (enemy.hitOffsetX || 0) + (dx / distance) * 3));
-                enemy.hitOffsetY = Math.max(-5, Math.min(5,
-                    (enemy.hitOffsetY || 0) + (dy / distance) * 3));
-                survivor.damageDealt += actualDamage;
-                addShotVisual(survivor, enemy, dx, dy, distance, survivor.type);
-                addImpactPixels(enemy, survivor.type, dx, dy);
-                survivor.attackCooldown = stats.fireRate;
-                break;
+                attackTargets.push({ enemy, dx, dy, distance });
+                if (attackTargets.length >= targetsPerAttack) break;
             }
         }
+
+        if (attackTargets.length === 0) continue;
+
+        for (const { enemy, dx, dy, distance } of attackTargets) {
+            if (survivor.type === "cody") {
+                const blastRadius = getCodyBlastRadius(survivor);
+                const blastRadiusSquared = blastRadius * blastRadius;
+                addBlastEffect(enemy.x, enemy.y, blastRadius);
+
+                for (const affectedEnemy of enemies) {
+                    if (affectedEnemy.finished || affectedEnemy.health <= 0) continue;
+
+                    const isDirectTarget = affectedEnemy === enemy;
+                    const blastDx = affectedEnemy.x - enemy.x;
+                    const blastDy = affectedEnemy.y - enemy.y;
+                    if (!isDirectTarget &&
+                        blastDx * blastDx + blastDy * blastDy > blastRadiusSquared) {
+                        continue;
+                    }
+
+                    const damage = isDirectTarget
+                        ? stats.damage
+                        : Math.max(1, Math.round(stats.damage * 0.5));
+                    applySurvivorDamage(survivor, affectedEnemy, damage, !isDirectTarget);
+                }
+            } else {
+                applySurvivorDamage(survivor, enemy, stats.damage);
+            }
+
+            // James ignites each target hit by the attack volley.
+            if (survivor.type === "james") {
+                const burnStats = getJamesBurnStats(survivor);
+                enemy.burnTimer = burnStats.duration;
+                enemy.burnDamage = burnStats.damage;
+                if (enemy.burnTickTimer === undefined) {
+                    enemy.burnTickTimer = 1;
+                }
+                enemy.burnSource = survivor;
+            }
+
+            // Survivors recoil from each target. Brady's shotgun also pushes
+            // the target back along the road without knocking it off course.
+            const recoilStrength = 7;
+            survivor.recoilX -= (dx / distance) * recoilStrength;
+            survivor.recoilY -= (dy / distance) * recoilStrength;
+            enemy.hitOffsetX = Math.max(-5, Math.min(5,
+                (enemy.hitOffsetX || 0) + (dx / distance) * 3));
+            enemy.hitOffsetY = Math.max(-5, Math.min(5,
+                (enemy.hitOffsetY || 0) + (dy / distance) * 3));
+            addShotVisual(survivor, enemy, dx, dy, distance, survivor.type);
+            addImpactPixels(enemy, survivor.type, dx, dy);
+            if (survivor.type === "brady") {
+                knockEnemyBackAlongRoad(enemy, 8);
+            }
+        }
+
+        // A dual-wield volley plays one attack sound while showing a shot for
+        // each target it hits.
+        playWeaponAttackSound(survivor.type);
+        survivor.attackCooldown = stats.fireRate;
     }
 
     for (let i = enemies.length - 1; i >= 0; i--) {
@@ -1858,6 +2160,13 @@ function updateImpactPixels(deltaTime) {
     }
 }
 
+function updateBlastEffects(deltaTime) {
+    for (let i = blastEffects.length - 1; i >= 0; i--) {
+        blastEffects[i].life -= deltaTime;
+        if (blastEffects[i].life <= 0) blastEffects.splice(i, 1);
+    }
+}
+
   
 
 function drawDamageNumbers() {
@@ -1889,7 +2198,9 @@ function drawDamageNumbers() {
         // Yellow for direct hits, orange for burn damage.
         ctx.fillStyle = number.isBurn
             ? "#ff7043"
-            : "#fff1a8";
+            : number.isSplash
+                ? "#e7a766"
+                : "#fff1a8";
 
         ctx.fillText(number.amount, x, y);
     }
@@ -1949,8 +2260,8 @@ function drawBullets() {
         ctx.stroke();
 
         if (bullet.type === "cody") {
-            // A short, brass-cased launcher round; it vanishes on direct hit
-            // with no blast, lingering impact, or follow-up effect.
+            // The brass-cased shell vanishes on impact; the blast ring marks
+            // the splash radius around the hit target.
             const px = -uy;
             const py = ux;
             const noseX = endX + ux * 4;
@@ -2018,6 +2329,26 @@ function drawImpactPixels() {
     ctx.restore();
 }
 
+function drawBlastEffects() {
+    ctx.save();
+    ctx.lineCap = "square";
+
+    for (const effect of blastEffects) {
+        const progress = 1 - effect.life / effect.maxLife;
+        const radius = Math.max(4, effect.radius * progress);
+        ctx.globalAlpha = Math.max(0, effect.life / effect.maxLife) * 0.85;
+        ctx.strokeStyle = "#f0b65e";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(Math.round(effect.x), Math.round(effect.y), Math.round(radius), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "#fff0bd";
+        ctx.fillRect(Math.round(effect.x) - 2, Math.round(effect.y) - 2, 4, 4);
+    }
+
+    ctx.restore();
+}
+
 
 function updateEnemies(deltaTime) {
     for (const enemy of enemies) {
@@ -2030,7 +2361,7 @@ function updateEnemies(deltaTime) {
         enemy.visualLaneOffsetY = currentLaneOffsetY +
             (targetLaneOffsetY - currentLaneOffsetY) * Math.min(1, deltaTime * 12);
 
-        // Burning deals 3 damage per second.
+        // Burning deals its assigned damage once per second.
 
 if (enemy.burnTimer > 0 && enemy.health > 0) {
     enemy.burnTickTimer =
@@ -2128,7 +2459,8 @@ function drawEnemies() {
     // Draw ground shadows first so they sit beneath every enemy sprite.
     for (const enemy of enemies) {
         const profile = getEnemyProfile(enemy.type);
-        const spriteHeight = profile.spriteHeight;
+        const sizeScale = enemy.sizeScale || 1;
+        const spriteHeight = profile.spriteHeight * sizeScale;
         const hitOffsetX = enemy.hitOffsetX || 0;
         const hitOffsetY = enemy.hitOffsetY || 0;
 
@@ -2138,8 +2470,8 @@ function drawEnemies() {
         ctx.ellipse(
             enemy.x + hitOffsetX,
             enemy.y + hitOffsetY + (enemy.visualLaneOffsetY || 0) + spriteHeight / 2 - 5,
-            profile.isHeavy || profile.isBoss ? 14 : 12,
-            4.5,
+            (profile.isHeavy || profile.isBoss ? 14 : 12) * sizeScale,
+            4.5 * sizeScale,
             0,
             0,
             Math.PI * 2
@@ -2150,10 +2482,11 @@ function drawEnemies() {
 
     for (const enemy of enemies) {
         const profile = getEnemyProfile(enemy.type);
-        const isHollow = profile.isBoss === true;
+        const isHollow = profile.isBoss === true && !enemy.isMiniBoss && !enemy.isWaveBoss;
         const image = profile.image;
-        const spriteWidth = profile.spriteWidth;
-        const spriteHeight = profile.spriteHeight;
+        const sizeScale = enemy.sizeScale || 1;
+        const spriteWidth = profile.spriteWidth * sizeScale;
+        const spriteHeight = profile.spriteHeight * sizeScale;
 
         if (isHollow && enemy.health > 0) {
             hollowAlive = true;
@@ -2190,12 +2523,17 @@ function drawEnemies() {
                      ctx.restore();
         }
 
-        // Small health bars for regular enemies.
+        // Larger, warmer health bars make mini-bosses and wave bosses easy to spot.
         if (!isHollow) {
-            const barWidth = profile.isHeavy ? 36 : 30;
-            const barHeight = 5;
+            const baseBarWidth = profile.isHeavy ? 36 : 30;
+            const barWidth = enemy.isWaveBoss
+                ? 52
+                : enemy.isMiniBoss
+                    ? Math.round(baseBarWidth * 1.25)
+                    : baseBarWidth;
+            const barHeight = enemy.isWaveBoss ? 7 : enemy.isMiniBoss ? 6 : 5;
             const barX = spriteX - barWidth / 2;
-            const barY = spriteY - spriteHeight / 2 - 12;
+            const barY = spriteY - spriteHeight / 2 - (enemy.isWaveBoss ? 15 : 12);
             const healthPercent = Math.max(
                 0,
                 Math.min(1, enemy.health / enemy.maxHealth)
@@ -2204,8 +2542,12 @@ function drawEnemies() {
             ctx.fillStyle = "#292b25";
             ctx.fillRect(barX, barY, barWidth, barHeight);
 
-            ctx.fillStyle = healthPercent > 0.6
-                ? "#43c65e"
+            ctx.fillStyle = enemy.isWaveBoss
+                ? "#c77be8"
+                : enemy.isMiniBoss
+                    ? "#edaa4f"
+                    : healthPercent > 0.6
+                        ? "#43c65e"
                 : healthPercent > 0.3
                     ? "#e8c840"
                     : "#e04438";
@@ -2216,6 +2558,12 @@ function drawEnemies() {
                 (barWidth - 2) * healthPercent,
                 barHeight - 2
             );
+
+            if (enemy.isWaveBoss || enemy.isMiniBoss) {
+                ctx.strokeStyle = enemy.isWaveBoss ? "#f0c4ff" : "#ffe0a0";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barX, barY, barWidth, barHeight);
+            }
         }
     }
 
@@ -2280,6 +2628,7 @@ function renderGame() {
     drawSurvivors();
     drawEnemies();
     drawBullets();
+    drawBlastEffects();
     drawImpactPixels();
     drawDamageNumbers();
     drawSurvivorPreview();
@@ -2328,7 +2677,9 @@ let enemiesToSpawn = 0;
 let spawnTimer = 0;
 const totalWaves = 15;
 const groupSpawnDelay = 5;
-const enemySpawnDelay = 1.2;
+// Keep enemies in each wave group close enough for area attacks to catch
+// nearby targets without making the opening rush feel abrupt.
+const enemySpawnDelay = 0.9;
 let enemyGroups = [];
 let currentGroupIndex = 0;
 let currentGroupSpawnIndex = 0;
@@ -2457,7 +2808,7 @@ function updateWaveSystem(deltaTime) {
 
             const enemyTypes = group.types?.length ? group.types : [group.type];
             const enemyType = enemyTypes[currentGroupSpawnIndex % enemyTypes.length];
-            spawnEnemy(enemyType);
+            spawnEnemy(enemyType, group.specialRole || "normal");
             currentGroupSpawnIndex++;
             enemiesToSpawn--;
             spawnTimer = enemySpawnDelay;
@@ -2576,7 +2927,10 @@ function gameLoop(timestamp) {
     updateBullets(deltaTime);
     updateDamageNumbers(deltaTime);
 }
-if (!gamePaused) updateImpactPixels(deltaTime);
+if (!gamePaused) {
+    updateImpactPixels(deltaTime);
+    updateBlastEffects(deltaTime);
+}
 
 renderGame();
     }
@@ -3075,10 +3429,48 @@ function updateReturnEndlessSubmissionUI(message = "", state = "") {
     }
 }
 
+function updateRestartEndlessSubmissionUI(message = "", state = "") {
+    const panel = document.getElementById("restartEndlessScoreSubmission");
+    const button = document.getElementById("submitCompletedEndlessScoreFromRestartButton");
+    const notice = document.getElementById("restartEndlessScoreSubmissionNotice");
+    const score = returnEndlessScoreSubmission;
+    panel.hidden = gameMode !== "endless" || !score;
+    if (panel.hidden) return;
+
+    button.disabled = Boolean(score.submitted || score.submitting || score.bestWave < 1);
+    button.classList.toggle("is-submitted", Boolean(score.submitted));
+    button.textContent = score.submitted
+        ? "SUCCESSFULLY SUBMITTED"
+        : score.submitting
+            ? "VERIFYING SUBMISSION…"
+            : "SUBMIT TO LEADERBOARD";
+    notice.classList.toggle("is-error", state === "error");
+    notice.classList.toggle("is-success", state === "success" || Boolean(score.submitted));
+
+    if (message) {
+        notice.textContent = message;
+    } else if (score.submitting) {
+        notice.textContent = `Submitting WAVE ${score.bestWave} on ${leaderboardMapNames[score.mapId]}…`;
+    } else if (score.submitted) {
+        notice.textContent = `Wave ${score.bestWave} successfully submitted to the leaderboard.`;
+    } else if (score.bestWave < 1) {
+        notice.textContent = "Complete at least one wave to submit an Endless score.";
+    } else if (!supabaseUser) {
+        notice.textContent = "Sign in to submit your most recently completed wave.";
+    } else {
+        notice.textContent = `${leaderboardMapNames[score.mapId]} · WAVE ${score.bestWave}`;
+    }
+}
+
+function updateCompletedEndlessSubmissionUIs(message = "", state = "") {
+    updateReturnEndlessSubmissionUI(message, state);
+    updateRestartEndlessSubmissionUI(message, state);
+}
+
 function prepareReturnEndlessSubmission() {
     if (gameMode !== "endless") {
         returnEndlessScoreSubmission = null;
-        updateReturnEndlessSubmissionUI();
+        updateCompletedEndlessSubmissionUIs();
         return;
     }
 
@@ -3096,7 +3488,7 @@ function prepareReturnEndlessSubmission() {
         };
     }
 
-    updateReturnEndlessSubmissionUI();
+    updateCompletedEndlessSubmissionUIs();
 }
 
 async function persistEndlessLeaderboardScore(score) {
@@ -3161,7 +3553,7 @@ async function submitCompletedEndlessWaveScore() {
     const score = returnEndlessScoreSubmission;
     if (!score || score.bestWave < 1 || score.submitted || score.submitting) return;
     if (!supabaseUser) {
-        updateReturnEndlessSubmissionUI(
+        updateCompletedEndlessSubmissionUIs(
             "Sign in to submit your most recently completed wave.",
             "error"
         );
@@ -3171,19 +3563,19 @@ async function submitCompletedEndlessWaveScore() {
     }
 
     score.submitting = true;
-    updateReturnEndlessSubmissionUI();
+    updateCompletedEndlessSubmissionUIs();
     try {
         await persistEndlessLeaderboardScore(score);
         if (returnEndlessScoreSubmission !== score) return;
         saveEndlessRecord(score.mapId, score.bestWave);
         score.submitting = false;
         score.submitted = true;
-        updateReturnEndlessSubmissionUI();
+        updateCompletedEndlessSubmissionUIs();
     } catch (error) {
         console.error("Endless score submission failed:", error.message || error);
         if (returnEndlessScoreSubmission !== score) return;
         score.submitting = false;
-        updateReturnEndlessSubmissionUI(
+        updateCompletedEndlessSubmissionUIs(
             `SUBMISSION FAILED: ${error.message || "CHECK YOUR CONNECTION AND TRY AGAIN."}`,
             "error"
         );
@@ -4069,11 +4461,14 @@ function showLeaderboard() {
 
 function showProfile() {
     const returnMenuConfirm = document.getElementById("returnMenuConfirm");
+    const restartConfirm = document.getElementById("restartConfirm");
     profileReturnScreen = returnMenuConfirm.style.display !== "none"
         ? "returnconfirm"
-        : document.getElementById("gameOverScreen").style.display !== "none"
-            ? "gameover"
-            : "menu";
+        : restartConfirm.style.display !== "none"
+            ? "restartconfirm"
+            : document.getElementById("gameOverScreen").style.display !== "none"
+                ? "gameover"
+                : "menu";
     setMuteButtonVisible(false);
     gameRunning = false;
     previousTime = 0;
@@ -4085,6 +4480,7 @@ function showProfile() {
     deploymentScreen.style.display = "none";
     gameLayout.style.display = "none";
     returnMenuConfirm.style.display = "none";
+    restartConfirm.style.display = "none";
     document.getElementById("gameOverScreen").style.display = "none";
     document.getElementById("victoryScreen").style.display = "none";
     document.getElementById("leaderboardButton").style.visibility = "hidden";
@@ -4113,6 +4509,21 @@ function closeProfile() {
         gameRunning = true;
         previousTime = 0;
         updateReturnEndlessSubmissionUI();
+        return;
+    }
+
+    if (profileReturnScreen === "restartconfirm") {
+        profileReturnScreen = "menu";
+        profileScreen.style.display = "none";
+        gameLayout.style.display = "grid";
+        document.getElementById("restartConfirm").style.display = "flex";
+        document.getElementById("leaderboardButton").style.visibility = "hidden";
+        document.getElementById("profileButton").style.visibility = "hidden";
+        document.getElementById("mainMenuButton").style.visibility = "visible";
+        setMuteButtonVisible(true);
+        gameRunning = true;
+        previousTime = 0;
+        updateRestartEndlessSubmissionUI();
         return;
     }
 
@@ -4449,10 +4860,11 @@ function startDefense() {
     enemies.length = 0;
     bullets.length = 0;
     impactPixels.length = 0;
+    blastEffects.length = 0;
     playerHealth = 100;
     totalEnemiesDefeated = 0;
     floatingDamageNumbers.length = 0;
-    scrap = 250;
+    scrap = gameMode === "endless" ? 50000 : 250;
 
     document.getElementById("scrapDisplay").textContent = scrap;
     updatePlayerHealthDisplay();
@@ -4548,6 +4960,7 @@ bindUIEvent("confirmReturnButton", "click", () => {
 });
 
 bindUIEvent("submitCompletedEndlessScoreButton", "click", submitCompletedEndlessWaveScore);
+bindUIEvent("submitCompletedEndlessScoreFromRestartButton", "click", submitCompletedEndlessWaveScore);
 
 bindUIEvent("cancelRestartButton", "click", () => {
     document.getElementById("restartConfirm").style.display = "none";
@@ -4614,6 +5027,7 @@ bindUIEvent("startOverButton", "click", () => {
         document.getElementById("waveStatus").textContent = "Game paused.";
     }
 
+    prepareReturnEndlessSubmission();
     document.getElementById("restartConfirm").style.display = "flex";
     document.getElementById("cancelRestartButton").focus();
 });
@@ -5048,7 +5462,7 @@ function updateWavePreview() {
     const waveTypes = new Set(groups.flatMap(group =>
         group.types?.length ? group.types : [group.type]
     ));
-    const hasHollow = waveTypes.has("hollow");
+    const hasHollow = waveTypes.has("hollow") && !groups.some(group => group.specialRole === "miniBoss");
     const hasHeavy = [...waveTypes].some(type => getEnemyProfile(type).isHeavy);
     const hasSkitter = waveTypes.has("skitter");
     const hasMutantSnake = waveTypes.has("mutantsnake");
@@ -5062,7 +5476,15 @@ function updateWavePreview() {
                 : hasSkitter && !isMixed
                     ? "skitter"
                     : [...waveTypes][0] || "spider";
-    const threat = hasHollow || hasHeavy || totalEnemies >= 30
+    const hasMiniBoss = groups.some(group => group.specialRole === "miniBoss");
+    const bossCount = groups
+        .filter(group => group.specialRole === "boss")
+        .reduce((total, group) => total + group.count, 0);
+    const miniBossCount = groups
+        .filter(group => group.specialRole === "miniBoss")
+        .reduce((total, group) => total + group.count, 0);
+    const regularCount = totalEnemies - miniBossCount - bossCount;
+    const threat = hasHollow || hasHeavy || hasMiniBoss || bossCount > 0 || totalEnemies >= 30
         ? "SEVERE"
         : totalEnemies >= 20
             ? "HIGH"
@@ -5079,7 +5501,9 @@ function updateWavePreview() {
         ? "MIXED HOSTILES"
         : enemyLabels[mainType] || "HOSTILE";
     document.getElementById("previewEnemyHint").textContent =
-        `${totalEnemies} hostile contact${totalEnemies === 1 ? "" : "s"} expected`;
+        hasMiniBoss || bossCount > 0
+            ? `${regularCount} regular · ${miniBossCount} mini-boss${miniBossCount === 1 ? "" : "es"}${bossCount > 0 ? ` · ${bossCount} boss${bossCount === 1 ? "" : "es"}` : ""}`
+            : `${totalEnemies} hostile contact${totalEnemies === 1 ? "" : "s"} expected`;
     document.getElementById("previewEnemyCount").textContent = `×${totalEnemies}`;
 }
 

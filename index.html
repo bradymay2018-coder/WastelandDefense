@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wasteland Defense</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1">
-    <link rel="stylesheet" href="style.css?v=20261023-22">
+    <link rel="stylesheet" href="style.css?v=20261023-25">
 </head>
 <body>
 
@@ -753,6 +753,10 @@
         <p class="menu-eyebrow">REDEPLOY // RESTART OPERATION</p>
         <h2 id="restartTitle">Start over?</h2>
         <p>Restart this operation from Wave 1? Progress in this run will be lost.</p>
+        <div id="restartEndlessScoreSubmission" class="return-endless-score-submission" hidden>
+            <button id="submitCompletedEndlessScoreFromRestartButton" type="button">SUBMIT TO LEADERBOARD</button>
+            <p id="restartEndlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
+        </div>
         <div class="return-confirm-buttons">
             <button id="confirmRestartButton" class="menu-button" type="button">RESTART OPERATION</button>
             <button id="cancelRestartButton" class="menu-button" type="button">KEEP DEFENDING</button>
@@ -908,7 +912,7 @@
                         <strong id="survivorUpgradeLabel">UPGRADE TO LEVEL 1</strong>
                         <small id="survivorUpgradeCost">0 SCRAP</small>
                     </span>
-                    <span id="survivorUpgradeLevel" class="survivor-upgrade-level">LEVEL 0 / 2</span>
+                    <span id="survivorUpgradeLevel" class="survivor-upgrade-level">LEVEL 0 / 3</span>
                 </button>
             </div>
 
@@ -933,6 +937,6 @@
 </div>
 
 <script src="supabase-config.js?v=20261023-02"></script>
-<script src="game.js?v=20261023-19"></script>
+<script src="game.js?v=20261023-44"></script>
 </body>
 </html>

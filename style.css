@@ -6724,6 +6724,29 @@ main.game-layout > .control-panel {
     cursor: not-allowed;
 }
 
+.control-panel #upgradeSurvivorButton.level-three-upgrade {
+    background: linear-gradient(180deg, #493657, #33253f);
+    border-color: #a785d1;
+    border-bottom-color: #6a4b88;
+    color: #ead9ff;
+}
+
+.control-panel #upgradeSurvivorButton.level-three-upgrade:hover:not(:disabled) {
+    background: linear-gradient(180deg, #5a426c, #40304e);
+    border-color: #d6b0fa;
+}
+
+.control-panel #upgradeSurvivorButton.level-three-upgrade:disabled {
+    background: linear-gradient(180deg, #382d43, #2b2234);
+    border-color: #725a89;
+    border-bottom-color: #4e3b62;
+    color: #c8b9d9;
+}
+
+.control-panel #upgradeSurvivorButton.level-three-upgrade:disabled .survivor-upgrade-copy small {
+    color: #c6addf;
+}
+
 .survivor-upgrade-copy {
     display: flex;
     min-width: 0;
