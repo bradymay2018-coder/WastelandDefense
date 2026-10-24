@@ -3324,6 +3324,7 @@ const dailyChallengeRewardKey = "wastelandDefense.dailyRewards.v1";
 let supabaseClient = null;
 let supabaseUser = null;
 let supabaseSdkPromise = null;
+let newAccountCreationPending = false;
 let livePresenceChannel = null;
 let livePresenceSubscribed = false;
 let cloudLoadGeneration = 0;
@@ -4421,7 +4422,10 @@ async function submitAccount(action) {
 
         document.getElementById("accountPasswordInput").value = "";
         setAccountNotice(action === "create" ? "ACCOUNT CREATED. LOADING YOUR SAVE…" : "SIGNED IN. LOADING YOUR SAVE…", false, true);
-        if (result.data.session) await handleSupabaseSession(result.data.session);
+        if (result.data.session) {
+            newAccountCreationPending = action === "create";
+            await handleSupabaseSession(result.data.session);
+        }
     } catch (error) {
         console.error("Supabase account request failed:", error.message || error);
         const message = error.code === "23505"
@@ -4456,20 +4460,21 @@ function storeEndlessRecords(records) {
     }
 }
 
-async function importLocalProgress(client, progress) {
+async function importLocalProgress(client, progress, freshAccount = false) {
     if (progress.legacy_imported_at) return progress;
     let previouslyLinkedUser = "";
     try { previouslyLinkedUser = localStorage.getItem(linkedCloudAccountKey) || ""; } catch { /* no local account link */ }
     const isSwitchingAccounts = previouslyLinkedUser && previouslyLinkedUser !== supabaseUser.id;
+    const useCloudDefaults = freshAccount || isSwitchingAccounts;
     const { error } = await client.rpc("import_legacy_progress", {
-        p_coins: isSwitchingAccounts ? 0 : playerCoinBalance,
-        p_unlocked_survivors: isSwitchingAccounts
-            ? ["mason", "james", "cody", "britney", "zach", "brady"]
+        p_coins: useCloudDefaults ? 0 : playerCoinBalance,
+        p_unlocked_survivors: useCloudDefaults
+            ? Array.from(builtinSurvivorIds)
             : getLocalUnlockedSurvivors(),
-        p_completed_campaign_levels: isSwitchingAccounts ? [] : playerProfile.campaignLevels,
+        p_completed_campaign_levels: useCloudDefaults ? [] : playerProfile.campaignLevels,
         p_endless_scores: {},
-        p_callsign: accountUsername(),
-        p_portrait_id: isSwitchingAccounts ? "mason" : (playerProfile.portrait || "mason")
+        p_callsign: useCloudDefaults ? "DEFENDER" : accountUsername(),
+        p_portrait_id: useCloudDefaults ? "mason" : (playerProfile.portrait || "mason")
     });
     if (error) throw error;
     const { data, error: reloadError } = await client
@@ -4524,7 +4529,9 @@ async function loadRemotePlayerData(user, generation) {
     if (progressError) throw progressError;
 
     if (!progress.legacy_imported_at) {
-        progress = await importLocalProgress(client, progress);
+        const freshAccount = newAccountCreationPending && supabaseUser?.id === user.id;
+        newAccountCreationPending = false;
+        progress = await importLocalProgress(client, progress, freshAccount);
         const profileResponse = await client.from("player_profiles")
             .select("id,username,portrait_id").eq("id", user.id).single();
         if (profileResponse.error) throw profileResponse.error;

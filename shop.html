@@ -28,6 +28,24 @@
     .shop-action { width:100%; margin-top:18px; min-height:48px; border:1px solid #f4d297; border-bottom:3px solid #805638; background:linear-gradient(#f0c579,#d99e55); color:#211a16; font:800 10px Consolas,monospace; letter-spacing:1px; cursor:pointer; }
     .shop-action:disabled { border-color:#5a5660; border-bottom-color:#171519; background:linear-gradient(#3a3840,#28272e); color:#a6a1aa; cursor:not-allowed; }
     .shop-action:not(:disabled):hover { filter:brightness(1.08); transform:translateY(-1px); }
+    .recruit-reveal { position:absolute; inset:14px; z-index:5; display:none; place-items:center; padding:18px; border:1px solid var(--reveal-color,#e5b95e); background:linear-gradient(145deg,#292630f5,#121319f8 78%); box-shadow:0 16px 34px #0009, inset 0 0 0 1px #ffffff0b; text-align:center; }
+    .recruit-reveal.is-visible { display:grid; animation:reveal-in .28s ease-out both; }
+    .recruit-reveal-card { width:min(100%,300px); }
+    .reveal-kicker { color:var(--reveal-color,#e5b95e); font:700 9px Consolas,monospace; letter-spacing:2px; }
+    .reveal-sparkle { margin:8px auto 4px; color:var(--reveal-color,#e5b95e); font:800 22px Consolas,monospace; text-shadow:0 0 14px var(--reveal-color,#e5b95e); }
+    .reveal-portrait-frame { width:112px; height:112px; margin:2px auto 12px; display:grid; place-items:center; border:2px solid var(--reveal-color,#e5b95e); background:#17181d; box-shadow:0 0 0 5px #15151a, 0 0 22px color-mix(in srgb,var(--reveal-color,#e5b95e),transparent 55%); }
+    .reveal-portrait-frame img { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
+    .reveal-name { margin:0; color:#f7f0f4; font:800 20px Consolas,monospace; letter-spacing:1px; }
+    .reveal-rarity { display:inline-block; margin-top:6px; color:var(--reveal-color,#e5b95e); font:700 9px Consolas,monospace; letter-spacing:1.5px; }
+    .reveal-message { margin:12px auto 16px; max-width:280px; color:#c9c1ca; font:10px/1.6 Consolas,monospace; }
+    .reveal-close { min-width:150px; padding:10px 14px; border:1px solid var(--reveal-color,#e5b95e); border-bottom:3px solid color-mix(in srgb,var(--reveal-color,#e5b95e),#17151a 45%); background:#27232b; color:#f4e9d0; font:800 10px Consolas,monospace; letter-spacing:1px; cursor:pointer; }
+    .reveal-close:hover { background:#3a3440; filter:brightness(1.12); }
+    .recruit-reveal[data-rarity="common"] { --reveal-color:#79b982; }
+    .recruit-reveal[data-rarity="uncommon"] { --reveal-color:#83c8ce; }
+    .recruit-reveal[data-rarity="rare"] { --reveal-color:#a895d2; }
+    .recruit-reveal[data-rarity="legendary"] { --reveal-color:#edc85f; }
+    .recruit-reveal[data-result="duplicate"] .reveal-kicker { color:#e9b98b; }
+    @keyframes reveal-in { from { opacity:0; transform:scale(.97); } to { opacity:1; transform:scale(1); } }
     .shop-side { display:grid; gap:12px; align-content:start; }
     .side-card { padding:16px; border:1px solid #45414b; background:#1e1e24; }
     .side-card h3 { margin:0 0 10px; color:#e5b95e; font:700 10px Consolas,monospace; letter-spacing:1.2px; }
@@ -67,6 +85,17 @@
             <button id="purchaseMysteryButton" class="shop-action" type="button" disabled>CONNECT AN ACCOUNT TO RECRUIT</button>
             <p id="shopStatus" class="shop-status" role="status" aria-live="polite"></p>
           </div>
+          <div id="recruitReveal" class="recruit-reveal" data-rarity="common" aria-hidden="true" role="dialog" aria-labelledby="revealName" aria-describedby="revealMessage">
+            <div class="recruit-reveal-card">
+              <div id="revealKicker" class="reveal-kicker">RECRUITMENT COMPLETE</div>
+              <div class="reveal-sparkle" aria-hidden="true">✦</div>
+              <div id="revealPortraitFrame" class="reveal-portrait-frame"><img id="revealPortrait" alt=""></div>
+              <h3 id="revealName" class="reveal-name">NEW RECRUIT</h3>
+              <span id="revealRarity" class="reveal-rarity">COMMON</span>
+              <p id="revealMessage" class="reveal-message">Your roster has been updated.</p>
+              <button id="revealClose" class="reveal-close" type="button">CONTINUE</button>
+            </div>
+          </div>
         </section>
         <aside class="shop-side">
           <section class="side-card"><h3>YOUR COIN WALLET</h3><div class="roster-state"><span>AVAILABLE COINS</span><strong id="coinBalance">—</strong></div></section>
@@ -79,7 +108,7 @@
     </section>
   </main>
   <script src="supabase-config.js?v=20261023-02"></script>
-  <script src="custom-survivors.js?v=20261024-1"></script>
+  <script src="custom-survivors.js?v=20261024-2"></script>
   <script>
     (() => {
       const STARTER_IDS = new Set(['mason', 'james', 'cody', 'britney', 'zach', 'brady']);
@@ -91,6 +120,13 @@
       const purchaseButton = document.getElementById('purchaseMysteryButton');
       const statusDisplay = document.getElementById('shopStatus');
       const recruitedCount = document.getElementById('recruitedCount');
+      const reveal = document.getElementById('recruitReveal');
+      const revealKicker = document.getElementById('revealKicker');
+      const revealPortrait = document.getElementById('revealPortrait');
+      const revealName = document.getElementById('revealName');
+      const revealRarity = document.getElementById('revealRarity');
+      const revealMessage = document.getElementById('revealMessage');
+      const revealClose = document.getElementById('revealClose');
       const pool = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_CUSTOM_SURVIVORS : [])
         .filter(survivor => survivor && !STARTER_IDS.has(String(survivor.id).toLowerCase()) && survivor.mysteryBoxOnly === true)
         .map(survivor => ({
@@ -107,6 +143,28 @@
       function setStatus(message, error = false) {
         statusDisplay.textContent = message;
         statusDisplay.classList.toggle('is-error', error);
+      }
+
+      function closeReveal() {
+        reveal.classList.remove('is-visible');
+        reveal.setAttribute('aria-hidden', 'true');
+        purchaseButton.focus();
+      }
+
+      function showReveal(recruit, duplicate) {
+        reveal.dataset.rarity = recruit.rarity;
+        reveal.dataset.result = duplicate ? 'duplicate' : 'new';
+        revealKicker.textContent = duplicate ? 'DUPLICATE RECRUIT' : 'NEW RECRUIT ACQUIRED';
+        revealPortrait.src = recruit.portrait || '';
+        revealPortrait.alt = `${recruit.name} portrait`;
+        revealName.textContent = recruit.name.toUpperCase();
+        revealRarity.textContent = recruit.rarity.toUpperCase();
+        revealMessage.textContent = duplicate
+          ? `${recruit.name} is already in your roster. ${REFUND.toLocaleString()} coins were returned.`
+          : `${recruit.name} has joined your roster. Your account save is synced.`;
+        reveal.classList.add('is-visible');
+        reveal.setAttribute('aria-hidden', 'false');
+        revealClose.focus();
       }
 
       function renderWallet() {
@@ -182,12 +240,15 @@
         renderWallet();
         if (result.result === 'duplicate_refund') {
           setStatus(`${recruit.name.toUpperCase()} WAS ALREADY IN YOUR ROSTER · 500 COINS REFUNDED.`);
+          showReveal(recruit, true);
         } else {
           setStatus(`${recruit.name.toUpperCase()} JOINED YOUR ROSTER · SAVE SYNCED.`);
+          showReveal(recruit, false);
         }
       }
 
       purchaseButton.addEventListener('click', purchaseRecruit);
+      revealClose.addEventListener('click', closeReveal);
       renderWallet();
       const supabaseScript = document.createElement('script');
       supabaseScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
