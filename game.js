@@ -5739,7 +5739,24 @@ function showDeployment(level = 1) {
 
 const selectedSurvivors = new Set();
 
+function isSurvivorAvailableForCurrentMode(id) {
+    const survivor = survivorDetails[id];
+    if (!survivor) return false;
+    const dailyTrial = gameMode === "daily"
+        && currentDailyChallenge?.survivorIds.includes(id);
+    return dailyTrial || survivor.unlocked === true;
+}
+
 function startDefense() {
+    const unavailableSurvivor = [...selectedSurvivors]
+        .find(id => !isSurvivorAvailableForCurrentMode(id));
+    if (unavailableSurvivor) {
+        selectedSurvivors.delete(unavailableSurvivor);
+        document.getElementById("deploymentMessage").textContent =
+            "That survivor is locked. Unlock them in SHOP / RECRUIT first.";
+        updateRosterSummary();
+        return;
+    }
     if (selectedSurvivors.size === 0) {
         document.getElementById("deploymentMessage").textContent =
             "Select at least one survivor for your roster first.";
@@ -6154,6 +6171,7 @@ customSurvivors.forEach(survivor => {
         iconClass: "scout",
         cost: survivor.cost,
         unlocked: !survivor.mysteryBoxOnly,
+        mysteryBoxOnly: survivor.mysteryBoxOnly,
         custom: true,
         rarity: survivor.rarity,
         portraitData: survivor.portraitData,
@@ -6264,9 +6282,7 @@ const survivorCards = document.querySelectorAll(
 
 function updateDeploymentRosterAvailability() {
     survivorCards.forEach(card => {
-        const survivor = survivorDetails[card.dataset.survivor];
-        const dailyTrial = gameMode === "daily" && currentDailyChallenge?.survivorIds.includes(card.dataset.survivor);
-        const available = gameMode === "daily" ? dailyTrial : survivor?.unlocked === true;
+        const available = isSurvivorAvailableForCurrentMode(card.dataset.survivor);
         card.hidden = !available;
         card.disabled = !available;
         if (!available) {
@@ -6280,6 +6296,12 @@ function updateDeploymentRosterAvailability() {
 survivorCards.forEach(card => {
     card.addEventListener("click", () => {
         const survivorId = card.dataset.survivor;
+
+        if (!isSurvivorAvailableForCurrentMode(survivorId)) {
+            document.getElementById("deploymentMessage").textContent =
+                "That survivor is locked. Unlock them in SHOP / RECRUIT first.";
+            return;
+        }
 
         if (selectedSurvivors.has(survivorId)) {
     // Click again to remove this survivor.
