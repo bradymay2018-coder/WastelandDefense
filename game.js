@@ -892,6 +892,10 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
     const waveHealthScale =
         (1 + Math.max(0, currentWave - 3) * healthGrowthPerWave) *
         (1.1 ** endlessDifficultyTier);
+    // Double Endless enemy toughness after wave 20, on top of the existing
+    // per-wave and five-wave health scaling.
+    const postWave20HealthScale =
+        gameMode === "endless" && currentWave > 20 ? 2 : 1;
     const specialHealthScale = specialRole === "boss"
         ? 1.5
         : specialRole === "miniBoss"
@@ -908,7 +912,7 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
             ? 1.25
             : 1;
     const health = Math.round(
-        profile.baseHealth * waveHealthScale * specialHealthScale
+        profile.baseHealth * waveHealthScale * postWave20HealthScale * specialHealthScale
     );
 
     enemies.push({
@@ -1484,10 +1488,11 @@ function getSurvivorStats(survivorOrType) {
 
 function getCodyBlastRadius(survivor) {
     const level = getSurvivorUpgradeLevel(survivor);
-    const levelTwoRadius = Math.round(36 * (1 + 0.1 * 2));
+    const baseRadius = 56;
+    const levelTwoRadius = Math.round(baseRadius * (1 + 0.1 * 2));
     return level >= 3
         ? Math.round(levelTwoRadius * 1.5)
-        : Math.round(36 * (1 + 0.1 * level));
+        : Math.round(baseRadius * (1 + 0.1 * level));
 }
 
 function getJamesBurnStats(survivor) {
@@ -2684,6 +2689,7 @@ const groupSpawnDelay = 5;
 // Keep enemies in each wave group close enough for area attacks to catch
 // nearby targets without making the opening rush feel abrupt.
 const enemySpawnDelay = 0.9;
+const skitterSpawnDelay = 0.5;
 let enemyGroups = [];
 let currentGroupIndex = 0;
 let currentGroupSpawnIndex = 0;
@@ -2815,7 +2821,9 @@ function updateWaveSystem(deltaTime) {
             spawnEnemy(enemyType, group.specialRole || "normal");
             currentGroupSpawnIndex++;
             enemiesToSpawn--;
-            spawnTimer = enemySpawnDelay;
+            spawnTimer = enemyType === "skitter"
+                ? skitterSpawnDelay
+                : enemySpawnDelay;
         }
 
         return;
