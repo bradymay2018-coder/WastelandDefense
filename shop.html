@@ -72,7 +72,7 @@
     <section class="shop-panel">
       <p class="shop-eyebrow">WASTELAND MARKET // RECRUITMENT BAY</p>
       <header class="shop-header">
-        <div><a href="index.html">← MAIN MENU</a><h1>SHOP / RECRUIT</h1><p>Use your hard-earned coins to bring new people into the safehouse.</p></div>
+        <div><a href="/">← MAIN MENU</a><h1>SHOP / RECRUIT</h1><p>Use your hard-earned coins to bring new people into the safehouse.</p></div>
         <div class="account-pill" id="accountState">SIGN IN TO LINK SAVE</div>
       </header>
       <div class="shop-content">
@@ -108,10 +108,11 @@
     </section>
   </main>
   <script src="supabase-config.js?v=20261023-02"></script>
-  <script src="custom-survivors.js?v=20261024-2"></script>
+  <script src="custom-survivors.js?v=20261024-3"></script>
   <script>
     (() => {
       const STARTER_IDS = new Set(['mason', 'james', 'cody', 'britney', 'zach', 'brady']);
+      const LEGACY_MYSTERY_IDS = new Set(['selena', 'radhesh', 'rork', 'bas', 'knox']);
       const PRICE = 1000;
       const REFUND = 500;
       const ODDS = { common: 45, uncommon: 30, rare: 18, legendary: 7 };
@@ -128,7 +129,7 @@
       const revealMessage = document.getElementById('revealMessage');
       const revealClose = document.getElementById('revealClose');
       const pool = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_CUSTOM_SURVIVORS : [])
-        .filter(survivor => survivor && !STARTER_IDS.has(String(survivor.id).toLowerCase()) && survivor.mysteryBoxOnly === true)
+        .filter(survivor => survivor && !STARTER_IDS.has(String(survivor.id).toLowerCase()) && (survivor.mysteryBoxOnly === true || LEGACY_MYSTERY_IDS.has(String(survivor.id).toLowerCase())))
         .map(survivor => ({
           id: String(survivor.id).toLowerCase(),
           name: String(survivor.name || 'NEW SURVIVOR'),

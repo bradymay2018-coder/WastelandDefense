@@ -35,12 +35,17 @@ const bradyImage = new Image();
 bradyImage.src = "Images/Bradychar.png";
 
 const builtinSurvivorIds = new Set(["mason", "james", "cody", "britney", "zach", "brady"]);
+// Keep the first mystery-box roster locked even if an older exported package
+// does not yet include the builder's mysteryBoxOnly flag.
+const mysteryBoxOnlySurvivorIds = new Set(["selena", "radhesh", "rork", "bas", "knox"]);
 const customSurvivors = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_CUSTOM_SURVIVORS : [])
     .filter(survivor => survivor && /^[a-z0-9_-]{2,24}$/.test(String(survivor.id || ""))
         && !builtinSurvivorIds.has(String(survivor.id).toLowerCase())
         && typeof survivor.portraitData === "string" && survivor.portraitData.startsWith("data:image/png;base64,"))
-    .map(survivor => ({
-        id: String(survivor.id).toLowerCase(),
+    .map(survivor => {
+        const id = String(survivor.id).toLowerCase();
+        return {
+        id,
         name: String(survivor.name || "New Survivor").slice(0, 28),
         role: String(survivor.role || "RIFLE").slice(0, 30).toUpperCase(),
         rarity: ["common", "uncommon", "rare", "legendary"].includes(survivor.rarity) ? survivor.rarity : "common",
@@ -53,12 +58,13 @@ const customSurvivors = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_C
         modelData: typeof survivor.modelData === "string" && survivor.modelData.startsWith("data:image/png;base64,")
             ? survivor.modelData
             : "",
-        mysteryBoxOnly: survivor.mysteryBoxOnly === true,
+        mysteryBoxOnly: survivor.mysteryBoxOnly === true || mysteryBoxOnlySurvivorIds.has(id),
         upgrades: Array.isArray(survivor.upgrades) ? survivor.upgrades.slice(0, 3).map((upgrade, index) => ({
             name: String(upgrade?.name || (index === 2 ? "SIGNATURE UPGRADE" : "")).slice(0, 28).toUpperCase(),
             description: String(upgrade?.description || "Improves this survivor's combat performance.").slice(0, 120)
         })) : []
-    }));
+        };
+    });
 
 const customSurvivorImages = Object.fromEntries(customSurvivors.map(survivor => {
     const image = new Image();
