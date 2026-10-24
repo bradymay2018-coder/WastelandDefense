@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wasteland Defense</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1">
-    <link rel="stylesheet" href="style.css?v=20261024-05">
+    <link rel="stylesheet" href="style.css?v=20261024-08">
 </head>
 <body>
 
@@ -142,6 +142,15 @@
             <span class="menu-card-cta">CHOOSE A STORY <b aria-hidden="true">→</b></span>
         </button>
 
+        <button class="menu-card menu-card-daily" id="dailyChallengeButton" type="button">
+            <span class="menu-card-icon" aria-hidden="true"><img src="Images/spider.png" alt=""></span>
+            <span class="menu-card-copy">
+                <strong>DAILY CHALLENGE</strong>
+                <span>One shared map, three survivors, and fifteen waves.</span>
+            </span>
+            <span class="menu-card-cta">PLAY TODAY'S CHALLENGE <b aria-hidden="true">→</b></span>
+        </button>
+
         <button class="menu-card menu-card-endless" id="endlessButton" type="button">
             <span class="menu-card-icon" aria-hidden="true">∞</span>
             <span class="menu-card-copy">
@@ -150,46 +159,16 @@
             </span>
             <span class="menu-card-cta">CHASE A HIGH SCORE <b aria-hidden="true">→</b></span>
         </button>
+
+        <button class="menu-card menu-card-shop" id="shopRecruitButton" type="button" disabled aria-label="Shop and recruit survivors, coming soon">
+            <span class="menu-card-icon" aria-hidden="true">＋</span>
+            <span class="menu-card-copy">
+                <strong>SHOP / RECRUIT</strong>
+                <span>Spend coins on gear for your next run or recruit new survivors.</span>
+            </span>
+            <span class="menu-card-cta">COMING SOON</span>
+        </button>
     </div>
-
-    <section class="menu-roadmap" aria-labelledby="menuRoadmapTitle">
-        <div class="menu-roadmap-heading">
-            <h3 id="menuRoadmapTitle">DAILY CHALLENGE</h3>
-            <span>NEW SHARED SETUP EVERY UTC DAY</span>
-        </div>
-
-        <div class="menu-roadmap-grid">
-            <button class="menu-roadmap-card menu-roadmap-daily" id="dailyChallengeButton" type="button">
-                <span class="menu-roadmap-icon" aria-hidden="true"><img src="Images/spider.png" alt=""></span>
-                <div>
-                    <span class="menu-roadmap-kicker">DAILY CHALLENGE</span>
-                    <strong>One map. Three survivors. Fifteen waves.</strong>
-                    <p>Take on today's shared challenge and earn 250 coins for clearing it.</p>
-                </div>
-                <span class="menu-roadmap-status">PLAY TODAY'S CHALLENGE →</span>
-            </button>
-
-            <article class="menu-roadmap-card menu-roadmap-recruits">
-                <span class="menu-roadmap-icon menu-recruit-icon" aria-hidden="true">+</span>
-                <div>
-                    <span class="menu-roadmap-kicker">SURVIVOR RECRUITS</span>
-                    <strong>Make room for new faces.</strong>
-                    <p>Spend your coins to unlock new survivors.</p>
-                </div>
-                <span class="menu-roadmap-status">COMING SOON</span>
-            </article>
-
-            <button class="menu-roadmap-card menu-roadmap-store" id="storeComingSoonButton" type="button" disabled aria-label="Survivor store, coming soon">
-                <span class="menu-roadmap-icon menu-store-icon" aria-hidden="true">◉</span>
-                <div>
-                    <span class="menu-roadmap-kicker">SURVIVOR STORE</span>
-                    <strong>Gear up for your next run.</strong>
-                    <p>Spend your coins on items to help your next run!</p>
-                </div>
-                <span class="menu-roadmap-status">COMING SOON</span>
-            </button>
-        </div>
-    </section>
 
     <div class="menu-footer">
         <span>WASTELAND DEFENSE // v0.83</span>
@@ -538,6 +517,15 @@
 
 </div>
 
+    <figure id="dailyChallengeMapPanel" class="daily-challenge-map-preview" hidden>
+        <img id="dailyChallengeMapPreview" alt="Map layout for today's Daily Challenge">
+        <figcaption>
+            <span>DAILY ROUTE PREVIEW</span>
+            <strong id="dailyChallengeMapName"></strong>
+            <small>Today's challenge map</small>
+        </figcaption>
+    </figure>
+
     <div class="deployment-info">
         <div>
             <span>SQUAD SIZE</span>
@@ -773,7 +761,7 @@
             <button id="submitCompletedEndlessScoreButton" type="button">SUBMIT LAST CLEARED WAVE</button>
             <p id="returnEndlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
         </div>
-        <div id="returnDailyScoreSubmission" class="daily-score-submission" hidden>
+        <div id="returnDailyScoreSubmission" class="daily-score-submission return-endless-score-submission" hidden>
             <button id="submitReturnDailyScoreButton" type="button">SUBMIT TO DAILY LEADERBOARD</button>
             <p id="returnDailyScoreNotice" role="status" aria-live="polite"></p>
         </div>
@@ -793,7 +781,7 @@
             <button id="submitCompletedEndlessScoreFromRestartButton" type="button">SUBMIT TO LEADERBOARD</button>
             <p id="restartEndlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
         </div>
-        <div id="restartDailyScoreSubmission" class="daily-score-submission" hidden>
+        <div id="restartDailyScoreSubmission" class="daily-score-submission return-endless-score-submission" hidden>
             <button id="submitRestartDailyScoreButton" type="button">SUBMIT TO DAILY LEADERBOARD</button>
             <p id="restartDailyScoreNotice" role="status" aria-live="polite"></p>
         </div>
@@ -973,6 +961,6 @@
 </div>
 
 <script src="supabase-config.js?v=20261023-02"></script>
-<script src="game.js?v=20261024-04"></script>
+<script src="game.js?v=20261024-06"></script>
 </body>
 </html>

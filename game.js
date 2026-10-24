@@ -5383,6 +5383,7 @@ function showDeployment(level = 1) {
     const levelCard = document.getElementById(`level${level}Button`);
     const levelName = levelCard?.querySelector("strong")?.textContent.trim() || `LEVEL ${String(level).padStart(2, "0")}`;
     const dailyDetails = document.getElementById("dailyChallengeDetails");
+    const dailyMapPanel = document.getElementById("dailyChallengeMapPanel");
     if (gameMode === "daily" && currentDailyChallenge) {
         const squadNames = currentDailyChallenge.survivorIds.map(id => survivorDetails[id]?.name || id).join(" · ");
         const enemyNames = currentDailyChallenge.enemyTypes.map(type => enemyLabels[type] || type.toUpperCase()).join(" · ");
@@ -5392,12 +5393,21 @@ function showDeployment(level = 1) {
             "Choose your squad from today's three survivors. Clear all 15 waves for 250 coins.";
         dailyDetails.textContent = `TODAY'S SQUAD: ${squadNames}  //  HOSTILES: ${enemyNames}`;
         dailyDetails.hidden = false;
+        try {
+            document.getElementById("dailyChallengeMapPreview").src = mapCanvas.toDataURL("image/png");
+            document.getElementById("dailyChallengeMapName").textContent = levelName;
+            dailyMapPanel.hidden = false;
+        } catch (error) {
+            dailyMapPanel.hidden = true;
+            console.warn("Could not create the Daily Challenge map preview:", error);
+        }
     } else {
         document.getElementById("deploymentLocation").textContent =
             `${gameMode === "endless" ? "ENDLESS RUN" : "CAMPAIGN"} // ${levelName}`;
         document.querySelector(".deployment-subtitle").textContent =
             `Choose up to ${getMaxRosterSize()} survivors. Tap a card to add or remove them.`;
         dailyDetails.hidden = true;
+        dailyMapPanel.hidden = true;
     }
     updateDeploymentRosterAvailability();
     updateRosterSummary();

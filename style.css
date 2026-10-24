@@ -3735,10 +3735,18 @@ main.game-layout > .control-panel {
 #mainMenu .menu-cards {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+        "campaign endless"
+        "daily shop";
     gap: 12px;
     max-width: none;
     margin: 0;
 }
+
+#mainMenu .menu-card-campaign { grid-area: campaign; }
+#mainMenu .menu-card-endless { grid-area: endless; }
+#mainMenu .menu-card-daily { grid-area: daily; }
+#mainMenu .menu-card-shop { grid-area: shop; }
 
 #mainMenu .menu-card {
     position: relative;
@@ -3771,6 +3779,14 @@ main.game-layout > .control-panel {
     background: #88c3c6;
 }
 
+#mainMenu .menu-card-daily::before {
+    background: #e49a72;
+}
+
+#mainMenu .menu-card-shop::before {
+    background: #ad8bc3;
+}
+
 #mainMenu .menu-card:hover {
     transform: translateY(-2px);
     border-color: #b28b60 !important;
@@ -3780,6 +3796,18 @@ main.game-layout > .control-panel {
 
 #mainMenu .menu-card-endless:hover {
     border-color: #729a9c !important;
+}
+
+#mainMenu .menu-card-shop:disabled {
+    cursor: not-allowed;
+    opacity: 0.76;
+}
+
+#mainMenu .menu-card-shop:disabled:hover {
+    transform: none;
+    border-color: #494650 !important;
+    background: linear-gradient(145deg, #24232b, #1d1d23) !important;
+    box-shadow: inset 0 1px #ffffff0a, 0 5px 14px #0002;
 }
 
 #mainMenu .menu-card:active {
@@ -3807,6 +3835,27 @@ main.game-layout > .control-panel {
     font-size: 20px;
 }
 
+#mainMenu .menu-card-daily .menu-card-icon {
+    border-color: #815e51 !important;
+    background: #392b2d !important;
+    color: #f2aa7f !important;
+}
+
+#mainMenu .menu-card-daily .menu-card-icon img {
+    width: 25px;
+    height: 25px;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+#mainMenu .menu-card-shop .menu-card-icon {
+    border-color: #7d6890 !important;
+    background: #332c3a !important;
+    color: #e0bdff !important;
+    font-size: 23px;
+    font-weight: 400;
+}
+
 #mainMenu .menu-card-copy {
     display: flex;
     min-width: 0;
@@ -3822,6 +3871,14 @@ main.game-layout > .control-panel {
 
 #mainMenu .menu-card-endless .menu-card-copy strong {
     color: #c3eff0 !important;
+}
+
+#mainMenu .menu-card-daily .menu-card-copy strong {
+    color: #f2b38c !important;
+}
+
+#mainMenu .menu-card-shop .menu-card-copy strong {
+    color: #d8b9f0 !important;
 }
 
 #mainMenu .menu-card > .menu-card-copy > span:last-child {
@@ -3844,6 +3901,14 @@ main.game-layout > .control-panel {
 
 #mainMenu .menu-card-endless > span.menu-card-cta {
     color: #9dd6d8 !important;
+}
+
+#mainMenu .menu-card-daily > span.menu-card-cta {
+    color: #f2aa7f !important;
+}
+
+#mainMenu .menu-card-shop > span.menu-card-cta {
+    color: #a89aaf !important;
 }
 
 #mainMenu .menu-card-cta b {
@@ -4052,6 +4117,14 @@ main.game-layout > .control-panel {
     #mainMenu .menu-roadmap-grid {
         grid-template-columns: minmax(0, 1fr);
         gap: 8px;
+    }
+
+    #mainMenu .menu-cards {
+        grid-template-areas:
+            "campaign"
+            "daily"
+            "endless"
+            "shop";
     }
 
     #mainMenu .menu-card {
@@ -9273,6 +9346,14 @@ img.survivor-portrait-placeholder,
 
 .daily-score-submission[hidden] { display: none; }
 .daily-score-submission { display: grid; gap: 7px; margin: 0 0 10px; }
+#returnDailyScoreSubmission,
+#restartDailyScoreSubmission { margin: 16px 0 0; }
+#returnDailyScoreSubmission button.is-submitted,
+#restartDailyScoreSubmission button.is-submitted {
+    background: linear-gradient(180deg, #a6d0b2, #6e9f84);
+    border-color: #bde0c7;
+    border-bottom-color: #385d4a;
+}
 #gameOverDailyScoreNotice,
 #victoryDailyScoreNotice {
     min-height: 14px;
@@ -9295,6 +9376,61 @@ img.survivor-portrait-placeholder,
     line-height: 1.6;
 }
 
+#deploymentScreen .daily-challenge-map-preview {
+    display: grid;
+    width: min(100%, 720px);
+    grid-template-columns: minmax(0, 1fr) 180px;
+    align-items: center;
+    gap: 14px;
+    margin: 16px auto 18px;
+    padding: 9px;
+    border: 1px solid #514b58;
+    border-left: 3px solid #e5b95e;
+    border-radius: 3px;
+    background: linear-gradient(120deg, #29262d, #1d1d23);
+    box-shadow: inset 0 1px #ffffff08, 0 3px 0 #111116;
+}
+
+#deploymentScreen .daily-challenge-map-preview[hidden] {
+    display: none !important;
+}
+
+#deploymentScreen .daily-challenge-map-preview img {
+    display: block;
+    width: 100%;
+    height: 132px;
+    object-fit: cover;
+    image-rendering: pixelated;
+    border: 1px solid #625b66;
+    background: #17181b;
+    box-shadow: inset 0 0 0 2px #121317;
+}
+
+#deploymentScreen .daily-challenge-map-preview figcaption {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 8px;
+}
+
+#deploymentScreen .daily-challenge-map-preview figcaption span {
+    color: #e5b95e;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+}
+
+#deploymentScreen .daily-challenge-map-preview figcaption strong {
+    color: #f1edf3;
+    font-size: 15px;
+    letter-spacing: 0.8px;
+}
+
+#deploymentScreen .daily-challenge-map-preview figcaption small {
+    color: #aaa5b1;
+    font-size: 9px;
+}
+
 #victoryCoinRewardStatus:empty { display: none; }
 #victoryCoinRewardStatus { color: #a6d0b2 !important; font-size: 7px !important; letter-spacing: 0.5px !important; }
 
@@ -9308,4 +9444,7 @@ img.survivor-portrait-placeholder,
     .daily-leaderboard-date-control { align-items: flex-start; flex-direction: column; padding-bottom: 10px; }
     .daily-leaderboard-date-control input { width: 100%; }
     .daily-challenge-details { font-size: 8px; }
+    #deploymentScreen .daily-challenge-map-preview { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    #deploymentScreen .daily-challenge-map-preview img { height: 150px; }
+    #deploymentScreen .daily-challenge-map-preview figcaption { padding: 3px 5px 5px; }
 }
