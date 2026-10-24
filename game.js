@@ -3654,6 +3654,38 @@ function persistCoinBalance() {
     }
 }
 
+// Account-owned data must not remain visible after sign-out.  Keep only the
+// six built-in survivors in the signed-out UI; the next authenticated session
+// loads its roster, coins, records, and trophies from Supabase.
+function resetSignedOutState() {
+    Object.entries(survivorDetails).forEach(([id, survivor]) => {
+        survivor.unlocked = builtinSurvivorIds.has(id);
+    });
+    playerCoinBalance = 0;
+    playerProfile = { campaignLevels: [], portrait: "mason" };
+    playerTrophyRecords = [];
+    playerDailyTrophyRecords = [];
+    pendingEndlessScore = null;
+    pendingDailyScore = null;
+    try {
+        localStorage.removeItem(coinBalanceKey);
+        localStorage.removeItem(endlessRecordKey);
+        localStorage.removeItem(dailyChallengeRewardKey);
+        localStorage.removeItem(linkedCloudAccountKey);
+        localStorage.removeItem(playerProfileKey);
+        localStorage.removeItem(unlockedSurvivorsKey);
+    } catch {
+        // The signed-out UI still resets in memory when storage is unavailable.
+    }
+    persistCoinBalance();
+    persistPlayerProfile();
+    persistUnlockedSurvivors();
+    updateCoinBalanceDisplay();
+    updateEndlessRecordDisplays();
+    renderMenuCrewRoster();
+    updateProfileStats();
+}
+
 function renderCampaignCoinReward(reward) {
     updateCoinBalanceDisplay();
     updateProfileStats();
@@ -4496,14 +4528,12 @@ async function handleSupabaseSession(session) {
     const user = session?.user || null;
     const isSameUser = user?.id && user.id === supabaseUser?.id;
     supabaseUser = user;
+    if (!user) resetSignedOutState();
     updateAccountUI(user);
     syncLivePlayerPresence().catch(error => {
         console.warn("Live player identity could not sync:", error.message || error);
     });
     if (!user) {
-        persistPlayerProfile();
-        playerTrophyRecords = [];
-        updateProfileStats();
         cloudLoadGeneration++;
         renderLeaderboard();
         return;
