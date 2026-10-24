@@ -171,16 +171,23 @@
       function renderWallet() {
         coinDisplay.textContent = coins.toLocaleString();
         recruitedCount.textContent = String(Math.max(0, unlocked.size - STARTER_IDS.size)).padStart(2, '0');
-        purchaseButton.disabled = !session || pool.length === 0 || coins < PRICE;
+        const availableRecruits = pool.filter(recruit => !unlocked.has(recruit.id));
+        const rosterFull = pool.length > 0 && availableRecruits.length === 0;
+        purchaseButton.disabled = !session || rosterFull || pool.length === 0 || coins < PRICE;
         if (!session) purchaseButton.textContent = 'CONNECT AN ACCOUNT TO RECRUIT';
         else if (!pool.length) purchaseButton.textContent = 'NO RECRUITS IN THE POOL';
+        else if (rosterFull) purchaseButton.textContent = 'ROSTER COMPLETE · MORE RECRUITS SOON';
         else if (coins < PRICE) purchaseButton.textContent = `NEED ${(PRICE - coins).toLocaleString()} MORE COINS`;
         else purchaseButton.textContent = 'OPEN MYSTERY CASE · 1,000 COINS';
+        if (rosterFull) {
+          setStatus('You have every current recruit. New survivors are on the way.');
+        }
       }
 
       function chooseRecruit() {
         const available = pool.filter(recruit => !unlocked.has(recruit.id));
-        const candidates = available.length ? available : pool;
+        if (!available.length) return null;
+        const candidates = available;
         const byRarity = new Map();
         candidates.forEach(recruit => {
           if (!byRarity.has(recruit.rarity)) byRarity.set(recruit.rarity, []);
@@ -221,6 +228,10 @@
       async function purchaseRecruit() {
         if (!session || !client || coins < PRICE) return;
         const recruit = chooseRecruit();
+        if (!recruit) {
+          renderWallet();
+          return;
+        }
         purchaseButton.disabled = true;
         setStatus('SEAL CHECK IN PROGRESS…');
         const response = await client.rpc('purchase_mystery_recruit', { p_survivor_id: recruit.id });
