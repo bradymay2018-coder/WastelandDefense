@@ -5806,7 +5806,7 @@ function startDefense() {
     playerHealth = 100;
     totalEnemiesDefeated = 0;
     floatingDamageNumbers.length = 0;
-    scrap = gameMode === "endless" ? 50000 : gameMode === "daily" ? 410 : 250;
+    scrap = gameMode === "endless" ? 150 : gameMode === "daily" ? 410 : 250;
 
     document.getElementById("scrapDisplay").textContent = scrap;
     updatePlayerHealthDisplay();
