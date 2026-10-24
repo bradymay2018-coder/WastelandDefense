@@ -34,6 +34,38 @@ zachImage.src = "Images/Zachchar.png";
 const bradyImage = new Image();
 bradyImage.src = "Images/Bradychar.png";
 
+const builtinSurvivorIds = new Set(["mason", "james", "cody", "britney", "zach", "brady"]);
+const customSurvivors = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_CUSTOM_SURVIVORS : [])
+    .filter(survivor => survivor && /^[a-z0-9_-]{2,24}$/.test(String(survivor.id || ""))
+        && !builtinSurvivorIds.has(String(survivor.id).toLowerCase())
+        && typeof survivor.portraitData === "string" && survivor.portraitData.startsWith("data:image/png;base64,"))
+    .map(survivor => ({
+        id: String(survivor.id).toLowerCase(),
+        name: String(survivor.name || "New Survivor").slice(0, 28),
+        role: String(survivor.role || "RIFLE").slice(0, 30).toUpperCase(),
+        rarity: ["common", "uncommon", "rare", "legendary"].includes(survivor.rarity) ? survivor.rarity : "common",
+        cost: Math.max(0, Math.min(50000, Math.round(Number(survivor.cost) || 0))),
+        damage: Math.max(1, Math.min(5000, Number(survivor.damage) || 1)),
+        range: Math.max(10, Math.min(1000, Number(survivor.range) || 100)),
+        fireRate: Math.max(0.05, Math.min(10, Number(survivor.fireRate) || 1)),
+        description: String(survivor.description || "A custom survivor ready for the wasteland.").slice(0, 120),
+        portraitData: survivor.portraitData,
+        modelData: typeof survivor.modelData === "string" && survivor.modelData.startsWith("data:image/png;base64,")
+            ? survivor.modelData
+            : "",
+        mysteryBoxOnly: survivor.mysteryBoxOnly === true,
+        upgrades: Array.isArray(survivor.upgrades) ? survivor.upgrades.slice(0, 3).map((upgrade, index) => ({
+            name: String(upgrade?.name || (index === 2 ? "SIGNATURE UPGRADE" : "")).slice(0, 28).toUpperCase(),
+            description: String(upgrade?.description || "Improves this survivor's combat performance.").slice(0, 120)
+        })) : []
+    }));
+
+const customSurvivorImages = Object.fromEntries(customSurvivors.map(survivor => {
+    const image = new Image();
+    image.src = survivor.modelData || survivor.portraitData;
+    return [survivor.id, image];
+}));
+
 const spiderImage = new Image();
 spiderImage.src = "Images/spider.png";
 
@@ -1115,6 +1147,7 @@ const survivorCosts = {
     zach: 75,
     brady: 110
 };
+customSurvivors.forEach(survivor => { survivorCosts[survivor.id] = survivor.cost; });
 const scrapRewardPerKill = 6;
 
 function updateScrapDisplay() {
@@ -1381,7 +1414,7 @@ function drawSurvivors() {
     };
 
     for (const survivor of survivors) {
-        const image = survivorImages[survivor.type];
+        const image = survivorImages[survivor.type] || customSurvivorImages[survivor.type];
 
         if (!image || !image.complete || image.naturalWidth === 0) {
             continue;
@@ -1451,6 +1484,13 @@ const survivorStats = {
     zach: { range: 108, damage: 3, fireRate: 0.275 },
     brady: { range: 142, damage: 24, fireRate: 1.4 }
 };
+customSurvivors.forEach(survivor => {
+    survivorStats[survivor.id] = {
+        range: survivor.range,
+        damage: survivor.damage,
+        fireRate: survivor.fireRate
+    };
+});
 
 const survivorDamageMultipliers = {
     mason: 1.2,
@@ -1460,6 +1500,19 @@ const survivorDamageMultipliers = {
     zach: 1.1,
     brady: 1.35
 };
+customSurvivors.forEach(survivor => { survivorDamageMultipliers[survivor.id] = 1; });
+
+const customAttackProfiles = {
+    selena: { kind: "dagger", repeat: level => level >= 3 ? 3 : 2 },
+    radhesh: { kind: "bat", area: true },
+    bas: { kind: "syringe", slow: true },
+    rork: { kind: "assault" },
+    knox: { kind: "burst", repeat: () => 3 }
+};
+
+function getCustomAttackProfile(survivor) {
+    return customAttackProfiles[survivor?.type] || null;
+}
 
 const maxSurvivorUpgradeLevel = 3;
 
@@ -1570,6 +1623,15 @@ function updateSurvivorUpgradeButton(survivor) {
     levelLabel.textContent = `LEVEL ${level} / ${maxSurvivorUpgradeLevel}`;
 
     if (level >= maxSurvivorUpgradeLevel) {
+        const customDetails = survivorDetails[survivor.type]?.custom ? survivorDetails[survivor.type] : null;
+        if (customDetails) {
+            const upgrade = customDetails.upgrades?.[2];
+            label.textContent = upgrade?.name || "MAX LEVEL REACHED";
+            costLabel.textContent = "FULLY UPGRADED";
+            button.disabled = true;
+            button.title = upgrade?.description || "This custom survivor has reached the maximum upgrade level.";
+            return;
+        }
         const hasHighCaliber = survivor.type === "mason" && level >= 3;
         const hasNapalmThrower = survivor.type === "james" && level >= 3;
         const hasHighlyExplosive = survivor.type === "cody" && level >= 3;
@@ -1607,6 +1669,17 @@ function updateSurvivorUpgradeButton(survivor) {
 
     const nextLevel = level + 1;
     const cost = getSurvivorUpgradeCost(survivor.type, nextLevel);
+    const customDetails = survivorDetails[survivor.type]?.custom ? survivorDetails[survivor.type] : null;
+    if (customDetails) {
+        const upgrade = customDetails.upgrades?.[nextLevel - 1];
+        label.textContent = upgrade?.name || `UPGRADE TO LEVEL ${nextLevel}`;
+        costLabel.textContent = `${cost} SCRAP`;
+        button.disabled = scrap < cost;
+        button.title = scrap < cost
+            ? `Need ${cost - scrap} more scrap to upgrade.`
+            : upgrade?.description || `Upgrade this survivor for ${cost} scrap.`;
+        return;
+    }
     const unlocksHighCaliber = survivor.type === "mason" && nextLevel === 3;
     const unlocksNapalmThrower = survivor.type === "james" && nextLevel === 3;
     const unlocksHighlyExplosive = survivor.type === "cody" && nextLevel === 3;
@@ -1651,6 +1724,9 @@ const survivorDescriptions = {
     zach: "SMG. A rapid burst of light rounds at close range.",
     brady: "Shotgun. A tight pellet spread knocks enemies back."
 };
+customSurvivors.forEach(survivor => {
+    survivorDescriptions[survivor.id] = survivor.description;
+});
 
 function showSurvivorDetails(id) {
     const person = survivorDetails[id];
@@ -1665,16 +1741,16 @@ function showSurvivorDetails(id) {
 
     document.getElementById("survivorDetailsPanel").style.display = "block";
 const portraitFiles = {
-    mason: "Mason.png",
-    james: "James.png",
-    cody: "Cody.png",
-    britney: "Britney.png",
-    zach: "Zach.png",
-    brady: "Brady.png"
+    mason: "model-portraits/Mason.png",
+    james: "model-portraits/James.png",
+    cody: "model-portraits/Cody.png",
+    britney: "model-portraits/Britney.png",
+    zach: "model-portraits/Zach.png",
+    brady: "model-portraits/Brady.png"
 };
 
 const portrait = document.getElementById("survivorPortrait");
-portrait.src = "Images/" + portraitFiles[id];
+portrait.src = person.portraitData || ("Images/" + (portraitFiles[id] || "Mason.png"));
 portrait.dataset.portraitId = id;
 portrait.alt = person.name + "'s portrait";    document.getElementById("survivorDetailName").textContent = person.name;
     document.getElementById("survivorDetailRole").textContent = person.role;
@@ -1694,7 +1770,10 @@ document.getElementById("survivorKills").textContent =
    
 const deployedUpgradeLevel = getSurvivorUpgradeLevel(deployedUnit);
 let detailDescription = survivorDescriptions[id];
-if (deployedUnit?.type === "mason" && deployedUpgradeLevel >= 2) {
+if (person.custom && deployedUpgradeLevel > 0) {
+    const upgrade = person.upgrades?.[Math.min(deployedUpgradeLevel, 3) - 1];
+    detailDescription = upgrade?.description || detailDescription;
+} else if (deployedUnit?.type === "mason" && deployedUpgradeLevel >= 2) {
     detailDescription = deployedUpgradeLevel >= 3
         ? "High Caliber active: 2× level 2 damage, with a 25% longer attack interval."
         : "Next upgrade: High Caliber deals 2× level 2 damage, with a 25% longer attack interval.";
@@ -1853,7 +1932,12 @@ const weaponAudioProfiles = {
     cody:    { wave: "triangle",  start: 155, end: 72,  time: 0.078, tone: 0.072, noise: 0.032, hiss: 0.032, cutoff: 900 },
     britney: { wave: "triangle",  start: 760, end: 105, time: 0.09,  tone: 0.075, noise: 0.06,  hiss: 0.035, cutoff: 3000 },
     zach:    { wave: "square",    start: 600, end: 170, time: 0.042, tone: 0.042, noise: 0.032, hiss: 0.018, cutoff: 1900 },
-    brady:   { wave: "sawtooth",  start: 155, end: 52,  time: 0.13,  tone: 0.085, noise: 0.07,  hiss: 0.075, cutoff: 1500 }
+    brady:   { wave: "sawtooth",  start: 155, end: 52,  time: 0.13,  tone: 0.085, noise: 0.07,  hiss: 0.075, cutoff: 1500 },
+    selena:  { wave: "triangle",  start: 920, end: 280, time: 0.055, tone: 0.045, noise: 0.018, hiss: 0.018, cutoff: 3800 },
+    radhesh: { wave: "sawtooth",  start: 220, end: 68,  time: 0.16,  tone: 0.08,  noise: 0.09,  hiss: 0.07,  cutoff: 1200 },
+    bas:     { wave: "triangle",  start: 740, end: 310, time: 0.09,  tone: 0.05,  noise: 0.02, hiss: 0.025, cutoff: 3300 },
+    rork:    { wave: "square",    start: 560, end: 110, time: 0.06,  tone: 0.05,  noise: 0.06, hiss: 0.028, cutoff: 2300 },
+    knox:    { wave: "square",    start: 610, end: 150, time: 0.045, tone: 0.045, noise: 0.05, hiss: 0.022, cutoff: 2500 }
 };
 
 const audioMuteKey = "wastelandDefense.audioMuted.v1";
@@ -1902,9 +1986,9 @@ function setGameAudioMuted(muted) {
 
 updateAudioMuteButton();
 
-function playWeaponAttackSound(type) {
+function playWeaponAttackSound(type, delay = 0) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    const profile = weaponAudioProfiles[type];
+    const profile = weaponAudioProfiles[type] || weaponAudioProfiles.mason;
     if (gameAudioMuted || !AudioContextClass || !profile) return;
 
     if (!window.jamesAudioContext) {
@@ -1920,7 +2004,7 @@ function playWeaponAttackSound(type) {
     if (audio.state === "suspended") audio.resume();
 
     // Every layer begins on this shot; Cody has a compact launch thump only.
-    const now = audio.currentTime;
+    const now = audio.currentTime + Math.max(0, delay);
     const oscillator = audio.createOscillator();
     const toneGain = audio.createGain();
     oscillator.type = profile.wave;
@@ -1961,11 +2045,14 @@ function playWeaponAttackSound(type) {
     noise.stop(now + noiseDuration + 0.005);
 }
 
-function addShotVisual(survivor, enemy, dx, dy, distance, type) {
+function addShotVisual(survivor, enemy, dx, dy, distance, type, shotIndex = 0, shotCount = 1) {
     const unitX = dx / distance;
     const unitY = dy / distance;
-    const startX = survivor.x + unitX * 18;
-    const startY = survivor.y + unitY * 18;
+    const volleyOffset = (type === "selena" || type === "knox")
+        ? (shotIndex % 2 === 0 ? -4 : 4)
+        : 0;
+    const startX = survivor.x + unitX * 18 - unitY * volleyOffset;
+    const startY = survivor.y + unitY * 18 + unitX * volleyOffset;
 
     if (type === "brady") {
         // Three close pellet traces read as a shotgun spread, but damage is
@@ -1984,13 +2071,29 @@ function addShotVisual(survivor, enemy, dx, dy, distance, type) {
         return;
     }
 
+    if (type === "radhesh") {
+        blastEffects.push({
+            kind: "bat",
+            x: survivor.x,
+            y: survivor.y,
+            targetX: enemy.x,
+            targetY: enemy.y,
+            radius: 24,
+            life: 0.2,
+            maxLife: 0.2
+        });
+        return;
+    }
+
     bullets.push({
         startX, startY,
         endX: enemy.x,
         endY: enemy.y,
         life: type === "james" ? 0.13 : 0.105,
         maxLife: type === "james" ? 0.13 : 0.105,
-        type
+        type,
+        shotIndex,
+        shotCount
     });
 }
 
@@ -2001,7 +2104,12 @@ function addImpactPixels(enemy, type, dx, dy) {
         cody: ["#ead19b", "#c99a5c", "#fff0c8"],
         britney: ["#fff8df", "#e3d2b0", "#d9aa61"],
         zach: ["#fff0bd", "#d6a552", "#e9bd68"],
-        brady: ["#ffe7a0", "#e9a34c", "#f3c875"]
+        brady: ["#ffe7a0", "#e9a34c", "#f3c875"],
+        selena: ["#d8f4ff", "#81d8ed", "#ffffff"],
+        radhesh: ["#f4d08d", "#c0844d", "#fff0b4"],
+        bas: ["#b9f3ff", "#5fc6d8", "#e8ffff"],
+        rork: ["#d9e7b5", "#9ab36e", "#f4ffd7"],
+        knox: ["#fff0bd", "#d3b35a", "#fff8d0"]
     };
     const colors = palettes[type] || palettes.mason;
     const angleToTarget = Math.atan2(dy, dx);
@@ -2035,7 +2143,7 @@ function addBlastEffect(x, y, radius) {
     blastEffects.push({ x, y, radius, life: 0.28, maxLife: 0.28 });
 }
 
-function applySurvivorDamage(survivor, enemy, damage, isSplash = false) {
+function applySurvivorDamage(survivor, enemy, damage, isSplash = false, hitIndex = 0) {
     enemy.healthTrail = Math.max(
         Number.isFinite(enemy.healthTrail) ? enemy.healthTrail : enemy.health,
         enemy.health
@@ -2047,8 +2155,8 @@ function applySurvivorDamage(survivor, enemy, damage, isSplash = false) {
     survivor.damageDealt += actualDamage;
 
     floatingDamageNumbers.push({
-        x: enemy.x,
-        y: enemy.y - 25,
+        x: enemy.x + (hitIndex % 2 === 0 ? -5 : 5),
+        y: enemy.y - 25 - hitIndex * 4,
         amount: Math.round(actualDamage),
         life: 0.8,
         maxLife: 0.8,
@@ -2070,7 +2178,8 @@ if (survivor.kills === undefined) survivor.kills = 0;
 
         const dualWield = survivor.type === "zach" &&
             getSurvivorUpgradeLevel(survivor) >= 3;
-        const targetsPerAttack = dualWield ? 2 : 1;
+        const customAttack = getCustomAttackProfile(survivor);
+        const targetsPerAttack = customAttack?.area ? Number.POSITIVE_INFINITY : (dualWield ? 2 : 1);
         const attackTargets = [];
 
         for (const enemy of enemies) {
@@ -2089,61 +2198,79 @@ if (survivor.kills === undefined) survivor.kills = 0;
         if (attackTargets.length === 0) continue;
 
         for (const { enemy, dx, dy, distance } of attackTargets) {
-            if (survivor.type === "cody") {
-                const blastRadius = getCodyBlastRadius(survivor);
-                const blastRadiusSquared = blastRadius * blastRadius;
-                addBlastEffect(enemy.x, enemy.y, blastRadius);
+            const repeatCount = customAttack?.repeat
+                ? customAttack.repeat(getSurvivorUpgradeLevel(survivor))
+                : 1;
+            for (let hitIndex = 0; hitIndex < repeatCount; hitIndex++) {
+                if (enemy.health <= 0) break;
 
-                for (const affectedEnemy of enemies) {
-                    if (affectedEnemy.finished || affectedEnemy.health <= 0) continue;
+                if (survivor.type === "cody") {
+                    const blastRadius = getCodyBlastRadius(survivor);
+                    const blastRadiusSquared = blastRadius * blastRadius;
+                    addBlastEffect(enemy.x, enemy.y, blastRadius);
 
-                    const isDirectTarget = affectedEnemy === enemy;
-                    const blastDx = affectedEnemy.x - enemy.x;
-                    const blastDy = affectedEnemy.y - enemy.y;
-                    if (!isDirectTarget &&
-                        blastDx * blastDx + blastDy * blastDy > blastRadiusSquared) {
-                        continue;
+                    for (const affectedEnemy of enemies) {
+                        if (affectedEnemy.finished || affectedEnemy.health <= 0) continue;
+
+                        const isDirectTarget = affectedEnemy === enemy;
+                        const blastDx = affectedEnemy.x - enemy.x;
+                        const blastDy = affectedEnemy.y - enemy.y;
+                        if (!isDirectTarget &&
+                            blastDx * blastDx + blastDy * blastDy > blastRadiusSquared) {
+                            continue;
+                        }
+
+                        const damage = isDirectTarget
+                            ? stats.damage
+                            : Math.max(1, Math.round(stats.damage * 0.5));
+                        applySurvivorDamage(survivor, affectedEnemy, damage, !isDirectTarget, hitIndex);
                     }
-
-                    const damage = isDirectTarget
-                        ? stats.damage
-                        : Math.max(1, Math.round(stats.damage * 0.5));
-                    applySurvivorDamage(survivor, affectedEnemy, damage, !isDirectTarget);
+                } else {
+                    applySurvivorDamage(survivor, enemy, stats.damage, false, hitIndex);
                 }
-            } else {
-                applySurvivorDamage(survivor, enemy, stats.damage);
-            }
 
-            // James ignites each target hit by the attack volley.
-            if (survivor.type === "james") {
-                const burnStats = getJamesBurnStats(survivor);
-                enemy.burnTimer = burnStats.duration;
-                enemy.burnDamage = burnStats.damage;
-                if (enemy.burnTickTimer === undefined) {
-                    enemy.burnTickTimer = 1;
+                // James ignites each target hit by the attack volley.
+                if (survivor.type === "james") {
+                    const burnStats = getJamesBurnStats(survivor);
+                    enemy.burnTimer = burnStats.duration;
+                    enemy.burnDamage = burnStats.damage;
+                    if (enemy.burnTickTimer === undefined) {
+                        enemy.burnTickTimer = 1;
+                    }
+                    enemy.burnSource = survivor;
                 }
-                enemy.burnSource = survivor;
-            }
 
-            // Survivors recoil from each target. Brady's shotgun also pushes
-            // the target back along the road without knocking it off course.
-            const recoilStrength = 7;
-            survivor.recoilX -= (dx / distance) * recoilStrength;
-            survivor.recoilY -= (dy / distance) * recoilStrength;
-            enemy.hitOffsetX = Math.max(-5, Math.min(5,
-                (enemy.hitOffsetX || 0) + (dx / distance) * 3));
-            enemy.hitOffsetY = Math.max(-5, Math.min(5,
-                (enemy.hitOffsetY || 0) + (dy / distance) * 3));
-            addShotVisual(survivor, enemy, dx, dy, distance, survivor.type);
-            addImpactPixels(enemy, survivor.type, dx, dy);
-            if (survivor.type === "brady") {
-                knockEnemyBackAlongRoad(enemy, 8);
+                if (customAttack?.slow) {
+                    enemy.slowTimer = 5;
+                    enemy.slowMultiplier = 0.7;
+                    enemy.slowFlash = 0.35;
+                }
+
+                // Survivors recoil from each target. Brady's shotgun also pushes
+                // the target back along the road without knocking it off course.
+                const recoilStrength = 7;
+                survivor.recoilX -= (dx / distance) * recoilStrength;
+                survivor.recoilY -= (dy / distance) * recoilStrength;
+                enemy.hitOffsetX = Math.max(-5, Math.min(5,
+                    (enemy.hitOffsetX || 0) + (dx / distance) * 3));
+                enemy.hitOffsetY = Math.max(-5, Math.min(5,
+                    (enemy.hitOffsetY || 0) + (dy / distance) * 3));
+                addShotVisual(survivor, enemy, dx, dy, distance, survivor.type, hitIndex, repeatCount);
+                addImpactPixels(enemy, survivor.type, dx, dy);
+                if (survivor.type === "brady") {
+                    knockEnemyBackAlongRoad(enemy, 8);
+                }
             }
         }
 
-        // A dual-wield volley plays one attack sound while showing a shot for
-        // each target it hits.
-        playWeaponAttackSound(survivor.type);
+        // Multi-hit weapons get a short, readable audio cadence rather than
+        // collapsing into one indistinct sound.
+        const soundCount = customAttack?.repeat
+            ? customAttack.repeat(getSurvivorUpgradeLevel(survivor))
+            : 1;
+        for (let soundIndex = 0; soundIndex < soundCount; soundIndex++) {
+            playWeaponAttackSound(survivor.type, soundIndex * 0.055);
+        }
         survivor.attackCooldown = stats.fireRate;
     }
 
@@ -2255,7 +2382,11 @@ function drawBullets() {
         cody:    { trail: "#9b7450", core: "#ead19b", width: 3, length: 13 },
         britney: { trail: "#e3d2b0", core: "#fff8df", width: 2, length: 48 },
         zach:    { trail: "#d6a552", core: "#fff0bd", width: 2, length: 13 },
-        brady:   { trail: "#e9a34c", core: "#ffe7a0", width: 2, length: 10 }
+        brady:   { trail: "#e9a34c", core: "#ffe7a0", width: 2, length: 10 },
+        selena:  { trail: "#8fe4ef", core: "#f1ffff", width: 2, length: 9 },
+        bas:     { trail: "#63d6e5", core: "#eaffff", width: 3, length: 13 },
+        rork:    { trail: "#a9c86e", core: "#efffc8", width: 2, length: 20 },
+        knox:    { trail: "#d4b759", core: "#fff5c2", width: 2, length: 16 }
     };
 
     ctx.save();
@@ -2336,6 +2467,31 @@ function drawBullets() {
             // The sniper gets a long, hairline tracer and a precise glint.
             ctx.fillStyle = style.core;
             ctx.fillRect(endX - 1, endY - 1, 2, 2);
+        } else if (bullet.type === "selena") {
+            // Twin dagger flashes are short, bright slashes at the target.
+            const px = -uy;
+            const py = ux;
+            const slashOffset = bullet.shotIndex % 2 === 0 ? 2 : -2;
+            ctx.strokeStyle = style.core;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(endX - ux * 5 + px * slashOffset, endY - uy * 5 + py * slashOffset);
+            ctx.lineTo(endX + ux * 3 - px * slashOffset, endY + uy * 3 - py * slashOffset);
+            ctx.stroke();
+        } else if (bullet.type === "bas") {
+            // A syringe jab reads as a thin cyan needle with a tiny glint.
+            ctx.fillStyle = style.core;
+            ctx.fillRect(endX - 1, endY - 1, 3, 3);
+            ctx.fillStyle = "#7de7f3";
+            ctx.fillRect(Math.round(endX - ux * 5) - 1, Math.round(endY - uy * 5) - 1, 2, 2);
+        } else if (bullet.type === "knox") {
+            // Three separated muzzle flashes make the burst cadence readable.
+            ctx.fillStyle = style.core;
+            const flash = 2 + (bullet.shotIndex % 2);
+            ctx.fillRect(endX - flash / 2, endY - flash / 2, flash, flash);
+        } else if (bullet.type === "rork") {
+            ctx.fillStyle = style.core;
+            ctx.fillRect(endX - 1, endY - 1, 3, 2);
         } else if (bullet.type === "brady") {
             // Individual pellets stay small so the tight spread remains clear.
             ctx.fillStyle = style.core;
@@ -2374,6 +2530,27 @@ function drawBlastEffects() {
 
     for (const effect of blastEffects) {
         const progress = 1 - effect.life / effect.maxLife;
+        if (effect.kind === "bat") {
+            const dx = effect.targetX - effect.x;
+            const dy = effect.targetY - effect.y;
+            const angle = Math.atan2(dy, dx);
+            ctx.globalAlpha = Math.max(0, effect.life / effect.maxLife) * 0.9;
+            ctx.strokeStyle = "#f8d58c";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(
+                Math.round(effect.x),
+                Math.round(effect.y),
+                Math.round(effect.radius + progress * 8),
+                angle - 0.85,
+                angle + 0.85
+            );
+            ctx.stroke();
+            ctx.strokeStyle = "#fff3c1";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            continue;
+        }
         const radius = Math.max(4, effect.radius * progress);
         ctx.globalAlpha = Math.max(0, effect.life / effect.maxLife) * 0.85;
         ctx.strokeStyle = "#f0b65e";
@@ -2455,6 +2632,8 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
     0,
     (enemy.burnFlash || 0) - deltaTime
 );
+        enemy.slowTimer = Math.max(0, (enemy.slowTimer || 0) - deltaTime);
+        enemy.slowFlash = Math.max(0, (enemy.slowFlash || 0) - deltaTime);
         const target = roadPoints[enemy.targetPoint];
 
         if (!target) {
@@ -2464,7 +2643,7 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
         const dx = target.x - enemy.x;
         const dy = target.y - enemy.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const movement = enemy.speed * deltaTime;
+        const movement = enemy.speed * (enemy.slowTimer > 0 ? (enemy.slowMultiplier || 0.7) : 1) * deltaTime;
 
         if (distance <= movement) {
             enemy.x = target.x;
@@ -2630,6 +2809,22 @@ function drawEnemies() {
                 spriteWidth,
                 spriteHeight
             );
+
+            if (enemy.slowTimer > 0) {
+                // Draw a filtered copy of the transparent sprite so the slow
+                // effect colors the enemy itself instead of drawing a box.
+                ctx.save();
+                ctx.globalAlpha = 0.42 + Math.sin(performance.now() / 90) * 0.06;
+                ctx.filter = "hue-rotate(145deg) saturate(2.4) brightness(1.3)";
+                ctx.drawImage(
+                    image,
+                    spriteX - spriteWidth / 2,
+                    spriteY - spriteHeight / 2,
+                    spriteWidth,
+                    spriteHeight
+                );
+                ctx.restore();
+            }
 
                      ctx.restore();
         }
@@ -3148,13 +3343,16 @@ let activeLeaderboardMode = "endless";
 let activeDailyLeaderboardDate = null;
 let leaderboardReturnScreen = "menu";
 const profilePortraitSources = {
-    mason: "Images/Mason.png",
-    james: "Images/James.png",
-    cody: "Images/Cody.png",
-    britney: "Images/Britney.png",
-    zach: "Images/Zach.png",
-    brady: "Images/Brady.png"
+    mason: "Images/model-portraits/Mason.png",
+    james: "Images/model-portraits/James.png",
+    cody: "Images/model-portraits/Cody.png",
+    britney: "Images/model-portraits/Britney.png",
+    zach: "Images/model-portraits/Zach.png",
+    brady: "Images/model-portraits/Brady.png"
 };
+customSurvivors.forEach(survivor => {
+    profilePortraitSources[survivor.id] = survivor.portraitData;
+});
 const trophyPlaceNames = { 1: "GOLD", 2: "SILVER", 3: "BRONZE" };
 
 function getDailyChallengeDate(date = new Date()) {
@@ -4342,9 +4540,12 @@ async function loadRemotePlayerData(user, generation) {
 
     const unlocked = new Set(progress.unlocked_survivors || []);
     Object.entries(survivorDetails).forEach(([id, survivor]) => {
-        survivor.unlocked = unlocked.has(id);
+        survivor.unlocked = survivor.mysteryBoxOnly
+            ? unlocked.has(id)
+            : survivor.custom === true || unlocked.has(id);
     });
     persistUnlockedSurvivors();
+    renderMenuCrewRoster();
     if (!getUnlockedProfilePortraits().some(([id]) => id === playerProfile.portrait)) {
         playerProfile.portrait = getUnlockedProfilePortraits()[0]?.[0] || "mason";
         persistPlayerProfile();
@@ -4507,6 +4708,7 @@ async function renderProfileFriends() {
         const isOnline = isPlayerOnline(friendId);
         const row = document.createElement("div");
         row.className = "profile-friend-row";
+        row.dataset.friendId = friendId;
         row.classList.toggle("is-online", isOnline);
 
         const identity = document.createElement("div");
@@ -4555,6 +4757,11 @@ async function renderProfileFriends() {
 }
 
 async function handleFriendListClick(event) {
+    const friendRow = event.target.closest(".profile-friend-row[data-friend-id]");
+    if (friendRow && !event.target.closest("button")) {
+        await showFriendProfile(friendRow.dataset.friendId);
+        return;
+    }
     const button = event.target.closest("button[data-friend-action]");
     if (!button || !supabaseClient || !supabaseUser) return;
     try {
@@ -4569,6 +4776,64 @@ async function handleFriendListClick(event) {
     } catch (error) {
         setAccountNotice(error.message || "COULD NOT UPDATE FRIEND REQUEST.", true);
         return;
+    }
+}
+
+function renderFriendTrophies(container, records) {
+    container.replaceChildren();
+    [1, 2, 3].forEach(place => {
+        const item = document.createElement("div");
+        item.className = `profile-trophy-count trophy-place-${place}`;
+        item.append(createTrophyIcon(place));
+        const amount = document.createElement("strong");
+        amount.textContent = `×${records.filter(record => Number(record.place) === place).length}`;
+        const label = document.createElement("small");
+        label.textContent = trophyPlaceNames[place];
+        item.append(amount, label);
+        container.append(item);
+    });
+}
+
+async function showFriendProfile(friendId) {
+    if (!supabaseClient || !supabaseUser) return;
+    const screen = document.getElementById("friendProfileScreen");
+    try {
+        const [profileResponse, progressResponse, scoresResponse, trophiesResponse, dailyTrophiesResponse] = await Promise.all([
+            supabaseClient.from("player_profiles").select("username,portrait_id").eq("id", friendId).single(),
+            supabaseClient.from("player_progress").select("unlocked_survivors").eq("user_id", friendId).maybeSingle(),
+            supabaseClient.from("endless_scores").select("best_wave").eq("user_id", friendId),
+            supabaseClient.from("player_trophies").select("place").eq("user_id", friendId),
+            supabaseClient.from("daily_challenge_trophies").select("place").eq("user_id", friendId)
+        ]);
+        if (profileResponse.error) throw profileResponse.error;
+        const profile = profileResponse.data;
+        const unlocked = new Set(progressResponse.data?.unlocked_survivors || []);
+        const roster = document.getElementById("friendProfileRoster");
+        roster.replaceChildren();
+        Object.entries(survivorDetails)
+            .filter(([id, survivor]) => !survivor.mysteryBoxOnly && (unlocked.size === 0 || unlocked.has(id)))
+            .forEach(([id, survivor]) => {
+            const card = document.createElement("div");
+            card.className = "friend-roster-card";
+            const image = document.createElement("img");
+            image.src = survivor.portraitData || profilePortraitSources[id] || profilePortraitSources.mason;
+            image.alt = "";
+            const name = document.createElement("strong");
+            name.textContent = survivor.name;
+            const role = document.createElement("small");
+            role.textContent = survivor.role;
+            card.append(image, name, role);
+            roster.append(card);
+        });
+        document.getElementById("friendProfileUsername").textContent = `@${profile.username}`;
+        document.getElementById("friendProfileSubtitle").textContent = `BEST ENDLESS WAVE · ${Math.max(0, ...(scoresResponse.data || []).map(score => Number(score.best_wave) || 0))}`;
+        document.getElementById("friendProfileRosterCount").textContent = `${roster.children.length} SURVIVORS UNLOCKED`;
+        document.getElementById("friendProfilePortrait").src = profilePortraitSources[profile.portrait_id] || profilePortraitSources.mason;
+        renderFriendTrophies(document.getElementById("friendProfileEndlessTrophies"), trophiesResponse.data || []);
+        renderFriendTrophies(document.getElementById("friendProfileDailyTrophies"), dailyTrophiesResponse.data || []);
+        screen.style.display = "flex";
+    } catch (error) {
+        setAccountNotice(error.message || "COULD NOT LOAD FRIEND PROFILE.", true);
     }
 }
 
@@ -5481,7 +5746,7 @@ function startDefense() {
     playerHealth = 100;
     totalEnemiesDefeated = 0;
     floatingDamageNumbers.length = 0;
-    scrap = gameMode === "endless" ? 150 : gameMode === "daily" ? 410 : 250;
+    scrap = gameMode === "endless" ? 50000 : gameMode === "daily" ? 410 : 250;
 
     document.getElementById("scrapDisplay").textContent = scrap;
     updatePlayerHealthDisplay();
@@ -5707,6 +5972,7 @@ bindUIEvent("dailyChallengeButton", "click", () => {
     document.getElementById("deploymentMessage").textContent = "";
     showDeployment(currentDailyChallenge.mapId);
 });
+bindUIEvent("shopRecruitButton", "click", () => { window.location.href = "shop.html"; });
 
 bindUIEvent("leaderboardButton", "click", showLeaderboard);
 bindUIEvent("muteButton", "click", () => setGameAudioMuted(!gameAudioMuted));
@@ -5722,6 +5988,9 @@ bindUIEvent("accountCreateButton", "click", () => submitAccount("create"));
 bindUIEvent("accountSignOutButton", "click", signOutOfAccount);
 bindUIEvent("friendRequestForm", "submit", sendFriendRequest);
 bindUIEvent("profileFriendsList", "click", handleFriendListClick);
+bindUIEvent("friendProfileCloseButton", "click", () => {
+    document.getElementById("friendProfileScreen").style.display = "none";
+});
 bindUIEvent("accountPasswordInput", "keydown", event => {
     if (event.key === "Enter") {
         event.preventDefault();
@@ -5834,17 +6103,63 @@ const survivorDetails = {
     }
 };
 
+customSurvivors.forEach(survivor => {
+    survivorDetails[survivor.id] = {
+        name: survivor.name,
+        role: survivor.role,
+        icon: survivor.name.slice(0, 1).toUpperCase(),
+        iconClass: "scout",
+        cost: survivor.cost,
+        unlocked: !survivor.mysteryBoxOnly,
+        custom: true,
+        rarity: survivor.rarity,
+        portraitData: survivor.portraitData,
+        description: survivor.description,
+        upgrades: survivor.upgrades
+    };
+});
+
 try {
     const savedUnlocked = JSON.parse(localStorage.getItem(unlockedSurvivorsKey) || "null");
     if (Array.isArray(savedUnlocked)) {
         const unlockedIds = new Set(savedUnlocked);
         Object.entries(survivorDetails).forEach(([id, survivor]) => {
-            survivor.unlocked = unlockedIds.has(id);
+        customSurvivors
+            .filter(custom => custom.mysteryBoxOnly)
+            .forEach(custom => unlockedIds.delete(custom.id));
+        survivor.unlocked = survivor.mysteryBoxOnly
+            ? unlockedIds.has(id)
+            : (survivor.custom === true || unlockedIds.has(id));
         });
     }
 } catch {
     // Use the game's default unlock list when there is no readable local cache.
 }
+
+function renderMenuCrewRoster() {
+    const portraitStrip = document.querySelector(".menu-crew-portraits");
+    if (!portraitStrip) return;
+    const unlocked = Object.entries(survivorDetails).filter(([, survivor]) => survivor.unlocked === true);
+    const fragment = document.createDocumentFragment();
+    unlocked.forEach(([id, survivor]) => {
+        const portrait = document.createElement("img");
+        portrait.src = survivor.portraitData || profilePortraitSources[id] || profilePortraitSources.mason;
+        portrait.alt = "";
+        portrait.title = survivor.name;
+        if (survivor.custom) portrait.dataset.rarity = survivor.rarity;
+        fragment.append(portrait);
+    });
+    portraitStrip.replaceChildren(fragment);
+    portraitStrip.setAttribute("aria-label", unlocked.map(([, survivor]) => survivor.name).join(", "));
+    const count = document.querySelector(".menu-crew-count");
+    if (count) {
+        count.replaceChildren(document.createTextNode(String(unlocked.length).padStart(2, "0") + " "));
+        const available = document.createElement("small");
+        available.textContent = "AVAILABLE";
+        count.append(available);
+    }
+}
+renderMenuCrewRoster();
 
 updateProfileIdentity();
 
@@ -5863,6 +6178,38 @@ deploymentRoster.querySelectorAll("button[data-survivor]").forEach(card => {
     const survivor = survivorDetails[card.dataset.survivor];
     if (!survivor) card.remove();
 });
+
+const customRosterFragment = document.createDocumentFragment();
+customSurvivors.forEach(survivor => {
+    const card = document.createElement("button");
+    card.className = `deploy-card rarity-${survivor.rarity}`;
+    card.dataset.survivor = survivor.id;
+    card.type = "button";
+    card.setAttribute("aria-pressed", "false");
+
+    const portrait = document.createElement("img");
+    portrait.className = "survivor-portrait-placeholder";
+    portrait.src = survivor.portraitData;
+    portrait.alt = `${survivor.name}'s portrait`;
+    portrait.dataset.rarity = survivor.rarity;
+
+    const info = document.createElement("div");
+    info.className = "survivor-card-info";
+    const name = document.createElement("strong");
+    name.textContent = survivor.name;
+    const role = document.createElement("span");
+    role.textContent = survivor.role;
+    const description = document.createElement("small");
+    description.textContent = survivor.description;
+    info.append(name, role, description);
+
+    const rarity = document.createElement("span");
+    rarity.className = `survivor-rarity rarity-${survivor.rarity}`;
+    rarity.textContent = survivor.rarity.toUpperCase();
+    card.append(portrait, info, rarity);
+    customRosterFragment.append(card);
+});
+deploymentRoster.append(customRosterFragment);
 
 function updateRosterSummary() {
     rosterCount.textContent = `${selectedSurvivors.size}/${getMaxRosterSize()}`;
@@ -5938,27 +6285,35 @@ function populateInGameRoster() {
 
         
 const portraitFiles = {
-    mason: "Mason.png",
-    james: "James.png",
-    cody: "Cody.png",
-    britney: "Britney.png",
-    zach: "Zach.png",
-    brady: "Brady.png"
+    mason: "model-portraits/Mason.png",
+    james: "model-portraits/James.png",
+    cody: "model-portraits/Cody.png",
+    britney: "model-portraits/Britney.png",
+    zach: "model-portraits/Zach.png",
+    brady: "model-portraits/Brady.png"
 };
 
-card.innerHTML = `
-    <img
-        class="survivor-portrait-placeholder"
-        data-portrait-id="${id}"
-        src="Images/${portraitFiles[id]}"
-        alt="${person.name}"
-    >
-    <span class="unit-info">
-        <strong>${person.name}</strong>
-        <small class="unit-role">${person.role}</small>
-        <strong class="unit-cost"><span>${person.cost}</span> SCRAP</strong>
-    </span>
-`;
+const portrait = document.createElement("img");
+portrait.className = "survivor-portrait-placeholder";
+portrait.dataset.portraitId = id;
+portrait.src = person.portraitData || `Images/${portraitFiles[id] || "Mason.png"}`;
+portrait.alt = person.name;
+if (person.custom) portrait.dataset.rarity = person.rarity;
+
+const unitInfo = document.createElement("span");
+unitInfo.className = "unit-info";
+const name = document.createElement("strong");
+name.textContent = person.name;
+const role = document.createElement("small");
+role.className = "unit-role";
+role.textContent = person.role;
+const cost = document.createElement("strong");
+cost.className = "unit-cost";
+const costValue = document.createElement("span");
+costValue.textContent = person.cost;
+cost.append(costValue, document.createTextNode(" SCRAP"));
+unitInfo.append(name, role, cost);
+card.append(portrait, unitInfo);
 
 
         rosterList.appendChild(card);

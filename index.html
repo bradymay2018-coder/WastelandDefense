@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wasteland Defense</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1">
-    <link rel="stylesheet" href="style.css?v=20261024-08">
+    <link rel="stylesheet" href="style.css?v=20261024-11">
 </head>
 <body>
 
@@ -40,7 +40,7 @@
 
     <button id="profileButton" class="header-nav-button" type="button" aria-label="Sign in or create a player account">
         <span class="header-nav-mark profile-header-avatar" aria-hidden="true">
-            <img id="profileButtonPortrait" src="Images/Mason.png" alt="" hidden>
+            <img id="profileButtonPortrait" src="Images/model-portraits/Mason.png" alt="" hidden>
             <span id="profileButtonSignInMark" class="profile-header-login-mark">↗</span>
         </span>
         <span class="header-nav-copy">
@@ -67,8 +67,8 @@
             <span class="menu-whats-new-badge">NOW LIVE</span>
         </div>
         <div class="menu-whats-new-copy">
-            <strong>Profiles and Endless leaderboards are ready.</strong>
-            <p>Create an account to save your progress, submit your best runs, and add friends by username to compare scores.</p>
+            <strong>The Survivor Shop is now open.</strong>
+            <p>Spend coins on mystery recruits, grow your account-linked roster, and keep chasing the top of the leaderboards.</p>
         </div>
     </section>
 
@@ -111,12 +111,12 @@
             </div>
 
             <div class="menu-crew-portraits" role="img" aria-label="Mason, James, Cody, Britney, Zach, and Brady">
-                <img src="Images/Mason.png" alt="" title="Mason">
-                <img src="Images/James.png" alt="" title="James">
-                <img src="Images/Cody.png" alt="" title="Cody">
-                <img src="Images/Britney.png" alt="" title="Britney">
-                <img src="Images/Zach.png" alt="" title="Zach">
-                <img src="Images/Brady.png" alt="" title="Brady">
+                <img src="Images/model-portraits/Mason.png" alt="" title="Mason">
+                <img src="Images/model-portraits/James.png" alt="" title="James">
+                <img src="Images/model-portraits/Cody.png" alt="" title="Cody">
+                <img src="Images/model-portraits/Britney.png" alt="" title="Britney">
+                <img src="Images/model-portraits/Zach.png" alt="" title="Zach">
+                <img src="Images/model-portraits/Brady.png" alt="" title="Brady">
             </div>
 
             <div class="menu-crew-footer">
@@ -160,18 +160,18 @@
             <span class="menu-card-cta">CHASE A HIGH SCORE <b aria-hidden="true">→</b></span>
         </button>
 
-        <button class="menu-card menu-card-shop" id="shopRecruitButton" type="button" disabled aria-label="Shop and recruit survivors, coming soon">
+        <button class="menu-card menu-card-shop" id="shopRecruitButton" type="button" aria-label="Shop and recruit survivors">
             <span class="menu-card-icon" aria-hidden="true">＋</span>
             <span class="menu-card-copy">
                 <strong>SHOP / RECRUIT</strong>
-                <span>Spend coins on gear for your next run or recruit new survivors.</span>
+                <span>Spend coins on gear or recruit new survivors.</span>
             </span>
-            <span class="menu-card-cta">COMING SOON</span>
+            <span class="menu-card-cta">OPEN SHOP <b aria-hidden="true">→</b></span>
         </button>
     </div>
 
     <div class="menu-footer">
-        <span>WASTELAND DEFENSE // v0.83</span>
+        <span>WASTELAND DEFENSE // v0.84</span>
         <span>BE NICE TO YOUR SQUAD. THEY HAVE GUNS.</span>
     </div>
 </section>
@@ -186,7 +186,7 @@
                 <p id="profileIntro" class="menu-description">Sign in or create an account to create a profile and sync your progress.</p>
             </div>
             <div class="profile-emblem" aria-hidden="true">
-                <img id="profilePortraitPreview" src="Images/Mason.png" alt="">
+                <img id="profilePortraitPreview" src="Images/model-portraits/Mason.png" alt="">
                 <small id="profilePortraitLabel">MASON</small>
             </div>
         </div>
@@ -282,6 +282,16 @@
             <span>WASTELAND DEFENSE // ACCOUNT SYNC</span>
         </div>
     </div>
+</section>
+
+<section id="friendProfileScreen" class="friend-profile-screen" style="display:none" role="dialog" aria-modal="true" aria-labelledby="friendProfileTitle">
+  <div class="friend-profile-panel">
+    <button id="friendProfileCloseButton" class="menu-button" type="button">&lt; BACK TO PROFILE</button>
+    <div class="friend-profile-heading"><p class="menu-eyebrow">FRIEND DOSSIER // READ ONLY</p><h2 id="friendProfileTitle">FRIEND PROFILE</h2><p id="friendProfileSubtitle"></p></div>
+    <div class="friend-profile-summary"><img id="friendProfilePortrait" alt=""><div><strong id="friendProfileUsername"></strong><span>ACCOUNT ROSTER</span><small id="friendProfileRosterCount"></small></div></div>
+    <div id="friendProfileRoster" class="friend-profile-roster"></div>
+    <div class="friend-profile-trophies"><h3>ENDLESS TROPHIES</h3><div id="friendProfileEndlessTrophies" class="profile-trophy-counts"></div><h3>DAILY CHALLENGE TROPHIES</h3><div id="friendProfileDailyTrophies" class="profile-trophy-counts"></div></div>
+  </div>
 </section>
 
 <section id="leaderboardScreen" class="leaderboard-screen" style="display: none;" aria-labelledby="leaderboardTitle">
@@ -539,7 +549,7 @@
     <button class="deploy-card rarity-common" data-survivor="mason" type="button" aria-pressed="false">
     <img
     class="survivor-portrait-placeholder"
-    src="Images/Mason.png"
+    src="Images/model-portraits/Mason.png"
     alt="Mason's portrait"
 >
     <div class="survivor-card-info">
@@ -556,7 +566,7 @@
                 
 <img
     class="survivor-portrait-placeholder"
-    src="Images/James.png"
+    src="Images/model-portraits/James.png"
     alt="James's portrait"
 >
 
@@ -572,7 +582,7 @@
                 
 <img
     class="survivor-portrait-placeholder"
-    src="Images/Cody.png"
+    src="Images/model-portraits/Cody.png"
     alt="Cody's portrait"
 >
 
@@ -588,7 +598,7 @@
                 
 <img
     class="survivor-portrait-placeholder"
-    src="Images/Britney.png"
+    src="Images/model-portraits/Britney.png"
     alt="Britney's portrait"
 >
 
@@ -604,7 +614,7 @@
                 
 <img
     class="survivor-portrait-placeholder"
-    src="Images/Zach.png"
+    src="Images/model-portraits/Zach.png"
     alt="Zach's portrait"
 >
 
@@ -620,7 +630,7 @@
                 
 <img
     class="survivor-portrait-placeholder"
-    src="Images/Brady.png"
+    src="Images/model-portraits/Brady.png"
     alt="Brady's portrait"
 >
 
@@ -961,6 +971,22 @@
 </div>
 
 <script src="supabase-config.js?v=20261023-02"></script>
-<script src="game.js?v=20261024-06"></script>
+<script>
+(() => {
+    const loadGame = () => {
+        const gameScript = document.createElement("script");
+        gameScript.src = "game.js?v=20261024-18";
+        document.body.append(gameScript);
+    };
+    const customScript = document.createElement("script");
+    customScript.src = `custom-survivors.js?v=${Date.now()}`;
+    customScript.addEventListener("load", loadGame, { once: true });
+    customScript.addEventListener("error", () => {
+        window.WD_CUSTOM_SURVIVORS = [];
+        loadGame();
+    }, { once: true });
+    document.head.append(customScript);
+})();
+</script>
 </body>
 </html>
