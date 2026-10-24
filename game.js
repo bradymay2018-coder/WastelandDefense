@@ -1435,6 +1435,15 @@ const survivorStats = {
     brady: { range: 142, damage: 16, fireRate: 1.1 }
 };
 
+const survivorDamageMultipliers = {
+    mason: 1.2,
+    james: 1.35,
+    cody: 1.15,
+    britney: 1.2,
+    zach: 1.1,
+    brady: 1.35
+};
+
 const maxSurvivorUpgradeLevel = 3;
 
 function getSurvivorUpgradeLevel(survivor) {
@@ -1461,8 +1470,10 @@ function getSurvivorStats(survivorOrType) {
         : britneySemiAuto
             ? Math.round(levelTwoBritneyDamage * 0.7)
             : Math.round(base.damage * (1 + 0.2 * level));
+    const levelAdjustedDamage = level >= 3 ? damage * 2 : damage;
+    const damageMultiplier = survivorDamageMultipliers[type] || 1;
     return {
-        damage: level >= 3 ? damage * 2 : damage,
+        damage: Number((levelAdjustedDamage * damageMultiplier).toFixed(2)),
         range: Math.round(base.range * (1 + 0.1 * level)),
         fireRate: masonHighCaliber
             ? base.fireRate * (1 - 0.1 * 2) * 1.25
@@ -1493,9 +1504,9 @@ function getJamesBurnStats(survivor) {
 
     return {
         duration: napalmThrower ? 5 : 4,
-        damage: napalmThrower
-            ? standardTickDamage * 4
-            : standardTickDamage
+        damage: Number((
+            standardTickDamage * (napalmThrower ? 4 : 1) * survivorDamageMultipliers.james
+        ).toFixed(2))
     };
 }
 

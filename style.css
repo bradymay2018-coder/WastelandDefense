@@ -6078,6 +6078,12 @@ main.game-layout > .control-panel {
     letter-spacing: 0.8px;
 }
 
+#returnMenuConfirm .return-confirm-buttons button,
+#restartConfirm .return-confirm-buttons button {
+    min-height: 58px;
+    padding: 14px 10px;
+}
+
 #confirmReturnButton,
 #confirmRestartButton {
     background: linear-gradient(180deg, #51372f, #382824);
