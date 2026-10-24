@@ -929,7 +929,8 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
         isMiniBoss: specialRole === "miniBoss",
         isWaveBoss: specialRole === "boss",
         health: health,
-        maxHealth: health
+        maxHealth: health,
+        healthTrail: health
     });
 }
 
@@ -2010,6 +2011,10 @@ function addBlastEffect(x, y, radius) {
 }
 
 function applySurvivorDamage(survivor, enemy, damage, isSplash = false) {
+    enemy.healthTrail = Math.max(
+        Number.isFinite(enemy.healthTrail) ? enemy.healthTrail : enemy.health,
+        enemy.health
+    );
     const actualDamage = Math.min(damage, enemy.health);
     enemy.health -= actualDamage;
     enemy.lastHitBy = survivor;
@@ -2137,7 +2142,6 @@ function updateDamageNumbers(deltaTime) {
 
         number.life -= deltaTime;
         number.y -= 45 * deltaTime;
-number.x += Math.sin(number.life * 8) * 5 * deltaTime;
 
         if (number.life <= 0) {
             floatingDamageNumbers.splice(i, 1);
@@ -2183,35 +2187,36 @@ function drawDamageNumbers() {
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = "bold 14px monospace";
     ctx.imageSmoothingEnabled = false;
 
     for (const number of floatingDamageNumbers) {
-        const fade = Math.max(
-            0,
-            Math.min(1, number.life / number.maxLife)
-        );
+        const progress = 1 - Math.max(0, Math.min(1, number.life / number.maxLife));
+        const fade = Math.max(0, Math.min(1, (1 - progress) / 0.24));
+        const amount = Math.round(number.amount);
+        const fontSize = amount >= 100 ? 17 : amount >= 40 ? 16 : 15;
 
-        // Snap positions to whole pixels for a crisper look.
+        // Keep the text on whole pixels so the bold outline stays sharp.
         const x = Math.round(number.x);
         const y = Math.round(number.y);
 
+        ctx.font = `bold ${fontSize}px monospace`;
         ctx.globalAlpha = fade;
 
-        // Dark pixel-style outline.
-        ctx.strokeStyle = "#20231f";
-        ctx.lineWidth = 3;
+        // A heavier near-black edge keeps the numbers readable over sprites,
+        // road tiles, and overlapping effects.
+        ctx.strokeStyle = "#080b10";
+        ctx.lineWidth = 5;
         ctx.lineJoin = "miter";
-        ctx.strokeText(number.amount, x, y);
+        ctx.strokeText(amount, x, y);
 
-        // Yellow for direct hits, orange for burn damage.
+        // Bright, separated colors distinguish direct, splash, and burn hits.
         ctx.fillStyle = number.isBurn
-            ? "#ff7043"
+            ? "#ff8a66"
             : number.isSplash
-                ? "#e7a766"
-                : "#fff1a8";
+                ? "#ffc768"
+                : "#fff2a0";
 
-        ctx.fillText(number.amount, x, y);
+        ctx.fillText(amount, x, y);
     }
 
     ctx.restore();
@@ -2361,6 +2366,14 @@ function drawBlastEffects() {
 
 function updateEnemies(deltaTime) {
     for (const enemy of enemies) {
+        const healthTrail = Number.isFinite(enemy.healthTrail)
+            ? enemy.healthTrail
+            : enemy.health;
+        enemy.healthTrail = Math.max(
+            enemy.health,
+            healthTrail - enemy.maxHealth * 1.1 * deltaTime
+        );
+
         const segmentStart = roadPoints[Math.max(0, enemy.targetPoint - 1)];
         const segmentEnd = roadPoints[enemy.targetPoint];
         const targetLaneOffsetY = segmentStart && segmentEnd && segmentStart.y === segmentEnd.y
@@ -2381,6 +2394,10 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
     if (enemy.burnTickTimer <= 0) {
         const damage = Math.min(enemy.health, enemy.burnDamage);
 
+        enemy.healthTrail = Math.max(
+            Number.isFinite(enemy.healthTrail) ? enemy.healthTrail : enemy.health,
+            enemy.health
+        );
         enemy.health -= damage;
         enemy.burnFlash = 0.2;
         enemy.burnTickTimer += 1;
@@ -2462,6 +2479,66 @@ if (playerHealth <= 0) {
 
 
 
+function traceRoundedRectPath(x, y, width, height, radius) {
+    const corner = Math.max(0, Math.min(radius, width / 2, height / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + corner, y);
+    ctx.lineTo(x + width - corner, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + corner);
+    ctx.lineTo(x + width, y + height - corner);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - corner, y + height);
+    ctx.lineTo(x + corner, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - corner);
+    ctx.lineTo(x, y + corner);
+    ctx.quadraticCurveTo(x, y, x + corner, y);
+    ctx.closePath();
+}
+
+function drawAnimatedHealthBar(x, y, width, height, healthRatio, trailRatio, fillColor, borderColor) {
+    const health = Math.max(0, Math.min(1, healthRatio));
+    const trail = Math.max(health, Math.min(1, trailRatio));
+    const outerRadius = Math.min(height / 2, width / 2);
+    const inset = Math.min(1, height / 4);
+    const innerX = x + inset;
+    const innerY = y + inset;
+    const innerWidth = Math.max(0, width - inset * 2);
+    const innerHeight = Math.max(0, height - inset * 2);
+    const innerRadius = Math.max(0, outerRadius - inset);
+
+    ctx.save();
+    traceRoundedRectPath(x, y, width, height, outerRadius);
+    ctx.fillStyle = "#080b10";
+    ctx.fill();
+
+    traceRoundedRectPath(innerX, innerY, innerWidth, innerHeight, innerRadius);
+    ctx.clip();
+    ctx.fillStyle = "#34404a";
+    ctx.fillRect(innerX, innerY, innerWidth, innerHeight);
+
+    const currentWidth = Math.round(innerWidth * health);
+    const trailWidth = Math.max(currentWidth, Math.round(innerWidth * trail));
+    if (trailWidth > currentWidth) {
+        ctx.fillStyle = "#ff3d50";
+        ctx.fillRect(innerX + currentWidth, innerY, trailWidth - currentWidth, innerHeight);
+    }
+
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(innerX, innerY, currentWidth, innerHeight);
+    if (currentWidth > 2 && innerHeight > 1) {
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(innerX + 1, innerY, Math.max(0, currentWidth - 2), 1);
+    }
+    ctx.restore();
+
+    ctx.save();
+    traceRoundedRectPath(x, y, width, height, outerRadius);
+    ctx.strokeStyle = borderColor || "#080b10";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+}
+
 function drawEnemies() {
     let hollowAlive = false;
 
@@ -2541,38 +2618,40 @@ function drawEnemies() {
                     ? Math.round(baseBarWidth * 1.25)
                     : baseBarWidth;
             const barHeight = enemy.isWaveBoss ? 7 : enemy.isMiniBoss ? 6 : 5;
-            const barX = spriteX - barWidth / 2;
-            const barY = spriteY - spriteHeight / 2 - (enemy.isWaveBoss ? 15 : 12);
+            const barX = Math.round(spriteX - barWidth / 2);
+            const barY = Math.round(spriteY - spriteHeight / 2 - (enemy.isWaveBoss ? 15 : 12));
             const healthPercent = Math.max(
                 0,
                 Math.min(1, enemy.health / enemy.maxHealth)
             );
-
-            ctx.fillStyle = "#292b25";
-            ctx.fillRect(barX, barY, barWidth, barHeight);
-
-            ctx.fillStyle = enemy.isWaveBoss
-                ? "#c77be8"
-                : enemy.isMiniBoss
-                    ? "#edaa4f"
-                    : healthPercent > 0.6
-                        ? "#43c65e"
-                : healthPercent > 0.3
-                    ? "#e8c840"
-                    : "#e04438";
-
-            ctx.fillRect(
-                barX + 1,
-                barY + 1,
-                (barWidth - 2) * healthPercent,
-                barHeight - 2
+            const healthTrailPercent = Math.max(
+                healthPercent,
+                Math.min(1, (enemy.healthTrail ?? enemy.health) / enemy.maxHealth)
             );
-
-            if (enemy.isWaveBoss || enemy.isMiniBoss) {
-                ctx.strokeStyle = enemy.isWaveBoss ? "#f0c4ff" : "#ffe0a0";
-                ctx.lineWidth = 1;
-                ctx.strokeRect(barX, barY, barWidth, barHeight);
-            }
+            const healthBarColor = enemy.isWaveBoss
+                ? "#db83ff"
+                : enemy.isMiniBoss
+                    ? "#ffc24e"
+                    : healthPercent > 0.6
+                        ? "#46f477"
+                        : healthPercent > 0.3
+                            ? "#ffe044"
+                            : "#ff7953";
+            const healthBarBorder = enemy.isWaveBoss
+                ? "#f1c8ff"
+                : enemy.isMiniBoss
+                    ? "#ffe0a0"
+                    : "#0b1115";
+            drawAnimatedHealthBar(
+                barX,
+                barY,
+                barWidth,
+                barHeight,
+                healthPercent,
+                healthTrailPercent,
+                healthBarColor,
+                healthBarBorder
+            );
         }
     }
 
@@ -2604,18 +2683,24 @@ function drawHollowBossBar(hollowAlive) {
     ctx.textBaseline = "middle";
     ctx.fillText("THE HOLLOW", canvas.width / 2, y);
 
-    // Health bar background.
-    ctx.fillStyle = "#51413b";
-    ctx.fillRect(x, y + 15, barWidth, barHeight);
-
-    // Current health.
     const healthPercent = Math.max(
         0,
         Math.min(1, hollow.health / hollow.maxHealth)
     );
-
-    ctx.fillStyle = "#bd3c32";
-    ctx.fillRect(x, y + 15, barWidth * healthPercent, barHeight);
+    const healthTrailPercent = Math.max(
+        healthPercent,
+        Math.min(1, (hollow.healthTrail ?? hollow.health) / hollow.maxHealth)
+    );
+    drawAnimatedHealthBar(
+        x,
+        y + 15,
+        barWidth,
+        barHeight,
+        healthPercent,
+        healthTrailPercent,
+        "#cf78f5",
+        "#f1c8ff"
+    );
 
     // Live health numbers.
     ctx.fillStyle = "#e8e0d0";
