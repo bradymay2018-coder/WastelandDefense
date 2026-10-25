@@ -6650,6 +6650,15 @@ function updateWavePreview() {
     const enemyList = document.getElementById("previewEnemyList");
     if (!enemyList) return;
 
+    // Keep the preview compact even when an older cached stylesheet still
+    // contains the former full-width enemy-row rules.
+    enemyList.style.display = "grid";
+    enemyList.style.gridTemplateColumns = "repeat(auto-fill, 64px)";
+    enemyList.style.gridAutoRows = "64px";
+    enemyList.style.alignContent = "start";
+    enemyList.style.justifyContent = "start";
+    enemyList.style.gap = "5px";
+
     const rows = [];
     const rowByKey = new Map();
     const addRow = (type, count, specialRole = "regular") => {
@@ -6698,6 +6707,12 @@ function updateWavePreview() {
 
         const row = document.createElement("div");
         row.className = `preview-enemy enemy-${roleClass}`;
+        row.style.width = "64px";
+        row.style.height = "64px";
+        row.style.minWidth = "64px";
+        row.style.minHeight = "64px";
+        row.style.flex = "0 0 64px";
+        row.style.aspectRatio = "auto";
         const image = document.createElement("img");
         image.src = profile.image.src;
         image.alt = label;
