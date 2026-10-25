@@ -206,7 +206,7 @@ let returnEndlessScoreSubmission = null;
 // never chat, account credentials, or device identifiers.
 let activeEndlessTelemetry = null;
 let completedEndlessTelemetry = null;
-const ENDLESS_TELEMETRY_VERSION = "0.89";
+const ENDLESS_TELEMETRY_VERSION = "0.90";
 const ENDLESS_TELEMETRY_SCHEMA_VERSION = 2;
 let profileReturnScreen = "menu";
 
@@ -1714,7 +1714,7 @@ const scrapRewardPerKill = 5;
 // per-wave cap prevents high-volume late waves from creating an unlimited
 // wallet while still helping a player reach the next meaningful purchase.
 const endlessKillScrapPerKill = 1;
-const endlessKillScrapCap = 8;
+const endlessKillScrapCap = 12;
 
 function updateScrapDisplay() {
     document.getElementById("scrapDisplay").textContent = scrap;
@@ -2138,8 +2138,11 @@ const rarityFireRateMultipliers = {
     legendary: 1.2
 };
 
-const upgradeDamageMultipliers = [1, 1.16, 1.35, 1.6];
-const upgradeFireRateMultipliers = [1, 0.96, 0.9, 0.84];
+// Upgrades should compete with a fresh deployment for the player's next
+// scrap investment.  The first two levels provide a visible combat jump and
+// a little more reach; level 3 remains the expensive signature ceiling.
+const upgradeDamageMultipliers = [1, 1.22, 1.5, 1.85];
+const upgradeFireRateMultipliers = [1, 0.94, 0.86, 0.78];
 
 function getSurvivorRarity(type) {
     if (survivorRarities[type]) return survivorRarities[type];
@@ -2216,14 +2219,14 @@ function getSurvivorStats(survivorOrType) {
     // 20% level.  Their tradeoffs keep the roster from collapsing into one
     // best pick while still making level 3 feel exciting.
     if (masonHighCaliber) {
-        damage = base.damage * rarityMultiplier * 1.9;
+        damage = base.damage * rarityMultiplier * 2.25;
         fireRate = base.fireRate * 1.2 * rarityFireRateMultiplier;
     } else if (codyHighlyExplosive) {
-        damage = base.damage * rarityMultiplier * 1.75;
-        fireRate = base.fireRate * 1.2 * rarityFireRateMultiplier;
+        damage = base.damage * rarityMultiplier * 2.25;
+        fireRate = base.fireRate * 1.22 * rarityFireRateMultiplier;
     } else if (britneySemiAuto) {
-        damage = base.damage * rarityMultiplier * 1.05;
-        fireRate = base.fireRate * 0.62 * rarityFireRateMultiplier;
+        damage = base.damage * rarityMultiplier * 1.12;
+        fireRate = base.fireRate * 0.58 * rarityFireRateMultiplier;
     } else if (zachDualWield) {
         // Keep the already-tested level-3 dual-wield ceiling stable after the
         // opening-level damage buff above.
@@ -2236,7 +2239,7 @@ function getSurvivorStats(survivorOrType) {
 
     return {
         damage: Number(damage.toFixed(2)),
-        range: Math.round(base.range * (1 + 0.04 * level)),
+        range: Math.round(base.range * (1 + 0.06 * level)),
         fireRate
     };
 }
@@ -2294,9 +2297,10 @@ function getJamesBurnStats(survivor) {
 function getSurvivorUpgradeCost(type, level) {
     const baseCost = survivorCosts[type];
     if (!baseCost || level < 1 || level > maxSurvivorUpgradeLevel) return 0;
-    // Upgrades are the long-term scrap sink: accessible first tier, a
-    // deliberate second-tier investment, and a premium signature upgrade.
-    const upgradeCostMultipliers = [0, 0.75, 1.25, 2.25];
+    // Level 1 and 2 should be realistic alternatives to buying another unit
+    // when the board is getting crowded. Level 3 stays a premium signature
+    // investment, especially for higher-rarity survivors.
+    const upgradeCostMultipliers = [0, 0.45, 0.85, 2.25];
     const rarityCostMultiplier = {
         common: 1,
         uncommon: 1.15,
@@ -4165,7 +4169,10 @@ function updateWaveSystem(deltaTime) {
         const completedWave = currentWave;
         if (gameMode === "daily") dailyLastCompletedAt = new Date().toISOString();
         const baseWaveReward = isEndlessStyleMode()
-            ? 22 + Math.min(34, Math.floor((completedWave - 1) * 0.45))
+            // Raise the early checkpoint slightly and let it grow gradually
+            // so new recruits/upgrades remain reachable without creating an
+            // unlimited late-run wallet.
+            ? 26 + Math.min(38, Math.floor((completedWave - 1) * 0.5))
             : startingWaveScrapReward + (completedWave - 1) * waveScrapRewardIncrease;
         const endlessLeakPenalty = completedWave <= 15
             ? 3
