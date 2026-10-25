@@ -933,13 +933,20 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
     let waveHealthScale;
     let waveSpeedScale;
     if (gameMode === "endless") {
-        // Smooth pressure every wave, with readable milestone bumps.  This
-        // reaches roughly 4.4× health at wave 100 instead of exploding into
-        // an impossible wall after wave 20.
+        // Endless should stay readable early, then demand meaningful upgrades
+        // and tighter placement after the mid-game.  The milestone bumps are
+        // deliberately additive so wave 100 is attainable, but never casual.
         const tenWaveTier = Math.floor(waveIndex / 10);
         const twentyFiveWaveTier = Math.floor(waveIndex / 25);
-        waveHealthScale = 1 + waveIndex * 0.022 + tenWaveTier * 0.09 + twentyFiveWaveTier * 0.12;
-        waveSpeedScale = 1 + Math.min(0.35, waveIndex * 0.004);
+        const fiftyWaveTier = Math.floor(waveIndex / 50);
+        const lateEndlessRamp = Math.max(0, waveIndex - 49) * 0.012;
+        waveHealthScale = 1
+            + waveIndex * 0.05
+            + tenWaveTier * 0.18
+            + twentyFiveWaveTier * 0.28
+            + fiftyWaveTier * 0.55
+            + lateEndlessRamp;
+        waveSpeedScale = 1 + Math.min(0.5, waveIndex * 0.0055);
     } else if (gameMode === "daily") {
         waveHealthScale = 1 + waveIndex * 0.012;
         waveSpeedScale = 1 + Math.min(0.08, waveIndex * 0.002);
@@ -948,9 +955,9 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
         waveSpeedScale = 1;
     }
     const specialHealthScale = specialRole === "boss"
-        ? 1.5
+        ? 1.95
         : specialRole === "miniBoss"
-            ? 1.25
+            ? 1.55
             : 1;
     const specialSpeedScale = specialRole === "boss"
         ? 0.5
@@ -966,12 +973,12 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
         profile.baseHealth * waveHealthScale * specialHealthScale
     );
     const leakScale = gameMode === "endless"
-        ? 1 + Math.min(0.65, waveIndex * 0.006)
+        ? 1 + Math.min(1.7, waveIndex * 0.015)
         : 1;
     const specialLeakScale = specialRole === "boss"
-        ? 1.25
+        ? 1.7
         : specialRole === "miniBoss"
-            ? 1.1
+            ? 1.35
             : 1;
 
     enemies.push({
@@ -995,21 +1002,23 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
 }
 
 function getEndlessWaveGroups(wave) {
-    // Enemy count grows steadily rather than jumping into an unreadable swarm.
-    // At wave 100 this is roughly 100 regular enemies plus the milestone units.
+    // Keep the battlefield readable while enemy health and milestone units
+    // carry the late-game pressure: roughly 80 regular enemies at wave 65
+    // and a capped 100 by wave 100, before milestone units are added.
     const totalEnemies = Math.min(
-        110,
+        100,
         8 + Math.floor((wave - 1) * 0.78)
             + Math.floor((wave - 1) / 10) * 2
             + Math.floor((wave - 1) / 25) * 3
+            + Math.floor((wave - 1) / 50) * 6
     );
-    const skitterRatio = Math.min(0.3, 0.14 + wave * 0.0015);
-    const snakeRatio = wave >= 12 ? Math.min(0.1, 0.03 + (wave - 12) * 0.001) : 0;
+    const skitterRatio = Math.min(0.32, 0.14 + wave * 0.0018);
+    const snakeRatio = wave >= 12 ? Math.min(0.13, 0.03 + (wave - 12) * 0.0012) : 0;
     const skitterCount = wave >= 2 ? Math.max(1, Math.floor(totalEnemies * skitterRatio)) : 0;
     const snakeCount = snakeRatio > 0 ? Math.max(1, Math.floor(totalEnemies * snakeRatio)) : 0;
     const standardCount = Math.max(1, totalEnemies - skitterCount - snakeCount);
-    const cowCount = wave >= 6 ? Math.floor(standardCount * 0.14) : 0;
-    const mutantManCount = wave >= 8 ? Math.floor(standardCount * 0.14) : 0;
+    const cowCount = wave >= 6 ? Math.floor(standardCount * 0.15) : 0;
+    const mutantManCount = wave >= 8 ? Math.floor(standardCount * 0.15) : 0;
     const hollowCount = wave >= 30 ? Math.min(2, Math.floor(standardCount * 0.02)) : 0;
     const spiderCount = Math.max(1, standardCount - cowCount - mutantManCount - hollowCount);
     const groups = [];
@@ -2282,7 +2291,7 @@ if (survivor.kills === undefined) survivor.kills = 0;
 
                 if (customAttack?.slow) {
                     enemy.slowTimer = 5;
-                    enemy.slowMultiplier = 0.7;
+                    enemy.slowMultiplier = 0.5;
                     enemy.slowFlash = 0.35;
                 }
 
@@ -2321,7 +2330,10 @@ if (survivor.kills === undefined) survivor.kills = 0;
 }
             totalEnemiesDefeated++;
             enemies.splice(i, 1);
-            const endlessKillReward = Math.min(6, 3 + Math.floor(currentWave / 25));
+            // Endless scrap should fund decisions, not remove them.  Rewards
+            // rise slowly with the run so a full roster still has to choose
+            // which upgrades are worth buying.
+            const endlessKillReward = Math.min(4, 2 + Math.floor(currentWave / 30));
             scrap += gameMode === "endless" ? endlessKillReward : scrapRewardPerKill;
         }
     }
@@ -2684,7 +2696,7 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
         const dx = target.x - enemy.x;
         const dy = target.y - enemy.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const movement = enemy.speed * (enemy.slowTimer > 0 ? (enemy.slowMultiplier || 0.7) : 1) * deltaTime;
+            const movement = enemy.speed * (enemy.slowTimer > 0 ? (enemy.slowMultiplier || 0.5) : 1) * deltaTime;
 
         if (distance <= movement) {
             enemy.x = target.x;
@@ -3202,7 +3214,7 @@ function updateWaveSystem(deltaTime) {
         const completedWave = currentWave;
         if (gameMode === "daily") dailyLastCompletedAt = new Date().toISOString();
         const baseWaveReward = gameMode === "endless"
-            ? 35 + Math.min(220, (completedWave - 1) * 3)
+            ? 25 + Math.min(145, (completedWave - 1) * 2)
             : startingWaveScrapReward + (completedWave - 1) * waveScrapRewardIncrease;
         const leakPenalty = leakedEnemiesThisWave * scrapPenaltyPerLeak;
         const waveReward = Math.max(0, baseWaveReward - leakPenalty);
