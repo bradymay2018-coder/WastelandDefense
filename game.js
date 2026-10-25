@@ -1005,13 +1005,15 @@ function getEndlessWaveGroups(wave) {
     // Keep the battlefield readable while enemy health and milestone units
     // carry the late-game pressure: roughly 80 regular enemies at wave 65
     // and a capped 100 by wave 100, before milestone units are added.
-    const totalEnemies = Math.min(
-        100,
-        8 + Math.floor((wave - 1) * 0.78)
-            + Math.floor((wave - 1) / 10) * 2
-            + Math.floor((wave - 1) / 25) * 3
-            + Math.floor((wave - 1) / 50) * 6
-    );
+    const totalEnemies = wave === 1
+        ? 6
+        : Math.min(
+            100,
+            8 + Math.floor((wave - 1) * 0.78)
+                + Math.floor((wave - 1) / 10) * 2
+                + Math.floor((wave - 1) / 25) * 3
+                + Math.floor((wave - 1) / 50) * 6
+        );
     const skitterRatio = Math.min(0.32, 0.14 + wave * 0.0018);
     const snakeRatio = wave >= 12 ? Math.min(0.13, 0.03 + (wave - 12) * 0.0012) : 0;
     const skitterCount = wave >= 2 ? Math.max(1, Math.floor(totalEnemies * skitterRatio)) : 0;
@@ -1538,12 +1540,22 @@ function getRarityPowerMultiplier(type) {
 }
 
 customSurvivors.forEach(survivor => {
+    const customDamageTuning = {
+        selena: 1.05,
+        radhesh: 1.2,
+        rork: 1.25,
+        bas: 1.2,
+        // Knox's three-round burst was underperforming for an uncommon
+        // recruit. Give each burst a stronger, slightly faster pulse.
+        knox: 1.4
+    };
+    const customFireRateTuning = { knox: 0.85 };
     survivorStats[survivor.id] = {
         range: survivor.range,
         // Give custom weapons a little role headroom while still respecting
         // the builder's values and the rarity multiplier below.
-        damage: survivor.damage * ({ selena: 1.05, radhesh: 1.2, rork: 1.25, bas: 1.2, knox: 1.2 }[survivor.id] || 1),
-        fireRate: survivor.fireRate
+        damage: survivor.damage * (customDamageTuning[survivor.id] || 1),
+        fireRate: survivor.fireRate * (customFireRateTuning[survivor.id] || 1)
     };
 });
 
