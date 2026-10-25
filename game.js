@@ -6385,9 +6385,11 @@ function populateInGameRoster() {
 
         if (!person) return;
 
+        const rarity = person.rarity || getSurvivorRarity(id);
         const card = document.createElement("div");
-        card.className = "survivor-card";
+        card.className = `survivor-card rarity-${rarity}`;
         card.dataset.survivor = id;
+        card.dataset.rarity = rarity;
 
         
 const portraitFiles = {
@@ -6404,7 +6406,7 @@ portrait.className = "survivor-portrait-placeholder";
 portrait.dataset.portraitId = id;
 portrait.src = person.portraitData || `Images/${portraitFiles[id] || "Mason.png"}`;
 portrait.alt = person.name;
-if (person.custom) portrait.dataset.rarity = person.rarity;
+portrait.dataset.rarity = rarity;
 
 const unitInfo = document.createElement("span");
 unitInfo.className = "unit-info";
@@ -6609,16 +6611,6 @@ function updateWavePreview() {
     const hasHeavy = [...waveTypes].some(type => getEnemyProfile(type).isHeavy);
     const hasSkitter = waveTypes.has("skitter");
     const hasMutantSnake = waveTypes.has("mutantsnake");
-    const isMixed = waveTypes.size > 1;
-    const mainType = hasHollow
-        ? "hollow"
-        : hasHeavy
-            ? [...waveTypes].find(type => getEnemyProfile(type).isHeavy)
-            : hasMutantSnake
-                ? "mutantsnake"
-                : hasSkitter && !isMixed
-                    ? "skitter"
-                    : [...waveTypes][0] || "spider";
     const hasMiniBoss = groups.some(group => group.specialRole === "miniBoss");
     const bossCount = groups
         .filter(group => group.specialRole === "boss")
@@ -6638,16 +6630,75 @@ function updateWavePreview() {
     document.getElementById("previewWaveTitle").textContent =
         `WAVE ${currentWave} INTEL`;
     document.getElementById("previewThreat").textContent = threat;
-    document.getElementById("previewEnemyImage").src = getEnemyProfile(mainType).image.src;
-    document.getElementById("previewEnemyImage").alt = enemyLabels[mainType] || "HOSTILE";
-    document.getElementById("previewEnemyName").textContent = isMixed
-        ? "MIXED HOSTILES"
-        : enemyLabels[mainType] || "HOSTILE";
-    document.getElementById("previewEnemyHint").textContent =
-        hasMiniBoss || bossCount > 0
-            ? `${regularCount} regular · ${miniBossCount} mini-boss${miniBossCount === 1 ? "" : "es"}${bossCount > 0 ? ` · ${bossCount} boss${bossCount === 1 ? "" : "es"}` : ""}`
-            : `${totalEnemies} hostile contact${totalEnemies === 1 ? "" : "s"} expected`;
-    document.getElementById("previewEnemyCount").textContent = `×${totalEnemies}`;
+
+    const enemyList = document.getElementById("previewEnemyList");
+    if (!enemyList) return;
+
+    const rows = [];
+    const rowByKey = new Map();
+    const addRow = (type, count, specialRole = "regular") => {
+        if (!type || !count) return;
+        const key = `${specialRole}:${type}`;
+        const existing = rowByKey.get(key);
+        if (existing) {
+            existing.count += count;
+            return;
+        }
+        const row = { type, count, specialRole };
+        rowByKey.set(key, row);
+        rows.push(row);
+    };
+
+    groups.forEach(group => {
+        const types = group.types?.length ? group.types : [group.type];
+        if (group.types?.length) {
+            types.forEach(type => addRow(type, 1, group.specialRole || "regular"));
+        } else {
+            addRow(group.type, group.count, group.specialRole || "regular");
+        }
+    });
+
+    const fragment = document.createDocumentFragment();
+    rows.forEach(({ type, count, specialRole }) => {
+        const profile = getEnemyProfile(type);
+        const label = enemyLabels[type] || "HOSTILE";
+        const roleClass = specialRole === "boss"
+            ? "boss"
+            : specialRole === "miniBoss"
+                ? "mini-boss"
+                : "regular";
+        const roleLabel = specialRole === "boss"
+            ? `BOSS · ${label}`
+            : specialRole === "miniBoss"
+                ? `MINI-BOSS · ${label}`
+                : label;
+        const hint = specialRole === "boss"
+            ? "Heavy boss contact"
+            : specialRole === "miniBoss"
+                ? "Empowered contact"
+                : profile.isHeavy
+                    ? "Heavy hostile contact"
+                    : "Hostile contact";
+
+        const row = document.createElement("div");
+        row.className = `preview-enemy enemy-${roleClass}`;
+        const image = document.createElement("img");
+        image.src = profile.image.src;
+        image.alt = label;
+        const info = document.createElement("div");
+        info.className = "preview-enemy-info";
+        const name = document.createElement("strong");
+        name.textContent = roleLabel;
+        const description = document.createElement("span");
+        description.textContent = hint;
+        info.append(name, description);
+        const countElement = document.createElement("span");
+        countElement.className = "preview-enemy-count";
+        countElement.textContent = `×${count}`;
+        row.append(image, info, countElement);
+        fragment.appendChild(row);
+    });
+    enemyList.replaceChildren(fragment);
 }
 
 function updateSellButton() {

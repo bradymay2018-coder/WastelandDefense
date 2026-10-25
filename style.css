@@ -9242,6 +9242,42 @@ img[data-rarity="uncommon"] { --portrait-accent: #83c8ce; }
 img[data-rarity="rare"] { --portrait-accent: #a895d2; }
 img[data-rarity="legendary"] { --portrait-accent: #edc85f; }
 
+/* In-game roster cards use the same rarity language as the portraits. */
+#inGameSurvivorList .survivor-card {
+    --rarity-color: #79b982;
+    --rarity-wash: #79b98214;
+    border-left: 3px solid var(--rarity-color);
+    background: linear-gradient(100deg, var(--rarity-wash), #202126ed 48%);
+}
+
+#inGameSurvivorList .survivor-card.rarity-common {
+    --rarity-color: #79b982;
+    --rarity-wash: #79b98218;
+}
+
+#inGameSurvivorList .survivor-card.rarity-uncommon {
+    --rarity-color: #83c8ce;
+    --rarity-wash: #83c8ce18;
+}
+
+#inGameSurvivorList .survivor-card.rarity-rare {
+    --rarity-color: #a895d2;
+    --rarity-wash: #a895d218;
+}
+
+#inGameSurvivorList .survivor-card.rarity-legendary {
+    --rarity-color: #edc85f;
+    --rarity-wash: #edc85f1c;
+}
+
+#inGameSurvivorList .survivor-card::before {
+    background: var(--rarity-color);
+}
+
+#inGameSurvivorList .survivor-card.selected::before {
+    background: #edbd7a;
+}
+
 #mainMenu .menu-crew-portraits img,
 #profileButtonPortrait,
 #profilePortraitPreview,
@@ -9516,4 +9552,136 @@ img.survivor-portrait-placeholder,
     #deploymentScreen .daily-challenge-map-preview { grid-template-columns: minmax(0, 1fr); gap: 8px; }
     #deploymentScreen .daily-challenge-map-preview img { height: 150px; }
     #deploymentScreen .daily-challenge-map-preview figcaption { padding: 3px 5px 5px; }
+}
+
+/* Next-wave intel: show the exact enemy mix with clear, compact rows. */
+.wave-preview .wave-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #3e3a45;
+    color: #c3bac8;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 1.25px;
+}
+
+.wave-preview #previewThreat {
+    display: inline-flex !important;
+    align-items: center;
+    min-height: 17px;
+    padding: 2px 6px;
+    border: 1px solid #62576a;
+    border-radius: 2px;
+    color: #e6b86b;
+    font-size: 7px;
+    letter-spacing: 0.8px;
+}
+
+.wave-preview #previewWaveTitle {
+    margin: 7px 0 0;
+    color: #f0e7dc;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.wave-preview .preview-enemy-list {
+    display: grid;
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.wave-preview .preview-enemy {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    margin: 0;
+    padding: 4px 7px;
+    border: 1px solid #413d48;
+    border-left: 2px solid #756b7d;
+    border-radius: 3px;
+    background: linear-gradient(135deg, #292830, #222229);
+    box-shadow: inset 0 1px #ffffff08;
+}
+
+.wave-preview .preview-enemy img {
+    display: block;
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.wave-preview .preview-enemy-info {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.wave-preview .preview-enemy-info strong {
+    overflow: hidden;
+    color: #f0e7dc;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.7px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wave-preview .preview-enemy-info span {
+    color: #aaa4b0;
+    font-size: 8px;
+    letter-spacing: 0.2px;
+}
+
+.wave-preview .preview-enemy-count {
+    color: #efc26f;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.wave-preview .preview-enemy.enemy-mini-boss {
+    border-color: #765b45;
+    border-left-color: #e4a65e;
+    background: linear-gradient(135deg, #332c29, #29252a);
+}
+
+.wave-preview .preview-enemy.enemy-mini-boss .preview-enemy-count {
+    color: #f0ae65;
+}
+
+.wave-preview .preview-enemy.enemy-boss {
+    border-color: #794e51;
+    border-left-color: #e27d76;
+    background: linear-gradient(135deg, #38262b, #292329);
+}
+
+.wave-preview .preview-enemy.enemy-boss .preview-enemy-count {
+    color: #f0988f;
+}
+
+.control-panel .wave-preview .preview-enemy-list {
+    max-height: 170px;
+    overflow-y: auto;
+    scrollbar-color: #655c6b #1b1b21;
+}
+
+@media (max-width: 620px) {
+    .wave-preview .preview-enemy {
+        grid-template-columns: 26px minmax(0, 1fr) auto;
+        min-height: 33px;
+        padding: 3px 6px;
+    }
+    .wave-preview .preview-enemy img { width: 24px; height: 24px; }
+    .wave-preview .preview-enemy-info strong { font-size: 8px; }
+    .wave-preview .preview-enemy-info span { font-size: 7px; }
+    .wave-preview .preview-enemy-count { font-size: 10px; }
 }
