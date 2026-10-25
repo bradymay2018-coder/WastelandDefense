@@ -44,20 +44,21 @@ const mysteryBoxOnlySurvivorIds = new Set(["selena", "radhesh", "rork", "bas", "
 const survivorCostOverrides = {
     cody: 120,
     james: 150,
-    britney: 180,
+    britney: 160,
     rork: 115,
-    knox: 125,
+    knox: 115,
     // Keep the mystery recruits' deployment costs distinct from their
-    // 1,000-coin shop price while enforcing a meaningful rarity floor.
-    selena: 225,
-    radhesh: 190,
-    bas: 180
+    // 1,000-coin shop price. These values are the first-pass balance
+    // targets relative to Mason's dependable common baseline.
+    selena: 190,
+    radhesh: 150,
+    bas: 145
 };
 const customRarityBalanceRules = {
     common: { cost: [50, 120], damage: [4, 24], range: [70, 190], fireRate: [0.55, 2.8] },
     uncommon: { cost: [90, 170], damage: [5, 30], range: [70, 220], fireRate: [0.5, 2.8] },
-    rare: { cost: [150, 260], damage: [6, 38], range: [70, 260], fireRate: [0.45, 3.0] },
-    legendary: { cost: [225, 420], damage: [8, 48], range: [60, 280], fireRate: [0.4, 3.2] }
+    rare: { cost: [140, 260], damage: [6, 38], range: [70, 260], fireRate: [0.45, 3.0] },
+    legendary: { cost: [190, 420], damage: [8, 48], range: [60, 280], fireRate: [0.4, 3.2] }
 };
 const clampCustomStat = (value, range, fallback) =>
     Math.min(range[1], Math.max(range[0], Number(value) || fallback));
@@ -924,7 +925,10 @@ const enemyProfiles = {
     wastelandcow: {
         image: wastelandCowImage,
         baseHealth: 140,
-        speed: 50,
+        // Armored cows should create pressure through durability, not by
+        // sprinting past the defense.  Their slower pace leaves time to
+        // reposition or bring an explosive/blunt counter online.
+        speed: 40,
         size: 22,
         spriteWidth: 44,
         spriteHeight: 44,
@@ -1652,6 +1656,7 @@ function startWave() {
     waveRunning = true;
     gamePaused = false;
     leakedEnemiesThisWave = 0;
+    endlessKillScrapAwarded = 0;
     const groups = getWaveGroups(currentWave);
     beginEndlessTelemetryWave(groups);
 
@@ -1685,18 +1690,18 @@ const survivorCosts = {
     // Common recruits should stay available after a few imperfect waves.
     // Their lower entry costs preserve a meaningful early-game decision
     // without flattening the rarity curve above them.
-    mason: 50,
+    mason: 55,
     zach: 65,
     brady: 100,
     cody: 120,
     james: 150,
-    britney: 180
+    britney: 160
 };
 const deploymentCostFloors = {
     common: 50,
-    uncommon: 95,
-    rare: 150,
-    legendary: 225
+    uncommon: 90,
+    rare: 140,
+    legendary: 190
 };
 customSurvivors.forEach(survivor => {
     survivorCosts[survivor.id] = Math.max(
@@ -1705,6 +1710,11 @@ customSurvivors.forEach(survivor => {
     );
 });
 const scrapRewardPerKill = 5;
+// Endless runs get a small, predictable trickle of income from combat. The
+// per-wave cap prevents high-volume late waves from creating an unlimited
+// wallet while still helping a player reach the next meaningful purchase.
+const endlessKillScrapPerKill = 1;
+const endlessKillScrapCap = 8;
 
 function updateScrapDisplay() {
     document.getElementById("scrapDisplay").textContent = scrap;
@@ -3137,7 +3147,17 @@ function updateSurvivorCombat(deltaTime) {
             // Endless scrap comes primarily from surviving a wave.  A tiny
             // opening kill reward helps the first deployment without letting
             // late-game enemy volume create an unlimited wallet.
-            const endlessKillReward = currentWave <= 3 && !defeatedEnemy.isSplitChild ? 1 : 0;
+            const endlessKillReward = isEndlessStyleMode()
+                && !defeatedEnemy.isSplitChild
+                && endlessKillScrapAwarded < endlessKillScrapCap
+                ? endlessKillScrapPerKill
+                : 0;
+            if (endlessKillReward > 0) {
+                endlessKillScrapAwarded = Math.min(
+                    endlessKillScrapCap,
+                    endlessKillScrapAwarded + endlessKillReward
+                );
+            }
             scrap += isEndlessStyleMode()
                 ? endlessKillReward
                 : (defeatedEnemy.isSplitChild ? 0 : scrapRewardPerKill);
@@ -3965,6 +3985,7 @@ const scrapPenaltyPerLeak = 8;
 const startingWaveScrapReward = 45;
 const waveScrapRewardIncrease = 8;
 let leakedEnemiesThisWave = 0;
+let endlessKillScrapAwarded = 0;
 
 function cancelAutoStartWave() {
     if (autoStartWaveTimer !== null) {
@@ -7248,7 +7269,7 @@ const survivorDetails = {
         role: "HANDGUN",
         icon: "M",
         iconClass: "scout",
-        cost: 50,
+        cost: 55,
         rarity: "common",
         unlocked: true
     },
@@ -7275,7 +7296,7 @@ const survivorDetails = {
         role: "SNIPER RIFLE",
         icon: "B",
         iconClass: "sniper",
-        cost: 180,
+        cost: 160,
         rarity: "rare",
         unlocked: true
     },
@@ -7703,12 +7724,18 @@ function updateWavePreview() {
     const preview = document.getElementById("wavePreview");
     if (!preview) return;
 
-    if (wavePreviewRenderWave !== currentWave) {
+    // The HUD intentionally displays WAVE 0 while the player is preparing
+    // the first wave, but the intel panel should still preview Wave 1. Using
+    // a normalized value also keeps a click-to-expand refresh from rendering
+    // an empty list during that preparation state.
+    const previewWave = Math.max(1, Number(currentWave) || 1);
+
+    if (wavePreviewRenderWave !== previewWave) {
         expandedWavePreviewKey = null;
-        wavePreviewRenderWave = currentWave;
+        wavePreviewRenderWave = previewWave;
     }
 
-    const groups = getWaveGroups(currentWave);
+    const groups = getWaveGroups(previewWave);
     const totalEnemies = groups.reduce((total, group) => total + group.count, 0);
     const splitterChildren = groups.reduce((total, group) => {
         const types = group.types?.length ? group.types : [group.type];
@@ -7742,7 +7769,7 @@ function updateWavePreview() {
                 : "LOW";
 
     document.getElementById("previewWaveTitle").textContent =
-        `WAVE ${currentWave} INTEL`;
+        `WAVE ${previewWave} INTEL`;
     document.getElementById("previewThreat").textContent = threat;
 
     const enemyList = document.getElementById("previewEnemyList");
@@ -7752,9 +7779,10 @@ function updateWavePreview() {
     // contains the former full-width enemy-row rules.
     enemyList.style.display = "grid";
     enemyList.style.gridTemplateColumns = "repeat(auto-fill, 64px)";
-    enemyList.style.gridAutoRows = expandedWavePreviewKey
-        ? "minmax(64px, auto)"
-        : "64px";
+    // Keep the compact tiles in fixed-size columns. The selected enemy's
+    // intel is a normal full-width grid item appended after the tiles, so it
+    // pushes the roster down naturally instead of floating over it.
+    enemyList.style.gridAutoRows = "max-content";
     enemyList.style.alignContent = "start";
     enemyList.style.justifyContent = "start";
     enemyList.style.gap = "5px";
@@ -7784,6 +7812,8 @@ function updateWavePreview() {
     });
 
     const fragment = document.createDocumentFragment();
+    const detailPanel = document.getElementById("previewEnemyDetail");
+    let expandedDetail = null;
     rows.forEach(({ type, count, specialRole }) => {
         const profile = getEnemyProfile(type);
         const label = enemyLabels[type] || "HOSTILE";
@@ -7817,20 +7847,20 @@ function updateWavePreview() {
         const splitChildren = type === "mutantsnake" ? count * 2 : 0;
         const previewKey = `${specialRole}:${type}`;
         const isExpanded = expandedWavePreviewKey === previewKey;
-        const previewHealth = getEnemyHealthForWave(type, specialRole, currentWave);
+        const previewHealth = getEnemyHealthForWave(type, specialRole, previewWave);
 
         const row = document.createElement("div");
         row.className = `preview-enemy enemy-${roleClass}`;
-        row.classList.toggle("is-expanded", isExpanded);
+        row.classList.toggle("is-selected", isExpanded);
         row.setAttribute("role", "button");
         row.setAttribute("aria-expanded", String(isExpanded));
         row.tabIndex = 0;
         row.title = hint;
         row.setAttribute("aria-label", `${roleLabel}: ${hint}; ${count} spawned${splitChildren ? `, plus ${splitChildren} skitters on defeat` : ""}`);
-        row.style.width = isExpanded ? "" : "64px";
-        row.style.height = isExpanded ? "" : "64px";
+        row.style.width = "64px";
+        row.style.height = "64px";
         row.style.minWidth = "64px";
-        row.style.minHeight = isExpanded ? "132px" : "64px";
+        row.style.minHeight = "64px";
         row.style.flex = "0 0 64px";
         row.style.aspectRatio = "auto";
         const image = document.createElement("img");
@@ -7869,7 +7899,7 @@ function updateWavePreview() {
             ? `×${count} +${splitChildren}`
             : `×${count}`;
         const detail = document.createElement("div");
-        detail.className = "preview-enemy-detail";
+        detail.className = "preview-enemy-detail-content";
         const health = document.createElement("strong");
         health.textContent = `HEALTH ${previewHealth} HP`;
         const detailDescription = document.createElement("span");
@@ -7877,7 +7907,8 @@ function updateWavePreview() {
         const detailIntel = document.createElement("span");
         detailIntel.textContent = hint;
         detail.append(health, detailDescription, detailIntel);
-        row.append(image, info, countElement, detail);
+        row.append(image, info, countElement);
+        if (isExpanded) expandedDetail = detail;
         const toggleExpanded = () => {
             expandedWavePreviewKey = isExpanded ? null : previewKey;
             updateWavePreview();
@@ -7891,6 +7922,18 @@ function updateWavePreview() {
         fragment.appendChild(row);
     });
     enemyList.replaceChildren(fragment);
+
+    // Keep expanded intel outside the tile grid. This prevents legacy grid
+    // rules from turning the detail into an absolutely positioned popout.
+    if (detailPanel) {
+        detailPanel.replaceChildren();
+        if (expandedDetail) {
+            detailPanel.appendChild(expandedDetail);
+            detailPanel.hidden = false;
+        } else {
+            detailPanel.hidden = true;
+        }
+    }
 }
 
 function updateSellButton() {

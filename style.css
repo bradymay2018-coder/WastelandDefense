@@ -4277,13 +4277,19 @@ main.game-layout > .control-panel {
     outline-offset: 2px;
 }
 
-.wave-preview .preview-enemy.is-expanded {
+.wave-preview .preview-enemy.is-open {
     display: grid;
-    grid-column: 1 / -1;
+    /* Stay in the tile's original grid slot. The expanded panel overlays the
+       surrounding tiles instead of inserting a full-width row between them. */
+    grid-column: auto !important;
+    grid-row: auto;
     grid-template-columns: 34px minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
-    width: 100% !important;
-    height: auto !important;
+    position: relative;
+    z-index: 20;
+    justify-self: start;
+    width: min(218px, calc(100vw - 32px)) !important;
+    height: 132px !important;
     min-height: 132px !important;
     flex: none;
     align-items: center;
@@ -4297,7 +4303,7 @@ main.game-layout > .control-panel {
     box-sizing: border-box;
 }
 
-.wave-preview .preview-enemy.is-expanded .preview-enemy-detail {
+.wave-preview .preview-enemy.is-open .preview-enemy-detail {
     display: flex;
     grid-column: 1 / -1;
     flex-direction: column;
@@ -4311,13 +4317,204 @@ main.game-layout > .control-panel {
     line-height: 1.35;
 }
 
-.wave-preview .preview-enemy.is-expanded .preview-enemy-detail strong {
+.wave-preview .preview-enemy.is-open .preview-enemy-detail strong {
     color: #efc26f;
     font-size: 10px;
     letter-spacing: 0.6px;
 }
 
-.wave-preview .preview-enemy.is-expanded .preview-enemy-detail span:last-child {
+.wave-preview .preview-enemy.is-open .preview-enemy-detail span:last-child {
+    color: #8fd6d0;
+}
+
+/* Wave intel details belong to the preview flow, never to a floating tile.
+   Keep every enemy tile compact and place the selected card's explanation in
+   a dedicated full-width row after all enemy tiles. */
+.wave-preview .preview-enemy-list {
+    grid-auto-rows: max-content !important;
+    grid-auto-flow: row;
+}
+
+.wave-preview .preview-enemy.is-selected {
+    border-color: #e5b95e !important;
+    border-left-color: #f0c96d !important;
+    box-shadow: 0 0 0 1px #e5b95e55, 0 0 8px #e5b95e22;
+}
+
+.wave-preview .preview-enemy-detail-panel {
+    position: static !important;
+    z-index: auto !important;
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 104px;
+    box-sizing: border-box;
+    align-self: start;
+    margin: 0 !important;
+    padding: 9px 10px;
+    flex-direction: column;
+    gap: 4px;
+    overflow: visible;
+    border: 1px solid #5d5362;
+    border-left: 3px solid #e4b35e;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #292833, #202126);
+    box-shadow: 0 8px 18px #08090d99;
+    color: #b8bba9;
+    font-size: 9px;
+    line-height: 1.35;
+}
+
+.wave-preview #previewEnemyDetail[hidden] {
+    display: none !important;
+}
+
+/* Defensive reset for older cached markup that may still use is-open. */
+.wave-preview .preview-enemy.is-open {
+    display: flex !important;
+    position: relative !important;
+    z-index: 1 !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    width: 64px !important;
+    height: 64px !important;
+    min-width: 64px !important;
+    min-height: 64px !important;
+    padding: 6px 4px 4px !important;
+    overflow: hidden !important;
+}
+
+.wave-preview .preview-enemy.is-open .preview-enemy-detail {
+    display: none !important;
+}
+
+.wave-preview #previewEnemyDetail {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 6px;
+    min-height: 104px;
+    padding: 9px 10px;
+    border: 1px solid #5d5362;
+    border-left: 3px solid #e4b35e;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #292833, #202126);
+    box-shadow: 0 8px 18px #08090d99;
+    color: #b8bba9;
+    font-size: 9px;
+    line-height: 1.35;
+}
+
+.wave-preview #previewEnemyDetail .preview-enemy-detail-content {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.wave-preview #previewEnemyDetail strong {
+    color: #efc26f;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+}
+
+.wave-preview #previewEnemyDetail span {
+    display: block;
+    max-width: 100%;
+}
+
+.wave-preview #previewEnemyDetail span:last-child {
+    color: #8fd6d0;
+}
+
+.wave-preview .preview-enemy-detail-panel strong {
+    color: #efc26f;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+}
+
+.wave-preview .preview-enemy-detail-panel span {
+    display: block;
+    max-width: 100%;
+}
+
+.wave-preview .preview-enemy-detail-panel span:last-child {
+    color: #8fd6d0;
+}
+
+/* The details container lives outside #previewEnemyList, so it is always a
+   regular flow block beneath the compact tiles (never a grid popout). */
+.wave-preview #previewEnemyDetail {
+    position: static !important;
+    z-index: auto !important;
+    display: block !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 104px;
+    box-sizing: border-box;
+    margin-top: 6px !important;
+}
+
+.wave-preview #previewEnemyDetail[hidden] {
+    display: none !important;
+}
+
+/* Wave intel details belong to the preview flow, never to a floating tile.
+   Keep every enemy tile compact and place the selected card's explanation in
+   a dedicated full-width row after all enemy tiles. */
+.wave-preview .preview-enemy-list {
+    grid-auto-rows: max-content !important;
+    grid-auto-flow: row;
+}
+
+.wave-preview .preview-enemy.is-selected {
+    border-color: #e5b95e !important;
+    border-left-color: #f0c96d !important;
+    box-shadow: 0 0 0 1px #e5b95e55, 0 0 8px #e5b95e22;
+}
+
+.wave-preview .preview-enemy-detail-panel {
+    position: static !important;
+    z-index: auto !important;
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 104px;
+    box-sizing: border-box;
+    align-self: start;
+    margin: 0 !important;
+    padding: 9px 10px;
+    flex-direction: column;
+    gap: 4px;
+    overflow: visible;
+    border: 1px solid #5d5362;
+    border-left: 3px solid #e4b35e;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #292833, #202126);
+    box-shadow: 0 8px 18px #08090d99;
+    color: #b8bba9;
+    font-size: 9px;
+    line-height: 1.35;
+}
+
+.wave-preview .preview-enemy-detail-panel strong {
+    color: #efc26f;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+}
+
+.wave-preview .preview-enemy-detail-panel span {
+    display: block;
+    max-width: 100%;
+}
+
+.wave-preview .preview-enemy-detail-panel span:last-child {
     color: #8fd6d0;
 }
 
@@ -9973,4 +10170,58 @@ img.survivor-portrait-placeholder,
         width: 56px;
         height: 56px;
     }
+}
+
+/* Final wave-intel layout: compact enemy tiles stay together and the
+   selected enemy's detail is a normal full-width row below them. */
+.wave-preview .preview-enemy-list {
+    grid-auto-rows: max-content !important;
+    grid-auto-flow: row;
+}
+
+.wave-preview .preview-enemy.is-selected {
+    border-color: #e5b95e !important;
+    border-left-color: #f0c96d !important;
+    box-shadow: 0 0 0 1px #e5b95e55, 0 0 8px #e5b95e22;
+}
+
+.wave-preview .preview-enemy-detail-panel {
+    position: static !important;
+    z-index: auto !important;
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 104px;
+    box-sizing: border-box;
+    align-self: start;
+    margin: 0 !important;
+    padding: 9px 10px;
+    flex-direction: column;
+    gap: 4px;
+    overflow: visible;
+    border: 1px solid #5d5362;
+    border-left: 3px solid #e4b35e;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #292833, #202126);
+    box-shadow: 0 8px 18px #08090d99;
+    color: #b8bba9;
+    font-size: 9px;
+    line-height: 1.35;
+}
+
+.wave-preview .preview-enemy-detail-panel strong {
+    color: #efc26f;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+}
+
+.wave-preview .preview-enemy-detail-panel span {
+    display: block;
+    max-width: 100%;
+}
+
+.wave-preview .preview-enemy-detail-panel span:last-child {
+    color: #8fd6d0;
 }
