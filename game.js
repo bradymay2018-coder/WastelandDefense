@@ -808,7 +808,9 @@ const blastEffects = [];
 const floatingDamageNumbers = [];
 let playerHealth = 100;
 let totalEnemiesDefeated = 0;
-const enemyDamage = 12;
+// A leak should hurt, but one mistake should not erase an otherwise good run.
+// Damage rises gently with Endless milestones in spawnEnemy below.
+const enemyDamage = 7;
 
 const enemyProfiles = {
     spider: {
@@ -827,7 +829,7 @@ const enemyProfiles = {
         size: 22,
         spriteWidth: 44,
         spriteHeight: 44,
-        leakDamage: 8
+        leakDamage: 5
     },
     hollow: {
         image: hollowImage,
@@ -836,7 +838,7 @@ const enemyProfiles = {
         size: 32,
         spriteWidth: 32,
         spriteHeight: 64,
-        leakDamage: 25,
+        leakDamage: 16,
         isBoss: true
     },
     fogkeeper: {
@@ -846,7 +848,7 @@ const enemyProfiles = {
         size: 28,
         spriteWidth: 32,
         spriteHeight: 64,
-        leakDamage: 18,
+        leakDamage: 12,
         isHeavy: true
     },
     heavymutant: {
@@ -856,7 +858,7 @@ const enemyProfiles = {
         size: 28,
         spriteWidth: 32,
         spriteHeight: 64,
-        leakDamage: 20,
+        leakDamage: 14,
         isHeavy: true
     },
     wastelandcow: {
@@ -884,7 +886,7 @@ const enemyProfiles = {
         size: 23,
         spriteWidth: 44,
         spriteHeight: 44,
-        leakDamage: 10
+        leakDamage: 6
     }
 };
 
@@ -927,23 +929,24 @@ function updatePlayerHealthDisplay() {
 
 function spawnEnemy(type = "spider", specialRole = "normal") {
     const profile = getEnemyProfile(type);
-    const endlessDifficultyTier = gameMode === "endless" && currentWave >= 10
-        ? Math.floor((currentWave - 10) / 5) + 1
-        : 0;
-    // Endless enemies gain per-wave health and a compounding 10% bonus
-    // every five waves starting at wave 10.
-    const healthGrowthPerWave = gameMode === "endless"
-        ? 0.065
-        : gameMode === "daily"
-            ? 0.015
-            : 0.045;
-    const waveHealthScale =
-        (1 + Math.max(0, currentWave - 3) * healthGrowthPerWave) *
-        (1.1 ** endlessDifficultyTier);
-    // Double Endless enemy toughness after wave 20, on top of the existing
-    // per-wave and five-wave health scaling.
-    const postWave20HealthScale =
-        gameMode === "endless" && currentWave > 20 ? 2 : 1;
+    const waveIndex = Math.max(0, currentWave - 1);
+    let waveHealthScale;
+    let waveSpeedScale;
+    if (gameMode === "endless") {
+        // Smooth pressure every wave, with readable milestone bumps.  This
+        // reaches roughly 4.4× health at wave 100 instead of exploding into
+        // an impossible wall after wave 20.
+        const tenWaveTier = Math.floor(waveIndex / 10);
+        const twentyFiveWaveTier = Math.floor(waveIndex / 25);
+        waveHealthScale = 1 + waveIndex * 0.022 + tenWaveTier * 0.09 + twentyFiveWaveTier * 0.12;
+        waveSpeedScale = 1 + Math.min(0.35, waveIndex * 0.004);
+    } else if (gameMode === "daily") {
+        waveHealthScale = 1 + waveIndex * 0.012;
+        waveSpeedScale = 1 + Math.min(0.08, waveIndex * 0.002);
+    } else {
+        waveHealthScale = 1 + waveIndex * 0.035;
+        waveSpeedScale = 1;
+    }
     const specialHealthScale = specialRole === "boss"
         ? 1.5
         : specialRole === "miniBoss"
@@ -960,8 +963,16 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
             ? 1.25
             : 1;
     const health = Math.round(
-        profile.baseHealth * waveHealthScale * postWave20HealthScale * specialHealthScale
+        profile.baseHealth * waveHealthScale * specialHealthScale
     );
+    const leakScale = gameMode === "endless"
+        ? 1 + Math.min(0.65, waveIndex * 0.006)
+        : 1;
+    const specialLeakScale = specialRole === "boss"
+        ? 1.25
+        : specialRole === "miniBoss"
+            ? 1.1
+            : 1;
 
     enemies.push({
         type: type,
@@ -971,15 +982,71 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
         visualLaneOffsetY: roadPoints[0].y === roadPoints[1]?.y
             ? horizontalEnemyLaneVisualOffset
             : 0,
-        speed: profile.speed * (1 + endlessDifficultyTier * 0.035) * specialSpeedScale,
+        speed: profile.speed * waveSpeedScale * specialSpeedScale,
         size: profile.size * sizeScale,
         sizeScale,
         isMiniBoss: specialRole === "miniBoss",
         isWaveBoss: specialRole === "boss",
         health: health,
         maxHealth: health,
-        healthTrail: health
+        healthTrail: health,
+        leakDamage: Math.max(1, Math.round(profile.leakDamage * leakScale * specialLeakScale))
     });
+}
+
+function getEndlessWaveGroups(wave) {
+    // Enemy count grows steadily rather than jumping into an unreadable swarm.
+    // At wave 100 this is roughly 100 regular enemies plus the milestone units.
+    const totalEnemies = Math.min(
+        110,
+        8 + Math.floor((wave - 1) * 0.78)
+            + Math.floor((wave - 1) / 10) * 2
+            + Math.floor((wave - 1) / 25) * 3
+    );
+    const skitterRatio = Math.min(0.3, 0.14 + wave * 0.0015);
+    const snakeRatio = wave >= 12 ? Math.min(0.1, 0.03 + (wave - 12) * 0.001) : 0;
+    const skitterCount = wave >= 2 ? Math.max(1, Math.floor(totalEnemies * skitterRatio)) : 0;
+    const snakeCount = snakeRatio > 0 ? Math.max(1, Math.floor(totalEnemies * snakeRatio)) : 0;
+    const standardCount = Math.max(1, totalEnemies - skitterCount - snakeCount);
+    const cowCount = wave >= 6 ? Math.floor(standardCount * 0.14) : 0;
+    const mutantManCount = wave >= 8 ? Math.floor(standardCount * 0.14) : 0;
+    const hollowCount = wave >= 30 ? Math.min(2, Math.floor(standardCount * 0.02)) : 0;
+    const spiderCount = Math.max(1, standardCount - cowCount - mutantManCount - hollowCount);
+    const groups = [];
+    const addGroup = (type, count, specialRole = "normal") => {
+        if (count > 0) groups.push({ type, count, ...(specialRole === "normal" ? {} : { specialRole }) });
+    };
+
+    // One enemy type per batch keeps the battlefield readable and makes Cody's
+    // area damage and Radhesh's sweep feel intentional.
+    addGroup("spider", spiderCount);
+    addGroup("wastelandcow", cowCount);
+    addGroup("mutantman", mutantManCount);
+    addGroup("hollow", hollowCount);
+    addGroup("skitter", skitterCount);
+    addGroup("mutantsnake", snakeCount);
+
+    if (wave % 5 === 0) {
+        const miniBossTypes = [
+            "spider", "skitter", "wastelandcow", "mutantman",
+            "mutantsnake", "hollow", "fogkeeper", "heavymutant"
+        ];
+        const miniBossCount = Math.min(3, 1 + (wave >= 50 ? Math.floor((wave - 50) / 25) + 1 : 0));
+        const types = Array.from({ length: miniBossCount }, (_, index) =>
+            miniBossTypes[(Math.floor(wave / 5) + index) % miniBossTypes.length]
+        );
+        groups.push({ types, count: types.length, specialRole: "miniBoss" });
+    }
+
+    if (wave % 10 === 0) {
+        const bossCount = wave >= 50 ? 2 : 1;
+        const types = Array.from({ length: bossCount }, (_, index) =>
+            (Math.floor(wave / 10) + index) % 2 === 0 ? "fogkeeper" : "heavymutant"
+        );
+        groups.push({ types, count: types.length, specialRole: "boss" });
+    }
+
+    return groups;
 }
 
 function getWaveGroups(wave) {
@@ -991,119 +1058,57 @@ function getWaveGroups(wave) {
             { type: firstType, count: firstBatch },
             { type: secondType, count: totalRegularEnemies - firstBatch }
         ].filter(group => group.count > 0);
-        if (wave % 5 === 0) {
-            groups.push({ type: heavyType, count: 1 });
-        }
+        if (wave % 5 === 0) groups.push({ type: heavyType, count: 1 });
         return groups;
     }
 
+    if (gameMode === "endless") return getEndlessWaveGroups(wave);
+
     const waveGroups = {
-        1: [{ type: "spider", count: 10 }],
+        1: [{ type: "spider", count: 8 }],
         2: [
-            { type: "skitter", count: 5 },
-            { type: "spider", count: 5 }
+            { type: "skitter", count: 4 },
+            { type: "spider", count: 6 }
         ],
         3: [
-            { type: "skitter", count: 10 },
-            { type: "spider", count: 10 }
+            { type: "skitter", count: 6 },
+            { type: "spider", count: 8 }
         ],
         4: [
-            { type: "skitter", count: 12 },
-            { type: "spider", count: 13 }
+            { type: "skitter", count: 7 },
+            { type: "spider", count: 9 }
         ],
         5: [
-            { type: "skitter", count: 15 },
+            { type: "skitter", count: 9 },
             { type: "hollow", count: 1 }
         ]
     };
 
-    if (waveGroups[wave] && !(gameMode === "endless" && wave >= 5)) {
-        return waveGroups[wave];
-    }
+    if (waveGroups[wave]) return waveGroups[wave];
 
-    const endlessDifficultyTier = gameMode === "endless" && wave >= 10
-        ? Math.floor((wave - 10) / 5) + 1
-        : 0;
-    const totalEnemies = gameMode === "endless" && wave >= 6
-        ? 16 + Math.floor((wave - 5) * 2.5) + endlessDifficultyTier * 2
-        : 5 + (wave - 1) * 2;
-    const skitterRatio = gameMode === "endless"
-        ? Math.min(0.42, 0.28 + Math.max(0, wave - 6) * 0.012)
-        : Math.min(0.38, 0.26 + Math.max(0, wave - 6) * 0.015);
-    const skitterCount = Math.floor(totalEnemies * skitterRatio);
-    const snakeCount = wave >= 8
-        ? Math.max(1, Math.floor(totalEnemies * 0.08))
-        : 0;
-    const heavyCount = gameMode !== "endless" && wave >= 10 && wave % 5 === 0
-        ? Math.min(3, 1 + Math.floor((wave - 10) / 10))
-        : 0;
+    const totalEnemies = 6 + (wave - 1) * 2;
+    const skitterCount = Math.floor(totalEnemies * Math.min(0.38, 0.24 + Math.max(0, wave - 6) * 0.012));
+    const snakeCount = wave >= 8 ? Math.max(1, Math.floor(totalEnemies * 0.06)) : 0;
     const standardCount = Math.max(0, totalEnemies - skitterCount - snakeCount);
     const cowCount = wave >= 6 ? Math.floor(standardCount * 0.1) : 0;
     const mutantManCount = wave >= 6 ? Math.floor(standardCount * 0.1) : 0;
-    const heavyType = Math.floor(wave / 5) % 2 === 0
-        ? "fogkeeper"
-        : "heavymutant";
-    const spiderCount = Math.max(
-        0,
-        standardCount - cowCount - mutantManCount - heavyCount
-    );
-
-    const standardTypes = groupEnemyTypes({
-        spider: spiderCount,
-        wastelandcow: cowCount,
-        mutantman: mutantManCount,
-        [heavyType]: heavyCount
-    });
-    const fastTypes = groupEnemyTypes({
-        skitter: skitterCount,
-        mutantsnake: snakeCount
-    });
+    const spiderCount = Math.max(0, standardCount - cowCount - mutantManCount);
     const groups = [
-        { types: standardTypes, count: standardTypes.length },
-        { types: fastTypes, count: fastTypes.length }
+        { type: "spider", count: spiderCount },
+        { type: "wastelandcow", count: cowCount },
+        { type: "mutantman", count: mutantManCount },
+        { type: "skitter", count: skitterCount },
+        { type: "mutantsnake", count: snakeCount }
     ].filter(group => group.count > 0);
 
-    if (gameMode === "endless") {
-        const isBossWave = wave % 10 === 0;
-        const isMiniBossWave = wave % 5 === 0;
-
-        if (isMiniBossWave) {
-            const miniBossCount = isBossWave ? wave / 10 : 1;
-            const miniBossTypes = [
-                "spider",
-                "skitter",
-                "wastelandcow",
-                "mutantman",
-                "mutantsnake",
-                "fogkeeper",
-                "heavymutant",
-                "hollow"
-            ];
-            const types = Array.from({ length: miniBossCount }, (_, index) =>
-                miniBossTypes[(Math.floor(wave / 5) + index) % miniBossTypes.length]
-            );
-            groups.push({ types, count: miniBossCount, specialRole: "miniBoss" });
-        }
-
-        if (isBossWave) {
-            const bossCount = wave > 50 ? 2 : 1;
-            const types = Array.from({ length: bossCount }, (_, index) =>
-                (Math.floor(wave / 10) + index) % 2 === 0 ? "fogkeeper" : "heavymutant"
-            );
-            groups.push({ types, count: bossCount, specialRole: "boss" });
-        }
-    } else {
-        // Keep the campaign's existing Hollow milestone encounters.
-        const hollowCount = wave === 9 || wave === 12
-            ? 1
-            : wave === 15
-                ? 2
-                : wave > 15 && wave % 5 === 0
-                    ? Math.min(3, Math.floor(wave / 8))
-                    : 0;
-        if (hollowCount > 0) groups.push({ type: "hollow", count: hollowCount });
-    }
-
+    const hollowCount = wave === 9 || wave === 12
+        ? 1
+        : wave === 15
+            ? 2
+            : wave > 15 && wave % 5 === 0
+                ? Math.min(3, Math.floor(wave / 8))
+                : 0;
+    if (hollowCount > 0) groups.push({ type: "hollow", count: hollowCount });
     return groups;
 }
 
@@ -1146,15 +1151,15 @@ let selectedSurvivor = null;
 let moveMode = false;
 
 const survivorCosts = {
-    mason: 60,
-    james: 140,
-    cody: 120,
-    britney: 150,
-    zach: 75,
-    brady: 110
+    mason: 55,
+    zach: 70,
+    brady: 100,
+    cody: 110,
+    james: 135,
+    britney: 155
 };
 customSurvivors.forEach(survivor => { survivorCosts[survivor.id] = survivor.cost; });
-const scrapRewardPerKill = 6;
+const scrapRewardPerKill = 5;
 
 function updateScrapDisplay() {
     document.getElementById("scrapDisplay").textContent = scrap;
@@ -1482,31 +1487,56 @@ survivor.y + survivor.recoilY - height / 2 + bounce,
 
 
 
+// Combat tuning is intentionally centralized here.  Rarity now changes the
+// power budget in a visible way while each weapon keeps its own job:
+// common = reliable, uncommon = stronger generalists, rare = high-impact
+// specialists, legendary = exceptional ceiling with a sharper tradeoff.
 const survivorStats = {
-    mason: { range: 140, damage: 13, fireRate: 1.05 },
-    james: { range: 120, damage: 14, fireRate: 0.8 },
-    cody: { range: 140, damage: 26, fireRate: 1.6 },
-    britney: { range: 230, damage: 46, fireRate: 2.1 },
-    zach: { range: 108, damage: 3, fireRate: 0.275 },
-    brady: { range: 142, damage: 24, fireRate: 1.4 }
+    mason: { range: 135, damage: 15, fireRate: 1.0 },
+    james: { range: 115, damage: 17, fireRate: 1.0 },
+    cody: { range: 140, damage: 28, fireRate: 1.65 },
+    britney: { range: 225, damage: 58, fireRate: 2.35 },
+    zach: { range: 105, damage: 4, fireRate: 0.32 },
+    brady: { range: 135, damage: 31, fireRate: 1.5 }
 };
+
+const survivorRarities = {
+    mason: "common",
+    zach: "common",
+    brady: "uncommon",
+    cody: "uncommon",
+    james: "rare",
+    britney: "rare"
+};
+
+const rarityPowerMultipliers = {
+    common: 1,
+    uncommon: 1.15,
+    rare: 1.35,
+    legendary: 1.6
+};
+
+const upgradeDamageMultipliers = [1, 1.18, 1.4, 1.65];
+const upgradeFireRateMultipliers = [1, 0.94, 0.88, 0.82];
+
+function getSurvivorRarity(type) {
+    if (survivorRarities[type]) return survivorRarities[type];
+    return customSurvivors.find(survivor => survivor.id === type)?.rarity || "common";
+}
+
+function getRarityPowerMultiplier(type) {
+    return rarityPowerMultipliers[getSurvivorRarity(type)] || 1;
+}
+
 customSurvivors.forEach(survivor => {
     survivorStats[survivor.id] = {
         range: survivor.range,
-        damage: survivor.damage,
+        // Give custom weapons a little role headroom while still respecting
+        // the builder's values and the rarity multiplier below.
+        damage: survivor.damage * ({ selena: 1.05, radhesh: 1.2, rork: 1.25, bas: 1.2, knox: 1.2 }[survivor.id] || 1),
         fireRate: survivor.fireRate
     };
 });
-
-const survivorDamageMultipliers = {
-    mason: 1.2,
-    james: 1.35,
-    cody: 1.15,
-    britney: 1.2,
-    zach: 1.1,
-    brady: 1.35
-};
-customSurvivors.forEach(survivor => { survivorDamageMultipliers[survivor.id] = 1; });
 
 const customAttackProfiles = {
     selena: { kind: "dagger", repeat: level => level >= 3 ? 3 : 2 },
@@ -1539,64 +1569,68 @@ function getSurvivorStats(survivorOrType) {
     const britneySemiAuto = isSurvivor && type === "britney" && level >= 3;
     const zachDualWield = isSurvivor && type === "zach" && level >= 3;
     const bradyAutoShotty = isSurvivor && type === "brady" && level >= 3;
-    const levelTwoMasonDamage = Math.round(base.damage * 1.4);
-    const levelTwoBritneyDamage = Math.round(base.damage * 1.4);
-    const levelTwoZachDamage = Math.round(base.damage * 1.4);
-    const damage = masonHighCaliber
-        ? Math.round(levelTwoMasonDamage * 2)
-        : britneySemiAuto
-            ? Math.round(levelTwoBritneyDamage * 0.7)
-            : Math.round(base.damage * (1 + 0.2 * level));
-    const levelAdjustedDamage = zachDualWield
-        ? levelTwoZachDamage * 0.5
-        : level >= 3 && !masonHighCaliber && !bradyAutoShotty
-            ? damage * 2
-            : damage;
-    const damageMultiplier = survivorDamageMultipliers[type] || 1;
+    const rarityMultiplier = getRarityPowerMultiplier(type);
+    let damage = base.damage * rarityMultiplier * upgradeDamageMultipliers[level];
+    let fireRate = base.fireRate * upgradeFireRateMultipliers[level];
+
+    // Signature upgrades are power-defining choices, not just another flat
+    // 20% level.  Their tradeoffs keep the roster from collapsing into one
+    // best pick while still making level 3 feel exciting.
+    if (masonHighCaliber) {
+        damage = base.damage * rarityMultiplier * 1.95;
+        fireRate = base.fireRate * 1.18;
+    } else if (codyHighlyExplosive) {
+        damage = base.damage * rarityMultiplier * 1.8;
+        fireRate = base.fireRate * 1.2;
+    } else if (britneySemiAuto) {
+        damage = base.damage * rarityMultiplier * 0.98;
+        fireRate = base.fireRate * 0.56;
+    } else if (zachDualWield) {
+        damage = base.damage * rarityMultiplier * 0.7;
+        fireRate = base.fireRate * 0.5;
+    } else if (bradyAutoShotty) {
+        damage = base.damage * rarityMultiplier * 1.6;
+        fireRate = base.fireRate * 0.5;
+    }
+
     return {
-        damage: Number((levelAdjustedDamage * damageMultiplier).toFixed(2)),
-        range: Math.round(base.range * (1 + 0.1 * level)),
-        fireRate: masonHighCaliber
-            ? base.fireRate * (1 - 0.1 * 2) * 1.25
-            : codyHighlyExplosive
-                ? base.fireRate * (1 - 0.1 * 2) * 1.25
-                : britneySemiAuto
-                    ? base.fireRate * (1 - 0.1 * 2) / 1.8
-                    : zachDualWield
-                        ? base.fireRate * (1 - 0.1 * 2) / 2
-                        : bradyAutoShotty
-                            ? base.fireRate * (1 - 0.1 * 2) / 2
-                            : base.fireRate * (1 - 0.1 * level)
+        damage: Number(damage.toFixed(2)),
+        range: Math.round(base.range * (1 + 0.04 * level)),
+        fireRate
     };
 }
 
 function getCodyBlastRadius(survivor) {
     const level = getSurvivorUpgradeLevel(survivor);
-    const baseRadius = 56;
-    const levelTwoRadius = Math.round(baseRadius * (1 + 0.1 * 2));
+    const baseRadius = 68;
+    const levelTwoRadius = Math.round(baseRadius * 1.18);
     return level >= 3
-        ? Math.round(levelTwoRadius * 1.5)
-        : Math.round(baseRadius * (1 + 0.1 * level));
+        ? Math.round(levelTwoRadius * 1.45)
+        : Math.round(baseRadius * (1 + 0.09 * level));
 }
 
 function getJamesBurnStats(survivor) {
     const level = getSurvivorUpgradeLevel(survivor);
     const napalmThrower = level >= 3;
-    const standardTickDamage = Math.round(6 * (1 + 0.2 * level));
+    const standardTickDamage = 5 * getRarityPowerMultiplier("james") * upgradeDamageMultipliers[level];
 
     return {
         duration: napalmThrower ? 5 : 4,
-        damage: Number((
-            standardTickDamage * (napalmThrower ? 4 : 1) * survivorDamageMultipliers.james
-        ).toFixed(2))
+        damage: Number((standardTickDamage * (napalmThrower ? 2 : 1)).toFixed(2))
     };
 }
 
 function getSurvivorUpgradeCost(type, level) {
     const baseCost = survivorCosts[type];
     if (!baseCost || level < 1 || level > maxSurvivorUpgradeLevel) return 0;
-    const upgradeCostMultipliers = [0, 0.75, 1.25, 10];
-    return Math.round(baseCost * upgradeCostMultipliers[level]);
+    const upgradeCostMultipliers = [0, 0.7, 1.2, 2.8];
+    const rarityCostMultiplier = {
+        common: 1,
+        uncommon: 1.1,
+        rare: 1.25,
+        legendary: 1.45
+    }[getSurvivorRarity(type)] || 1;
+    return Math.round(baseCost * upgradeCostMultipliers[level] * rarityCostMultiplier);
 }
 
 function getSurvivorTotalInvestment(survivor) {
@@ -2287,7 +2321,8 @@ if (survivor.kills === undefined) survivor.kills = 0;
 }
             totalEnemiesDefeated++;
             enemies.splice(i, 1);
-            scrap += gameMode === "endless" ? 4 : scrapRewardPerKill;
+            const endlessKillReward = Math.min(6, 3 + Math.floor(currentWave / 25));
+            scrap += gameMode === "endless" ? endlessKillReward : scrapRewardPerKill;
         }
     }
 
@@ -2662,7 +2697,7 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
 enemy.finished = true;
 leakedEnemiesThisWave++;
 
-const leakDamage = getEnemyProfile(enemy.type).leakDamage;
+const leakDamage = enemy.leakDamage ?? getEnemyProfile(enemy.type).leakDamage;
 playerHealth = Math.max(0, playerHealth - leakDamage);
 updatePlayerHealthDisplay();
 
@@ -2996,11 +3031,11 @@ let currentWave = 1;
 let enemiesToSpawn = 0;
 let spawnTimer = 0;
 const totalWaves = 15;
-const groupSpawnDelay = 5;
+const groupSpawnDelay = 2.8;
 // Keep enemies in each wave group close enough for area attacks to catch
 // nearby targets without making the opening rush feel abrupt.
-const enemySpawnDelay = 0.9;
-const skitterSpawnDelay = 0.5;
+const enemySpawnDelay = 0.62;
+const skitterSpawnDelay = 0.4;
 let enemyGroups = [];
 let currentGroupIndex = 0;
 let currentGroupSpawnIndex = 0;
@@ -3010,9 +3045,9 @@ let awaitingNextWave = false;
 let autoStartWaveTimer = null;
 let waveCompleteToastTimer = null;
 let insufficientScrapToastTimer = null;
-const scrapPenaltyPerLeak = 10;
-const startingWaveScrapReward = 40;
-const waveScrapRewardIncrease = 10;
+const scrapPenaltyPerLeak = 8;
+const startingWaveScrapReward = 45;
+const waveScrapRewardIncrease = 8;
 let leakedEnemiesThisWave = 0;
 
 function cancelAutoStartWave() {
@@ -3167,7 +3202,7 @@ function updateWaveSystem(deltaTime) {
         const completedWave = currentWave;
         if (gameMode === "daily") dailyLastCompletedAt = new Date().toISOString();
         const baseWaveReward = gameMode === "endless"
-            ? 25 + (completedWave - 1) * 5
+            ? 35 + Math.min(220, (completedWave - 1) * 3)
             : startingWaveScrapReward + (completedWave - 1) * waveScrapRewardIncrease;
         const leakPenalty = leakedEnemiesThisWave * scrapPenaltyPerLeak;
         const waveReward = Math.max(0, baseWaveReward - leakPenalty);
@@ -6118,7 +6153,8 @@ const survivorDetails = {
         role: "HANDGUN",
         icon: "M",
         iconClass: "scout",
-        cost: 60,
+        cost: 55,
+        rarity: "common",
         unlocked: true
     },
     james: {
@@ -6126,7 +6162,8 @@ const survivorDetails = {
         role: "FLAMETHROWER",
         icon: "J",
         iconClass: "pyro",
-        cost: 140,
+        cost: 135,
+        rarity: "rare",
         unlocked: true
     },
     cody: {
@@ -6134,7 +6171,8 @@ const survivorDetails = {
         role: "GRENADE LAUNCHER",
         icon: "C",
         iconClass: "demo",
-        cost: 120,
+        cost: 110,
+        rarity: "uncommon",
         unlocked: true
     },
     britney: {
@@ -6142,7 +6180,8 @@ const survivorDetails = {
         role: "SNIPER RIFLE",
         icon: "B",
         iconClass: "sniper",
-        cost: 150,
+        cost: 155,
+        rarity: "rare",
         unlocked: true
     },
     zach: {
@@ -6150,7 +6189,8 @@ const survivorDetails = {
         role: "SMG",
         icon: "Z",
         iconClass: "scout",
-        cost: 75,
+        cost: 70,
+        rarity: "common",
         unlocked: true
     },
     brady: {
@@ -6158,7 +6198,8 @@ const survivorDetails = {
         role: "SHOTGUN",
         icon: "B",
         iconClass: "demo",
-        cost: 110,
+        cost: 100,
+        rarity: "uncommon",
         unlocked: true
     }
 };
