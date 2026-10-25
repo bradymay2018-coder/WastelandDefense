@@ -38,6 +38,16 @@ const builtinSurvivorIds = new Set(["mason", "james", "cody", "britney", "zach",
 // Keep the first mystery-box roster locked even if an older exported package
 // does not yet include the builder's mysteryBoxOnly flag.
 const mysteryBoxOnlySurvivorIds = new Set(["selena", "radhesh", "rork", "bas", "knox"]);
+// Deployment costs reflect real combat value, including range and utility.
+// Custom survivor files can keep their original builder values while the live
+// game applies this balance layer consistently.
+const survivorCostOverrides = {
+    cody: 125,
+    james: 150,
+    britney: 180,
+    rork: 115,
+    knox: 125
+};
 const customSurvivors = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_CUSTOM_SURVIVORS : [])
     .filter(survivor => survivor && /^[a-z0-9_-]{2,24}$/.test(String(survivor.id || ""))
         && !builtinSurvivorIds.has(String(survivor.id).toLowerCase())
@@ -49,7 +59,7 @@ const customSurvivors = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_C
         name: String(survivor.name || "New Survivor").slice(0, 28),
         role: String(survivor.role || "RIFLE").slice(0, 30).toUpperCase(),
         rarity: ["common", "uncommon", "rare", "legendary"].includes(survivor.rarity) ? survivor.rarity : "common",
-        cost: Math.max(0, Math.min(50000, Math.round(Number(survivor.cost) || 0))),
+        cost: survivorCostOverrides[id] ?? Math.max(0, Math.min(50000, Math.round(Number(survivor.cost) || 0))),
         damage: Math.max(1, Math.min(5000, Number(survivor.damage) || 1)),
         range: Math.max(10, Math.min(1000, Number(survivor.range) || 100)),
         fireRate: Math.max(0.05, Math.min(10, Number(survivor.fireRate) || 1)),
@@ -150,6 +160,13 @@ const horizontalEnemyLaneVisualOffset = -7;
 
 let currentLevel = 1;
 let gameMode = "campaign";
+
+// Sandbox deliberately shares Endless's wave, enemy, and economy rules, but
+// never writes records, awards leaderboard coins, or exposes score submission.
+function isEndlessStyleMode() {
+    return gameMode === "endless" || gameMode === "sandbox";
+}
+
 let currentDailyChallenge = null;
 let activeDailyChallenge = null;
 let pendingDailyScore = null;
@@ -932,7 +949,7 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
     const waveIndex = Math.max(0, currentWave - 1);
     let waveHealthScale;
     let waveSpeedScale;
-    if (gameMode === "endless") {
+    if (isEndlessStyleMode()) {
         // Endless should stay readable early, then demand meaningful upgrades
         // and tighter placement after the mid-game.  The milestone bumps are
         // deliberately additive so wave 100 is attainable, but never casual.
@@ -972,7 +989,7 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
     const health = Math.round(
         profile.baseHealth * waveHealthScale * specialHealthScale
     );
-    const leakScale = gameMode === "endless"
+    const leakScale = isEndlessStyleMode()
         ? 1 + Math.min(1.7, waveIndex * 0.015)
         : 1;
     const specialLeakScale = specialRole === "boss"
@@ -1073,7 +1090,7 @@ function getWaveGroups(wave) {
         return groups;
     }
 
-    if (gameMode === "endless") return getEndlessWaveGroups(wave);
+    if (isEndlessStyleMode()) return getEndlessWaveGroups(wave);
 
     const waveGroups = {
         1: [{ type: "spider", count: 8 }],
@@ -1147,7 +1164,7 @@ function startWave() {
     document.getElementById("pauseButton").disabled = false;
 
     document.getElementById("waveDisplay").textContent =
-    gameMode === "endless"
+    isEndlessStyleMode()
         ? "WAVE " + currentWave
         : currentWave + " / " + totalWaves;
 
@@ -1165,9 +1182,9 @@ const survivorCosts = {
     mason: 55,
     zach: 70,
     brady: 100,
-    cody: 110,
-    james: 135,
-    britney: 155
+    cody: 125,
+    james: 150,
+    britney: 180
 };
 customSurvivors.forEach(survivor => { survivorCosts[survivor.id] = survivor.cost; });
 const scrapRewardPerKill = 5;
@@ -1543,7 +1560,7 @@ customSurvivors.forEach(survivor => {
     const customDamageTuning = {
         selena: 1.05,
         radhesh: 1.2,
-        rork: 1.25,
+        rork: 1.5,
         bas: 1.2,
         // Knox's three-round burst was underperforming for an uncommon
         // recruit. Give each burst a stronger, slightly faster pulse.
@@ -1619,6 +1636,25 @@ function getSurvivorStats(survivorOrType) {
         range: Math.round(base.range * (1 + 0.04 * level)),
         fireRate
     };
+}
+
+function getSurvivorDps(survivorOrType) {
+    const stats = getSurvivorStats(survivorOrType);
+    if (!stats || !stats.fireRate) return 0;
+
+    const type = typeof survivorOrType === "object" && survivorOrType !== null
+        ? survivorOrType.type
+        : survivorOrType;
+    const level = getSurvivorUpgradeLevel(survivorOrType);
+    const attackProfile = getCustomAttackProfile({ type });
+    const hitsPerAttack = attackProfile?.repeat
+        ? attackProfile.repeat(level)
+        : 1;
+
+    // This is single-target DPS. Multi-target effects such as Radhesh's
+    // sweep and Cody's blast are intentionally not multiplied by an unknown
+    // number of nearby enemies.
+    return Number(((stats.damage * hitsPerAttack) / stats.fireRate).toFixed(1));
 }
 
 function getCodyBlastRadius(survivor) {
@@ -1785,6 +1821,19 @@ const survivorDescriptions = {
     zach: "SMG. A rapid burst of light rounds at close range.",
     brady: "Shotgun. A tight pellet spread knocks enemies back."
 };
+const survivorAbilityTags = {
+    mason: "STEADY",
+    james: "BURN",
+    cody: "AREA DAMAGE",
+    britney: "LONG RANGE",
+    zach: "FAST FIRE",
+    brady: "KNOCKBACK",
+    selena: "DOUBLE HIT",
+    radhesh: "SWEEP",
+    bas: "50% SLOW",
+    rork: "ASSAULT",
+    knox: "3-ROUND BURST"
+};
 customSurvivors.forEach(survivor => {
     survivorDescriptions[survivor.id] = survivor.description;
 });
@@ -1814,7 +1863,9 @@ const portrait = document.getElementById("survivorPortrait");
 portrait.src = person.portraitData || ("Images/" + (portraitFiles[id] || "Mason.png"));
 portrait.dataset.portraitId = id;
 portrait.alt = person.name + "'s portrait";    document.getElementById("survivorDetailName").textContent = person.name;
-    document.getElementById("survivorDetailRole").textContent = person.role;
+    document.getElementById("survivorDetailRole").textContent = survivorAbilityTags[id]
+        ? `${person.role} · ${survivorAbilityTags[id]}`
+        : person.role;
     document.getElementById("survivorDetailCost").textContent =
         person.cost + " SCRAP";
 
@@ -1826,7 +1877,7 @@ portrait.alt = person.name + "'s portrait";    document.getElementById("survivor
 document.getElementById("survivorKills").textContent =
     deployedUnit ? deployedUnit.kills || 0 : 0;
     document.getElementById("survivorDetailDps").textContent =
-        (detail.damage / detail.fireRate).toFixed(1);
+        getSurvivorDps(deployedUnit || id).toFixed(1);
 
    
 const deployedUpgradeLevel = getSurvivorUpgradeLevel(deployedUnit);
@@ -2346,7 +2397,7 @@ if (survivor.kills === undefined) survivor.kills = 0;
             // rise slowly with the run so a full roster still has to choose
             // which upgrades are worth buying.
             const endlessKillReward = Math.min(4, 2 + Math.floor(currentWave / 30));
-            scrap += gameMode === "endless" ? endlessKillReward : scrapRewardPerKill;
+            scrap += isEndlessStyleMode() ? endlessKillReward : scrapRewardPerKill;
         }
     }
 
@@ -3225,7 +3276,7 @@ function updateWaveSystem(deltaTime) {
 
         const completedWave = currentWave;
         if (gameMode === "daily") dailyLastCompletedAt = new Date().toISOString();
-        const baseWaveReward = gameMode === "endless"
+        const baseWaveReward = isEndlessStyleMode()
             ? 25 + Math.min(145, (completedWave - 1) * 2)
             : startingWaveScrapReward + (completedWave - 1) * waveScrapRewardIncrease;
         const leakPenalty = leakedEnemiesThisWave * scrapPenaltyPerLeak;
@@ -3303,7 +3354,7 @@ function updateWaveSystem(deltaTime) {
         startButton.style.display = "block";
         startButton.disabled = false;
 
-        document.getElementById("waveDisplay").textContent = gameMode === "endless"
+        document.getElementById("waveDisplay").textContent = isEndlessStyleMode()
             ? "WAVE " + currentWave
             : `${currentWave} / ${gameMode === "daily" ? 15 : totalWaves}`;
 
@@ -5538,7 +5589,7 @@ function endGame() {
     document.getElementById("gameOverMessage").textContent =
         "Your defenses have fallen. The wasteland is lost.";
 
-    document.getElementById("finalWaveDisplay").textContent = gameMode === "endless"
+    document.getElementById("finalWaveDisplay").textContent = isEndlessStyleMode()
         ? `WAVE REACHED: ${currentWave}`
         : `WAVE REACHED: ${currentWave} / ${gameMode === "daily" ? 15 : totalWaves}`;
     document.querySelector("#gameOverScreen .menu-eyebrow").textContent = gameMode === "daily"
@@ -5661,6 +5712,18 @@ function showLevelSelect() {
                 record.style.display = "block";
             }
         }
+    } else if (gameMode === "sandbox") {
+        eyebrow.textContent = "SANDBOX // PRACTICE RUN";
+        title.textContent = "SANDBOX OPERATIONS";
+        description.textContent = "Test every survivor with 50,000 scrap. Sandbox runs never affect leaderboards.";
+        document.getElementById("backToMenuButton").textContent = "< MAIN MENU";
+
+        for (let level = 1; level <= 6; level++) {
+            const record = document.getElementById("endlessRecord" + level);
+            if (record) {
+                record.style.display = "none";
+            }
+        }
     } else {
         eyebrow.textContent = "CAMPAIGN // OPERATION BOARD";
         title.textContent = "CAMPAIGN OPERATIONS";
@@ -5769,8 +5832,13 @@ function showDeployment(level = 1) {
             console.warn("Could not create the Daily Challenge map preview:", error);
         }
     } else {
+        const runLabel = gameMode === "sandbox"
+            ? "SANDBOX RUN"
+            : gameMode === "endless"
+                ? "ENDLESS RUN"
+                : "CAMPAIGN";
         document.getElementById("deploymentLocation").textContent =
-            `${gameMode === "endless" ? "ENDLESS RUN" : "CAMPAIGN"} // ${levelName}`;
+            `${runLabel} // ${levelName}`;
         document.querySelector(".deployment-subtitle").textContent =
             `Choose up to ${getMaxRosterSize()} survivors. Tap a card to add or remove them.`;
         dailyDetails.hidden = true;
@@ -5801,6 +5869,11 @@ const selectedSurvivors = new Set();
 function isSurvivorAvailableForCurrentMode(id) {
     const survivor = survivorDetails[id];
     if (!survivor) return false;
+    if (gameMode === "sandbox") {
+        // Sandbox is a testing range: every built-in and custom survivor is
+        // selectable without changing the account's unlocked roster.
+        return true;
+    }
     if (gameMode === "daily") {
         // Daily runs use the date-seeded trial pool, not the player's account
         // roster.  Only today's three survivors may be selected, even when
@@ -5869,11 +5942,17 @@ function startDefense() {
     playerHealth = 100;
     totalEnemiesDefeated = 0;
     floatingDamageNumbers.length = 0;
-    scrap = gameMode === "endless" ? 150 : gameMode === "daily" ? 410 : 250;
+    scrap = gameMode === "sandbox"
+        ? 50000
+        : gameMode === "endless"
+            ? 150
+            : gameMode === "daily"
+                ? 410
+                : 250;
 
     document.getElementById("scrapDisplay").textContent = scrap;
     updatePlayerHealthDisplay();
-    document.getElementById("waveDisplay").textContent = gameMode === "endless"
+    document.getElementById("waveDisplay").textContent = isEndlessStyleMode()
         ? "WAVE 0"
         : gameMode === "daily"
             ? "0 / 15"
@@ -6083,6 +6162,15 @@ bindUIEvent("endlessButton", "click", () => {
     showLevelSelect();
 });
 
+bindUIEvent("sandboxButton", "click", () => {
+    gameMode = "sandbox";
+    activeDailyChallenge = null;
+    currentDailyChallenge = null;
+    selectedSurvivors.clear();
+    updateRosterSummary();
+    showLevelSelect();
+});
+
 bindUIEvent("dailyChallengeButton", "click", () => {
     gameMode = "daily";
     currentDailyChallenge = getTodaysDailyChallenge();
@@ -6190,7 +6278,7 @@ const survivorDetails = {
         role: "FLAMETHROWER",
         icon: "J",
         iconClass: "pyro",
-        cost: 135,
+        cost: 150,
         rarity: "rare",
         unlocked: true
     },
@@ -6199,7 +6287,7 @@ const survivorDetails = {
         role: "GRENADE LAUNCHER",
         icon: "C",
         iconClass: "demo",
-        cost: 110,
+        cost: 125,
         rarity: "uncommon",
         unlocked: true
     },
@@ -6208,7 +6296,7 @@ const survivorDetails = {
         role: "SNIPER RIFLE",
         icon: "B",
         iconClass: "sniper",
-        cost: 155,
+        cost: 180,
         rarity: "rare",
         unlocked: true
     },
@@ -6294,7 +6382,7 @@ renderMenuCrewRoster();
 updateProfileIdentity();
 
 function getMaxRosterSize() {
-    return gameMode === "endless" ? 6 : gameMode === "daily" ? 3 : 4;
+    return isEndlessStyleMode() ? 6 : gameMode === "daily" ? 3 : 4;
 }
 
 const rosterCount = document.getElementById("rosterCount");
@@ -6442,7 +6530,10 @@ const name = document.createElement("strong");
 name.textContent = person.name;
 const role = document.createElement("small");
 role.className = "unit-role";
-role.textContent = person.role;
+role.textContent = survivorAbilityTags[id]
+    ? `${person.role} · ${survivorAbilityTags[id]}`
+    : person.role;
+role.title = survivorAbilityTags[id] || person.role;
 const cost = document.createElement("strong");
 cost.className = "unit-cost";
 const costValue = document.createElement("span");

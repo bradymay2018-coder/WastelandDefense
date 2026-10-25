@@ -3750,7 +3750,8 @@ main.game-layout > .control-panel {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
         "campaign endless"
-        "daily shop";
+        "daily sandbox"
+        "shop shop";
     gap: 12px;
     max-width: none;
     margin: 0;
@@ -3759,6 +3760,7 @@ main.game-layout > .control-panel {
 #mainMenu .menu-card-campaign { grid-area: campaign; }
 #mainMenu .menu-card-endless { grid-area: endless; }
 #mainMenu .menu-card-daily { grid-area: daily; }
+#mainMenu .menu-card-sandbox { grid-area: sandbox; }
 #mainMenu .menu-card-shop { grid-area: shop; }
 
 #mainMenu .menu-card {
@@ -3798,6 +3800,10 @@ main.game-layout > .control-panel {
 
 #mainMenu .menu-card-shop::before {
     background: #ad8bc3;
+}
+
+#mainMenu .menu-card-sandbox::before {
+    background: #c4a4e9;
 }
 
 #mainMenu .menu-card:hover {
@@ -3869,6 +3875,13 @@ main.game-layout > .control-panel {
     font-weight: 400;
 }
 
+#mainMenu .menu-card-sandbox .menu-card-icon {
+    border-color: #8065a2 !important;
+    background: #30283c !important;
+    color: #d9c1ff !important;
+    font-size: 18px;
+}
+
 #mainMenu .menu-card-copy {
     display: flex;
     min-width: 0;
@@ -3892,6 +3905,10 @@ main.game-layout > .control-panel {
 
 #mainMenu .menu-card-shop .menu-card-copy strong {
     color: #d8b9f0 !important;
+}
+
+#mainMenu .menu-card-sandbox .menu-card-copy strong {
+    color: #d9c1ff !important;
 }
 
 #mainMenu .menu-card > .menu-card-copy > span:last-child {
@@ -3922,6 +3939,10 @@ main.game-layout > .control-panel {
 
 #mainMenu .menu-card-shop > span.menu-card-cta {
     color: #a89aaf !important;
+}
+
+#mainMenu .menu-card-sandbox > span.menu-card-cta {
+    color: #d0b6f0 !important;
 }
 
 #mainMenu .menu-card-cta b {
@@ -4137,6 +4158,7 @@ main.game-layout > .control-panel {
             "campaign"
             "daily"
             "endless"
+            "sandbox"
             "shop";
     }
 
