@@ -9685,3 +9685,104 @@ img.survivor-portrait-placeholder,
     .wave-preview .preview-enemy-info span { font-size: 7px; }
     .wave-preview .preview-enemy-count { font-size: 10px; }
 }
+
+/* Compact enemy intel tiles.  The model and count stay readable without
+   turning the command panel into a long scrolling list. */
+.wave-preview .preview-enemy-list {
+    grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
+    max-height: none;
+    overflow: visible;
+}
+
+.control-panel .wave-preview .preview-enemy-list {
+    max-height: none;
+    overflow: visible;
+}
+
+.wave-preview .preview-enemy {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    aspect-ratio: 1 / 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 4px 4px;
+    border-left-width: 2px;
+}
+
+.wave-preview .preview-enemy img {
+    width: 31px;
+    height: 31px;
+    flex: 0 0 auto;
+}
+
+.wave-preview .preview-enemy-info {
+    width: 100%;
+    align-items: center;
+    gap: 0;
+    text-align: center;
+}
+
+.wave-preview .preview-enemy-info strong {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    font-size: 7px;
+    letter-spacing: 0.45px;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wave-preview .preview-enemy-info span {
+    display: none;
+}
+
+.wave-preview .preview-enemy-count {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    min-width: 17px;
+    padding: 1px 3px;
+    border: 1px solid #6b5b43;
+    border-radius: 2px;
+    background: #201e22e8;
+    font-size: 9px;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.wave-preview .preview-enemy.enemy-mini-boss,
+.wave-preview .preview-enemy.enemy-boss {
+    box-shadow: inset 0 0 0 1px #ffffff0b, 0 0 8px #e5a85d20;
+}
+
+.wave-preview .preview-enemy.enemy-boss {
+    box-shadow: inset 0 0 0 1px #ffffff0b, 0 0 8px #e27d7625;
+}
+
+@media (max-width: 620px) {
+    .wave-preview .preview-enemy-list {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 4px;
+    }
+    .wave-preview .preview-enemy {
+        padding: 5px 3px 3px;
+    }
+    .wave-preview .preview-enemy img {
+        width: 27px;
+        height: 27px;
+    }
+    .wave-preview .preview-enemy-info strong {
+        font-size: 6px;
+    }
+    .wave-preview .preview-enemy-count {
+        top: 2px;
+        right: 2px;
+        min-width: 15px;
+        font-size: 8px;
+    }
+}
