@@ -5789,9 +5789,13 @@ const selectedSurvivors = new Set();
 function isSurvivorAvailableForCurrentMode(id) {
     const survivor = survivorDetails[id];
     if (!survivor) return false;
-    const dailyTrial = gameMode === "daily"
-        && currentDailyChallenge?.survivorIds.includes(id);
-    return dailyTrial || survivor.unlocked === true;
+    if (gameMode === "daily") {
+        // Daily runs use the date-seeded trial pool, not the player's account
+        // roster.  Only today's three survivors may be selected, even when
+        // the player owns other survivors.
+        return Boolean(currentDailyChallenge?.survivorIds?.includes(id));
+    }
+    return survivor.unlocked === true;
 }
 
 function startDefense() {

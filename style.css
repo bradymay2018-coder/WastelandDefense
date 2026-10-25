@@ -9786,3 +9786,28 @@ img.survivor-portrait-placeholder,
         font-size: 8px;
     }
 }
+
+/* Keep a single enemy type from stretching into a giant panel-sized tile. */
+.wave-preview .preview-enemy-list {
+    grid-template-columns: repeat(auto-fill, 64px) !important;
+    grid-auto-rows: 64px;
+    align-content: start;
+    justify-content: start;
+}
+
+.wave-preview .preview-enemy {
+    width: 64px;
+    height: 64px;
+    aspect-ratio: auto;
+}
+
+@media (max-width: 620px) {
+    .wave-preview .preview-enemy-list {
+        grid-template-columns: repeat(auto-fill, 56px) !important;
+        grid-auto-rows: 56px;
+    }
+    .wave-preview .preview-enemy {
+        width: 56px;
+        height: 56px;
+    }
+}
