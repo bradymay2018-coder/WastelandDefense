@@ -180,7 +180,7 @@
     </div>
 
     <div class="menu-footer">
-        <span>WASTELAND DEFENSE // v0.88</span>
+        <span>WASTELAND DEFENSE // v0.89</span>
         <span>BE NICE TO YOUR SQUAD. THEY HAVE GUNS.</span>
     </div>
 </section>
@@ -703,6 +703,7 @@
         <div id="endlessScoreSubmission" class="endless-score-submission" hidden>
             <button id="submitEndlessScoreButton" type="button">SUBMIT TO LEADERBOARD</button>
             <p id="endlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
+            <small class="score-telemetry-disclosure">Submitted Endless runs include anonymous gameplay statistics used to balance the game.</small>
         </div>
         <div id="gameOverDailyScoreSubmission" class="daily-score-submission" hidden>
             <button id="submitDailyScoreButton" type="button">SUBMIT TO DAILY LEADERBOARD</button>
@@ -779,6 +780,7 @@
         <div id="returnEndlessScoreSubmission" class="return-endless-score-submission" hidden>
             <button id="submitCompletedEndlessScoreButton" type="button">SUBMIT LAST CLEARED WAVE</button>
             <p id="returnEndlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
+            <small class="score-telemetry-disclosure">Submitted runs include anonymous gameplay statistics used to balance the game.</small>
         </div>
         <div id="returnDailyScoreSubmission" class="daily-score-submission return-endless-score-submission" hidden>
             <button id="submitReturnDailyScoreButton" type="button">SUBMIT TO DAILY LEADERBOARD</button>
@@ -799,6 +801,7 @@
         <div id="restartEndlessScoreSubmission" class="return-endless-score-submission" hidden>
             <button id="submitCompletedEndlessScoreFromRestartButton" type="button">SUBMIT TO LEADERBOARD</button>
             <p id="restartEndlessScoreSubmissionNotice" role="status" aria-live="polite"></p>
+            <small class="score-telemetry-disclosure">Submitted runs include anonymous gameplay statistics used to balance the game.</small>
         </div>
         <div id="restartDailyScoreSubmission" class="daily-score-submission return-endless-score-submission" hidden>
             <button id="submitRestartDailyScoreButton" type="button">SUBMIT TO DAILY LEADERBOARD</button>
@@ -870,6 +873,7 @@
                 <span>AUTO START NEXT WAVE</span>
                 <strong id="autoStartState">OFF</strong>
             </button>
+
             <div id="waveStatus" role="status" aria-live="polite">Prepare your defenses.</div>
 
         </div>
@@ -927,7 +931,7 @@
                     <strong id="survivorDetailRange">0</strong>
                 </div>
                 <div>
-                    <span>DPS / TARGET</span>
+                    <span title="Estimated combat DPS including a nearby secondary target or active burn">EST. DPS</span>
                     <strong id="survivorDetailDps">0</strong>
                 </div>
             </div>
@@ -941,6 +945,19 @@
                     <span>ENEMIES KILLED</span>
                     <strong id="survivorKills">0</strong>
                 </div>
+            </div>
+
+            <div class="survivor-targeting-control" id="survivorTargetingControl" hidden>
+                <div class="survivor-targeting-copy">
+                    <span>TARGETING</span>
+                    <small>Choose which hostile this survivor prioritizes.</small>
+                </div>
+                <select id="survivorTargetPrioritySelect">
+                    <option value="first">FIRST / EXIT</option>
+                    <option value="closest">CLOSEST</option>
+                    <option value="strongest">STRONGEST</option>
+                    <option value="fastest">FASTEST</option>
+                </select>
             </div>
 
             <div class="survivor-action-buttons">
@@ -970,6 +987,7 @@
         <div class="deployment-note"></div>
 
     </aside>
+
 </main>
 
 <div id="waveCompleteToast" class="wave-complete-toast" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true">

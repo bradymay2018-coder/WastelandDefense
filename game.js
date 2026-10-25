@@ -42,27 +42,45 @@ const mysteryBoxOnlySurvivorIds = new Set(["selena", "radhesh", "rork", "bas", "
 // Custom survivor files can keep their original builder values while the live
 // game applies this balance layer consistently.
 const survivorCostOverrides = {
-    cody: 125,
+    cody: 120,
     james: 150,
     britney: 180,
     rork: 115,
-    knox: 125
+    knox: 125,
+    // Keep the mystery recruits' deployment costs distinct from their
+    // 1,000-coin shop price while enforcing a meaningful rarity floor.
+    selena: 225,
+    radhesh: 190,
+    bas: 180
 };
+const customRarityBalanceRules = {
+    common: { cost: [50, 120], damage: [4, 24], range: [70, 190], fireRate: [0.55, 2.8] },
+    uncommon: { cost: [90, 170], damage: [5, 30], range: [70, 220], fireRate: [0.5, 2.8] },
+    rare: { cost: [150, 260], damage: [6, 38], range: [70, 260], fireRate: [0.45, 3.0] },
+    legendary: { cost: [225, 420], damage: [8, 48], range: [60, 280], fireRate: [0.4, 3.2] }
+};
+const clampCustomStat = (value, range, fallback) =>
+    Math.min(range[1], Math.max(range[0], Number(value) || fallback));
 const customSurvivors = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_CUSTOM_SURVIVORS : [])
     .filter(survivor => survivor && /^[a-z0-9_-]{2,24}$/.test(String(survivor.id || ""))
         && !builtinSurvivorIds.has(String(survivor.id).toLowerCase())
         && typeof survivor.portraitData === "string" && survivor.portraitData.startsWith("data:image/png;base64,"))
     .map(survivor => {
         const id = String(survivor.id).toLowerCase();
+        const rarity = ["common", "uncommon", "rare", "legendary"].includes(survivor.rarity)
+            ? survivor.rarity
+            : "common";
+        const balance = customRarityBalanceRules[rarity];
+        const configuredCost = survivorCostOverrides[id] ?? survivor.cost;
         return {
         id,
         name: String(survivor.name || "New Survivor").slice(0, 28),
         role: String(survivor.role || "RIFLE").slice(0, 30).toUpperCase(),
-        rarity: ["common", "uncommon", "rare", "legendary"].includes(survivor.rarity) ? survivor.rarity : "common",
-        cost: survivorCostOverrides[id] ?? Math.max(0, Math.min(50000, Math.round(Number(survivor.cost) || 0))),
-        damage: Math.max(1, Math.min(5000, Number(survivor.damage) || 1)),
-        range: Math.max(10, Math.min(1000, Number(survivor.range) || 100)),
-        fireRate: Math.max(0.05, Math.min(10, Number(survivor.fireRate) || 1)),
+        rarity,
+        cost: Math.round(clampCustomStat(configuredCost, balance.cost, balance.cost[0])),
+        damage: clampCustomStat(survivor.damage, balance.damage, balance.damage[0]),
+        range: Math.round(clampCustomStat(survivor.range, balance.range, 100)),
+        fireRate: Number(clampCustomStat(survivor.fireRate, balance.fireRate, 1).toFixed(2)),
         description: String(survivor.description || "A custom survivor ready for the wasteland.").slice(0, 120),
         portraitData: survivor.portraitData,
         modelData: typeof survivor.modelData === "string" && survivor.modelData.startsWith("data:image/png;base64,")
@@ -156,7 +174,10 @@ const roadBuffer = roadWidth / 2 + 8;
 const survivorPlacementHalfWidth = 15;
 const survivorPlacementHalfHeight = 27;
 const survivorPlacementRoadBuffer = roadWidth / 2 + 2;
-const horizontalEnemyLaneVisualOffset = -7;
+// Enemy coordinates are road centerline anchors.  Sprite-specific transparent
+// padding is corrected at draw time, so no extra horizontal-lane nudge is
+// needed here.
+const horizontalEnemyLaneVisualOffset = 0;
 
 let currentLevel = 1;
 let gameMode = "campaign";
@@ -177,6 +198,15 @@ let activeCampaignRunId = null;
 let activeEndlessRunId = null;
 let pendingEndlessScore = null;
 let returnEndlessScoreSubmission = null;
+// Endless telemetry is kept in memory during a run and only uploaded after
+// the player explicitly submits an Endless score.  It contains aggregate
+// gameplay facts (waves, enemy groups, leaks, economy, roster levels, and
+// per-survivor performance/action summaries),
+// never chat, account credentials, or device identifiers.
+let activeEndlessTelemetry = null;
+let completedEndlessTelemetry = null;
+const ENDLESS_TELEMETRY_VERSION = "0.89";
+const ENDLESS_TELEMETRY_SCHEMA_VERSION = 2;
 let profileReturnScreen = "menu";
 
 const campaignRoads = {
@@ -837,6 +867,9 @@ const enemyProfiles = {
         size: 22,
         spriteWidth: 44,
         spriteHeight: 44,
+        // The PNGs have transparent padding.  Keep the lowest opaque pixel
+        // on the road centerline instead of centering the full canvas.
+        spriteBottomRatio: 24 / 32,
         leakDamage: enemyDamage
     },
     skitter: {
@@ -846,7 +879,9 @@ const enemyProfiles = {
         size: 22,
         spriteWidth: 44,
         spriteHeight: 44,
-        leakDamage: 5
+        spriteBottomRatio: 27 / 32,
+        leakDamage: 5,
+        weaknesses: { shotgun: 1.2 }
     },
     hollow: {
         image: hollowImage,
@@ -855,8 +890,12 @@ const enemyProfiles = {
         size: 32,
         spriteWidth: 32,
         spriteHeight: 64,
+        spriteBottomRatio: 58 / 64,
         leakDamage: 16,
-        isBoss: true
+        isMedic: true,
+        healRadius: 132,
+        healAmount: 10,
+        weaknesses: { precision: 1.2 }
     },
     fogkeeper: {
         image: fogkeeperImage,
@@ -865,8 +904,10 @@ const enemyProfiles = {
         size: 28,
         spriteWidth: 32,
         spriteHeight: 64,
+        spriteBottomRatio: 62 / 64,
         leakDamage: 12,
-        isHeavy: true
+        isHeavy: true,
+        weaknesses: { explosive: 1.15 }
     },
     heavymutant: {
         image: heavyMutantImage,
@@ -875,8 +916,10 @@ const enemyProfiles = {
         size: 28,
         spriteWidth: 32,
         spriteHeight: 64,
+        spriteBottomRatio: 62 / 64,
         leakDamage: 14,
-        isHeavy: true
+        isHeavy: true,
+        weaknesses: { explosive: 1.15 }
     },
     wastelandcow: {
         image: wastelandCowImage,
@@ -885,7 +928,18 @@ const enemyProfiles = {
         size: 22,
         spriteWidth: 44,
         spriteHeight: 44,
-        leakDamage: enemyDamage
+        spriteBottomRatio: 30 / 32,
+        leakDamage: enemyDamage,
+        isArmored: true,
+        // Armor should reward bringing a counter, not make ordinary weapons
+        // feel completely useless.  The resistance and armor stack below
+        // still make ballistic fire a poor choice, but leave room for skill.
+        armorMultiplier: 0.72,
+        // Explosives should be a clear answer to armor. Cody's armor-piercing
+        // launcher still applies a small armor factor, so this multiplier
+        // makes the matchup feel meaningfully better without deleting cows.
+        weaknesses: { explosive: 1.45, blunt: 1.1 },
+        resistances: { ballistic: 0.8 }
     },
     mutantman: {
         image: mutantManImage,
@@ -894,6 +948,7 @@ const enemyProfiles = {
         size: 22,
         spriteWidth: 44,
         spriteHeight: 44,
+        spriteBottomRatio: 32 / 32,
         leakDamage: enemyDamage
     },
     mutantsnake: {
@@ -903,7 +958,11 @@ const enemyProfiles = {
         size: 23,
         spriteWidth: 44,
         spriteHeight: 44,
-        leakDamage: 6
+        spriteBottomRatio: 27 / 32,
+        leakDamage: 6,
+        isSplitter: true,
+        weaknesses: { fire: 1.35 },
+        resistances: { ballistic: 0.9 }
     }
 };
 
@@ -918,8 +977,77 @@ const enemyLabels = {
     mutantsnake: "MUTANT SNAKE"
 };
 
+const enemyDescriptions = {
+    spider: "A steady baseline hostile with balanced speed and health.",
+    skitter: "A fast runner that is especially vulnerable to shotgun damage.",
+    hollow: "A field medic that periodically heals nearby hostiles.",
+    fogkeeper: "A slow heavy hostile with high health and an explosive weakness.",
+    heavymutant: "A very durable heavy hostile with an explosive weakness.",
+    wastelandcow: "Armored contact: resists ballistic fire but is weak to explosives and blunt hits.",
+    mutantman: "A standard hostile with steady speed and health.",
+    mutantsnake: "A fire-vulnerable splitter that releases two skitters when defeated."
+};
+
 function getEnemyProfile(type) {
     return enemyProfiles[type] || enemyProfiles.spider;
+}
+
+// Damage families keep matchups readable without tying an effect to one
+// particular survivor.  Custom recruits fall back to a dependable projectile
+// profile unless their weapon role is recognized here.
+const survivorDamageTypes = {
+    mason: "ballistic",
+    james: "fire",
+    cody: "explosive",
+    britney: "precision",
+    zach: "ballistic",
+    brady: "shotgun",
+    selena: "melee",
+    radhesh: "blunt",
+    bas: "piercing",
+    rork: "ballistic",
+    knox: "ballistic"
+};
+
+const damageTypeLabels = {
+    ballistic: "bullet damage",
+    fire: "fire damage",
+    explosive: "explosive damage",
+    precision: "precision damage",
+    shotgun: "shotgun damage",
+    melee: "melee damage",
+    blunt: "blunt damage",
+    piercing: "piercing damage"
+};
+
+function getSurvivorDamageType(survivor) {
+    return survivorDamageTypes[survivor?.type] || "ballistic";
+}
+
+function getEnemyDamageMultiplier(enemy, damageType) {
+    const profile = getEnemyProfile(enemy?.type);
+    const weaknessMultiplier = Number(profile.weaknesses?.[damageType]);
+    if (Number.isFinite(weaknessMultiplier)) return weaknessMultiplier;
+
+    const resistanceMultiplier = Number(profile.resistances?.[damageType]);
+    return Number.isFinite(resistanceMultiplier) ? resistanceMultiplier : 1;
+}
+
+function getEnemyWeaknessHint(type) {
+    const profile = getEnemyProfile(type);
+    const weaknesses = Object.entries(profile.weaknesses || {});
+    const resistances = Object.entries(profile.resistances || {});
+    if (!weaknesses.length && !resistances.length) return "Hostile contact";
+
+    const weaknessText = weaknesses.slice(0, 2).map(([damageType, multiplier]) => {
+        const label = damageTypeLabels[damageType] || `${damageType} damage`;
+        return `WEAK ${label} +${Math.round((multiplier - 1) * 100)}%`;
+    });
+    const resistanceText = resistances.slice(0, 2).map(([damageType, multiplier]) => {
+        const label = damageTypeLabels[damageType] || `${damageType} damage`;
+        return `RESISTS ${label} ${Math.round((multiplier - 1) * 100)}%`;
+    });
+    return [...weaknessText, ...resistanceText].join(" · ");
 }
 
 function groupEnemyTypes(typeCounts) {
@@ -944,66 +1072,112 @@ function updatePlayerHealthDisplay() {
             : "#b8bac1";
 }
 
-function spawnEnemy(type = "spider", specialRole = "normal") {
+function getEnemyHealthForWave(type, specialRole = "normal", wave = currentWave, healthScale = 1) {
     const profile = getEnemyProfile(type);
-    const waveIndex = Math.max(0, currentWave - 1);
+    const waveIndex = Math.max(0, wave - 1);
     let waveHealthScale;
-    let waveSpeedScale;
     if (isEndlessStyleMode()) {
-        // Endless should stay readable early, then demand meaningful upgrades
-        // and tighter placement after the mid-game.  The milestone bumps are
-        // deliberately additive so wave 100 is attainable, but never casual.
+        // Endless should grow steadily instead of dropping abrupt health walls
+        // at every milestone. The old additive jumps made wave 10 and wave 50
+        // feel like difficulty cliffs rather than earned build checks.
         const tenWaveTier = Math.floor(waveIndex / 10);
         const twentyFiveWaveTier = Math.floor(waveIndex / 25);
         const fiftyWaveTier = Math.floor(waveIndex / 50);
-        const lateEndlessRamp = Math.max(0, waveIndex - 49) * 0.012;
+        const lateEndlessRamp = Math.max(0, waveIndex - 49) * 0.004;
         waveHealthScale = 1
-            + waveIndex * 0.05
-            + tenWaveTier * 0.18
-            + twentyFiveWaveTier * 0.28
-            + fiftyWaveTier * 0.55
+            + waveIndex * 0.035
+            + tenWaveTier * 0.08
+            + twentyFiveWaveTier * 0.12
+            + fiftyWaveTier * 0.2
             + lateEndlessRamp;
-        waveSpeedScale = 1 + Math.min(0.5, waveIndex * 0.0055);
     } else if (gameMode === "daily") {
         waveHealthScale = 1 + waveIndex * 0.012;
-        waveSpeedScale = 1 + Math.min(0.08, waveIndex * 0.002);
     } else {
         waveHealthScale = 1 + waveIndex * 0.035;
+    }
+    const bossMilestone = isEndlessStyleMode()
+        ? Math.max(0, Math.floor(wave / 10) - 1)
+        : 0;
+    const specialHealthScale = specialRole === "boss"
+        ? 1.35 + Math.min(0.6, bossMilestone * 0.08)
+        : specialRole === "miniBoss"
+            ? 1.25 + Math.min(0.2, Math.floor(wave / 25) * 0.04)
+            : 1;
+    const lateQualityTier = isEndlessStyleMode()
+        ? Math.max(0, Math.floor((wave - 50) / 10))
+        : 0;
+    const lateQualityBonus = lateQualityTier > 0
+        ? 1 + lateQualityTier * (
+            profile.isHeavy
+                ? 0.04
+                : profile.isMedic
+                    ? 0.03
+                    : profile.isArmored
+                        ? 0.025
+                        : 0.01
+        )
+        : 1;
+    return Math.round(profile.baseHealth * waveHealthScale * specialHealthScale * healthScale * lateQualityBonus);
+}
+
+function spawnEnemy(type = "spider", specialRole = "normal", spawnOptions = {}) {
+    const profile = getEnemyProfile(type);
+    const waveIndex = Math.max(0, currentWave - 1);
+    let waveSpeedScale;
+    if (isEndlessStyleMode()) {
+        waveSpeedScale = 1 + Math.min(0.3, waveIndex * 0.003);
+    } else if (gameMode === "daily") {
+        waveSpeedScale = 1 + Math.min(0.08, waveIndex * 0.002);
+    } else {
         waveSpeedScale = 1;
     }
-    const specialHealthScale = specialRole === "boss"
-        ? 1.95
-        : specialRole === "miniBoss"
-            ? 1.55
-            : 1;
     const specialSpeedScale = specialRole === "boss"
-        ? 0.5
+        ? 0.58
         : specialRole === "miniBoss"
-            ? 0.75
+            ? 0.8
             : 1;
     const sizeScale = specialRole === "boss"
         ? 1.5
         : specialRole === "miniBoss"
             ? 1.25
             : 1;
-    const health = Math.round(
-        profile.baseHealth * waveHealthScale * specialHealthScale
-    );
+    const healthScale = Number.isFinite(Number(spawnOptions.healthScale))
+        ? Math.max(0.1, Number(spawnOptions.healthScale))
+        : 1;
+    const health = getEnemyHealthForWave(type, specialRole, currentWave, healthScale);
+    const lateQualityTier = isEndlessStyleMode()
+        ? Math.max(0, Math.floor((currentWave - 50) / 10))
+        : 0;
     const leakScale = isEndlessStyleMode()
-        ? 1 + Math.min(1.7, waveIndex * 0.015)
+        ? 1 + Math.min(1.35, waveIndex * 0.012)
         : 1;
     const specialLeakScale = specialRole === "boss"
-        ? 1.7
+        ? 1.25
         : specialRole === "miniBoss"
-            ? 1.35
+            ? 1.1
             : 1;
+    const lateQualityLeakBonus = lateQualityTier > 0
+        ? 1 + lateQualityTier * (
+            profile.isHeavy
+                ? 0.02
+                : profile.isMedic
+                    ? 0.015
+                    : profile.isArmored
+                        ? 0.012
+                        : 0.006
+        )
+        : 1;
 
-    enemies.push({
+    const spawnedEnemy = {
         type: type,
-        x: roadPoints[0].x,
-        y: roadPoints[0].y,
-        targetPoint: 1,
-        visualLaneOffsetY: roadPoints[0].y === roadPoints[1]?.y
+        x: Number.isFinite(Number(spawnOptions.x)) ? Number(spawnOptions.x) : roadPoints[0].x,
+        y: Number.isFinite(Number(spawnOptions.y)) ? Number(spawnOptions.y) : roadPoints[0].y,
+        targetPoint: Number.isFinite(Number(spawnOptions.targetPoint))
+            ? Math.max(1, Number(spawnOptions.targetPoint))
+            : 1,
+        visualLaneOffsetY: Number.isFinite(Number(spawnOptions.visualLaneOffsetY))
+            ? Number(spawnOptions.visualLaneOffsetY)
+            : roadPoints[0].y === roadPoints[1]?.y
             ? horizontalEnemyLaneVisualOffset
             : 0,
         speed: profile.speed * waveSpeedScale * specialSpeedScale,
@@ -1011,35 +1185,139 @@ function spawnEnemy(type = "spider", specialRole = "normal") {
         sizeScale,
         isMiniBoss: specialRole === "miniBoss",
         isWaveBoss: specialRole === "boss",
+        isSplitChild: spawnOptions.isSplitChild === true,
+        shotgunKnockbackHits: 0,
+        isArmored: profile.isArmored === true,
+        armorMultiplier: profile.armorMultiplier || 1,
+        isMedic: profile.isMedic === true,
+        medicPulseTimer: profile.isMedic ? 1.2 : 0,
         health: health,
         maxHealth: health,
         healthTrail: health,
-        leakDamage: Math.max(1, Math.round(profile.leakDamage * leakScale * specialLeakScale))
+        leakDamage: Math.min(
+            specialRole === "boss" ? 45 : specialRole === "miniBoss" ? 28 : 20,
+            Math.max(1, Math.round(
+                profile.leakDamage * leakScale * specialLeakScale * lateQualityLeakBonus
+            ))
+        )
+    };
+
+    enemies.push(spawnedEnemy);
+    recordEndlessTelemetrySpawn(spawnedEnemy);
+}
+
+function spawnSplitterChildren(parent) {
+    if (!parent || parent.isSplitChild) return;
+
+    const childOffsets = [-12, 12];
+    childOffsets.forEach(offset => {
+        spawnEnemy("skitter", "normal", {
+            x: parent.x,
+            y: parent.y + offset,
+            targetPoint: parent.targetPoint,
+            visualLaneOffsetY: parent.visualLaneOffsetY,
+            healthScale: 0.72,
+            isSplitChild: true
+        });
     });
+
+    addBlastEffect(parent.x, parent.y, 20);
+}
+
+function applyMedicPulse(medic) {
+    const profile = getEnemyProfile(medic.type);
+    const radius = profile.healRadius || 132;
+    const healAmount = profile.healAmount || 10;
+    let healedAny = false;
+
+    for (const target of enemies) {
+        if (target === medic || target.finished || target.health <= 0) continue;
+
+        const dx = target.x - medic.x;
+        const dy = target.y - medic.y;
+        if (dx * dx + dy * dy > radius * radius) continue;
+
+        const healed = Math.min(target.maxHealth, target.health + healAmount) - target.health;
+        if (healed <= 0) continue;
+
+        target.health += healed;
+        target.healthTrail = Math.max(target.healthTrail ?? target.health, target.health);
+        target.healFlash = 0.35;
+        healedAny = true;
+    }
+
+    if (healedAny) {
+        medic.healFlash = 0.35;
+        blastEffects.push({
+            kind: "heal",
+            x: medic.x,
+            y: medic.y,
+            radius,
+            life: 0.45,
+            maxLife: 0.45
+        });
+    }
 }
 
 function getEndlessWaveGroups(wave) {
-    // Keep the battlefield readable while enemy health and milestone units
-    // carry the late-game pressure: roughly 80 regular enemies at wave 65
-    // and a capped 100 by wave 100, before milestone units are added.
+    // After wave 50, pressure shifts into stronger compositions instead of
+    // filling the entire battlefield with disposable bodies.  Splitters and
+    // milestone enemies still create urgency without turning the run into a
+    // wall of overlapping sprites.
+    const preFiftyWave = Math.min(wave - 1, 49);
+    const lateWave = Math.max(0, wave - 50);
+    const preFiftyCount = 6
+        + Math.floor(preFiftyWave * 0.62)
+        + Math.floor(preFiftyWave / 10) * 2
+        + Math.floor(preFiftyWave / 25) * 2;
+    const lateQualityCount = Math.floor(lateWave * 0.12)
+        + Math.floor(lateWave / 25);
+    // The opening build should need its first adjustment before wave 10.
+    // Add pressure through composition and volume, never by weakening the
+    // survivors the player already deployed.
+    const earlyPressureBonus = wave >= 6 && wave <= 9 ? 2 : 0;
     const totalEnemies = wave === 1
         ? 6
-        : Math.min(
-            100,
-            8 + Math.floor((wave - 1) * 0.78)
-                + Math.floor((wave - 1) / 10) * 2
-                + Math.floor((wave - 1) / 25) * 3
-                + Math.floor((wave - 1) / 50) * 6
-        );
-    const skitterRatio = Math.min(0.32, 0.14 + wave * 0.0018);
-    const snakeRatio = wave >= 12 ? Math.min(0.13, 0.03 + (wave - 12) * 0.0012) : 0;
+        : Math.min(62, preFiftyCount + lateQualityCount + earlyPressureBonus);
+    // Introduce counterplay before a single common weapon can carry the run
+    // on its own. These are composition changes only; survivor stats stay at
+    // full strength when players deploy duplicates.
+    const earlyPressureWave = wave >= 6 && wave <= 12;
+    const skitterRatio = Math.min(
+        earlyPressureWave ? 0.3 : 0.28,
+        (earlyPressureWave ? 0.19 : 0.14) + wave * 0.0016
+    );
+    const snakeRatio = wave >= 9
+        ? Math.min(earlyPressureWave ? 0.12 : 0.1,
+            (earlyPressureWave ? 0.05 : 0.025) + (wave - 9) * 0.001)
+        : 0;
     const skitterCount = wave >= 2 ? Math.max(1, Math.floor(totalEnemies * skitterRatio)) : 0;
     const snakeCount = snakeRatio > 0 ? Math.max(1, Math.floor(totalEnemies * snakeRatio)) : 0;
     const standardCount = Math.max(1, totalEnemies - skitterCount - snakeCount);
-    const cowCount = wave >= 6 ? Math.floor(standardCount * 0.15) : 0;
-    const mutantManCount = wave >= 8 ? Math.floor(standardCount * 0.15) : 0;
-    const hollowCount = wave >= 30 ? Math.min(2, Math.floor(standardCount * 0.02)) : 0;
-    const spiderCount = Math.max(1, standardCount - cowCount - mutantManCount - hollowCount);
+    const lateQualityTier = Math.max(0, Math.floor((wave - 50) / 10));
+    const cowCount = wave >= 4
+        ? Math.max(
+            earlyPressureWave ? 2 : 1,
+            Math.floor(standardCount * (wave >= 50 ? 0.16 : earlyPressureWave ? 0.22 : 0.14))
+        )
+        : 0;
+    const mutantManCount = wave >= 6
+        ? Math.max(1, Math.floor(standardCount * (wave >= 50 ? 0.14 : 0.12)))
+        : 0;
+    const hollowCount = (wave >= 10 && (wave % 5 === 0 || wave === 12)) || wave === 8
+        ? 1
+        : wave >= 30
+            ? Math.min(wave >= 50 ? 2 : 1, Math.floor(standardCount * (wave >= 50 ? 0.028 : 0.016)))
+            : 0;
+    const heavyCount = wave >= 50
+        ? Math.min(3, Math.max(1, Math.floor(standardCount * (0.02 + lateQualityTier * 0.003))))
+        : 0;
+    const fogkeeperCount = Math.ceil(heavyCount / 2);
+    const heavyMutantCount = Math.floor(heavyCount / 2);
+    const spiderCount = Math.max(
+        1,
+        standardCount - cowCount - mutantManCount - hollowCount - heavyCount
+    );
     const groups = [];
     const addGroup = (type, count, specialRole = "normal") => {
         if (count > 0) groups.push({ type, count, ...(specialRole === "normal" ? {} : { specialRole }) });
@@ -1051,6 +1329,8 @@ function getEndlessWaveGroups(wave) {
     addGroup("wastelandcow", cowCount);
     addGroup("mutantman", mutantManCount);
     addGroup("hollow", hollowCount);
+    addGroup("fogkeeper", fogkeeperCount);
+    addGroup("heavymutant", heavyMutantCount);
     addGroup("skitter", skitterCount);
     addGroup("mutantsnake", snakeCount);
 
@@ -1140,6 +1420,229 @@ function getWaveGroups(wave) {
     return groups;
 }
 
+function sanitizeEndlessTelemetryGroups(groups) {
+    return (Array.isArray(groups) ? groups : []).map(group => ({
+        type: String(group?.type || "unknown").slice(0, 32),
+        count: Math.max(0, Math.floor(Number(group?.count) || 0)),
+        specialRole: String(group?.specialRole || "normal").slice(0, 16),
+        types: Array.isArray(group?.types)
+            ? group.types.map(type => String(type).slice(0, 32)).slice(0, 8)
+            : undefined
+    }));
+}
+
+function getEndlessTelemetrySurvivorId(survivor) {
+    if (!survivor) return "unknown";
+    if (!survivor.telemetryId) survivor.telemetryId = createRunId();
+    return String(survivor.telemetryId).slice(0, 64);
+}
+
+function getEndlessTelemetryRoster(baselineRoster = []) {
+    const baselineById = new Map(
+        (Array.isArray(baselineRoster) ? baselineRoster : [])
+            .map(entry => [entry.telemetryId, entry.stats || {}])
+    );
+
+    return survivors.map(survivor => {
+        const telemetryId = getEndlessTelemetrySurvivorId(survivor);
+        const stats = {
+            damageDealt: Math.round(Number(survivor?.damageDealt) || 0),
+            kills: Math.max(0, Math.floor(Number(survivor?.kills) || 0)),
+            attacks: Math.max(0, Math.floor(Number(survivor?.telemetryAttacks) || 0)),
+            hits: Math.max(0, Math.floor(Number(survivor?.telemetryHits) || 0)),
+            activeSeconds: Number((Number(survivor?.telemetryActiveSeconds) || 0).toFixed(1))
+        };
+        const baseline = baselineById.get(telemetryId) || {};
+
+        return {
+            id: String(survivor?.type || "unknown").slice(0, 32),
+            telemetryId,
+            level: Math.max(0, Math.min(3, Math.floor(Number(getSurvivorUpgradeLevel(survivor)) || 0))),
+            x: Math.round(Number(survivor?.x) || 0),
+            y: Math.round(Number(survivor?.y) || 0),
+            targetingPriority: Object.prototype.hasOwnProperty.call(
+                TARGETING_PRIORITY_LABELS,
+                survivor?.targetingPriority
+            ) ? survivor.targetingPriority : "first",
+            stats,
+            performance: {
+                damageDealt: Math.max(0, stats.damageDealt - (Number(baseline.damageDealt) || 0)),
+                kills: Math.max(0, stats.kills - (Number(baseline.kills) || 0)),
+                attacks: Math.max(0, stats.attacks - (Number(baseline.attacks) || 0)),
+                hits: Math.max(0, stats.hits - (Number(baseline.hits) || 0)),
+                activeSeconds: Number(Math.max(
+                    0,
+                    stats.activeSeconds - (Number(baseline.activeSeconds) || 0)
+                ).toFixed(1))
+            }
+        };
+    });
+}
+
+function recordEndlessTelemetryEvent(event) {
+    if (gameMode !== "endless" || !activeEndlessTelemetry || !event) return;
+
+    const events = activeEndlessTelemetry.events || (activeEndlessTelemetry.events = []);
+    if (events.length >= 5000) return;
+
+    const waveStart = activeEndlessTelemetry.waveStart;
+    events.push({
+        ...event,
+        wave: Math.max(0, Math.floor(Number(currentWave) || 0)),
+        phase: waveStart ? "wave" : "setup",
+        elapsedSeconds: Number(Math.max(
+            0,
+            (Date.now() - (waveStart?.startedAt || Date.now())) / 1000
+        ).toFixed(1))
+    });
+}
+
+function recordEndlessTelemetrySpawn(enemy) {
+    const waveStart = activeEndlessTelemetry?.waveStart;
+    if (gameMode !== "endless" || !waveStart || !enemy) return;
+
+    waveStart.spawnedByType[enemy.type] = (waveStart.spawnedByType[enemy.type] || 0) + 1;
+}
+
+function recordEndlessTelemetryDefeat(enemy) {
+    const waveStart = activeEndlessTelemetry?.waveStart;
+    if (gameMode !== "endless" || !waveStart || !enemy) return;
+
+    waveStart.defeatedByType[enemy.type] = (waveStart.defeatedByType[enemy.type] || 0) + 1;
+}
+
+function recordEndlessTelemetryLeak(enemy) {
+    const waveStart = activeEndlessTelemetry?.waveStart;
+    if (gameMode !== "endless" || !waveStart || !enemy) return;
+
+    waveStart.leakedByType[enemy.type] = (waveStart.leakedByType[enemy.type] || 0) + 1;
+    if (waveStart.leaks.length >= 256) return;
+
+    const maxHealth = Math.max(1, Number(enemy.maxHealth) || 1);
+    waveStart.leaks.push({
+        type: String(enemy.type || "unknown").slice(0, 32),
+        role: enemy.isWaveBoss ? "boss" : enemy.isMiniBoss ? "miniBoss" : "normal",
+        remainingHealth: Math.max(0, Math.round(Number(enemy.health) || 0)),
+        maxHealth: Math.round(maxHealth),
+        healthPercent: Number(Math.max(0, Math.min(1, (Number(enemy.health) || 0) / maxHealth)).toFixed(3)),
+        leakDamage: Math.max(0, Math.round(Number(enemy.leakDamage) || 0)),
+        isSplitChild: Boolean(enemy.isSplitChild)
+    });
+}
+
+function getEndlessTelemetryActiveWave() {
+    const source = activeEndlessTelemetry;
+    const waveStart = source?.waveStart;
+    if (gameMode !== "endless" || !source || !waveStart) return null;
+
+    const roster = getEndlessTelemetryRoster(waveStart.roster);
+    return {
+        wave: waveStart.wave,
+        partial: true,
+        groups: waveStart.groups,
+        autoStart: waveStart.autoStart,
+        durationSeconds: Math.max(0, Math.round((Date.now() - waveStart.startedAt) / 1000)),
+        startingHealth: waveStart.startingHealth,
+        endingHealth: Math.max(0, Math.round(playerHealth)),
+        startingScrap: waveStart.startingScrap,
+        endingScrap: Math.max(0, Math.round(scrap)),
+        enemiesDefeated: Math.max(0, Math.floor(Number(totalEnemiesDefeated) || 0) - waveStart.startingEnemiesDefeated),
+        leaks: Math.max(0, Math.floor(Number(leakedEnemiesThisWave) || 0)),
+        spawnedByType: waveStart.spawnedByType,
+        defeatedByType: waveStart.defeatedByType,
+        leakedByType: waveStart.leakedByType,
+        leakDetails: waveStart.leaks,
+        targetingPriority: waveStart.targetingPriority || "first",
+        roster,
+        survivorPerformance: roster.map(entry => ({
+            id: entry.id,
+            telemetryId: entry.telemetryId,
+            level: entry.level,
+            performance: entry.performance
+        }))
+    };
+}
+
+function beginEndlessTelemetryWave(groups) {
+    if (gameMode !== "endless" || !activeEndlessTelemetry) return;
+    activeEndlessTelemetry.waveStart = {
+        wave: Math.max(1, Math.floor(Number(currentWave) || 1)),
+        startedAt: Date.now(),
+        startingHealth: Math.max(0, Math.round(playerHealth)),
+        startingScrap: Math.max(0, Math.round(scrap)),
+        startingEnemiesDefeated: Math.max(0, Math.floor(Number(totalEnemiesDefeated) || 0)),
+        groups: sanitizeEndlessTelemetryGroups(groups),
+        autoStart: Boolean(autoStartWaves),
+        targetingPriority,
+        roster: getEndlessTelemetryRoster(),
+        spawnedByType: {},
+        defeatedByType: {},
+        leakedByType: {},
+        leaks: []
+    };
+}
+
+function recordEndlessTelemetryWave(completedWave, reward, leakPenalty, upkeep) {
+    if (gameMode !== "endless" || !activeEndlessTelemetry) return;
+    const waveStart = activeEndlessTelemetry.waveStart;
+    if (!waveStart || waveStart.wave !== completedWave) return;
+
+    const waves = activeEndlessTelemetry.waves || (activeEndlessTelemetry.waves = []);
+    const roster = getEndlessTelemetryRoster(waveStart.roster);
+    waves.push({
+        wave: completedWave,
+        groups: waveStart.groups,
+        autoStart: waveStart.autoStart,
+        durationSeconds: Math.max(0, Math.round((Date.now() - waveStart.startedAt) / 1000)),
+        startingHealth: waveStart.startingHealth,
+        endingHealth: Math.max(0, Math.round(playerHealth)),
+        startingScrap: waveStart.startingScrap,
+        endingScrap: Math.max(0, Math.round(scrap)),
+        enemiesDefeated: Math.max(0, Math.floor(Number(totalEnemiesDefeated) || 0) - waveStart.startingEnemiesDefeated),
+        leaks: Math.max(0, Math.floor(Number(leakedEnemiesThisWave) || 0)),
+        reward: Math.max(0, Math.floor(Number(reward) || 0)),
+        leakPenalty: Math.max(0, Math.floor(Number(leakPenalty) || 0)),
+        upkeep: Math.max(0, Math.floor(Number(upkeep) || 0)),
+        spawnedByType: waveStart.spawnedByType,
+        defeatedByType: waveStart.defeatedByType,
+        leakedByType: waveStart.leakedByType,
+        leakDetails: waveStart.leaks,
+        targetingPriority: waveStart.targetingPriority || "first",
+        roster,
+        survivorPerformance: roster.map(entry => ({
+            id: entry.id,
+            telemetryId: entry.telemetryId,
+            level: entry.level,
+            performance: entry.performance
+        })),
+        events: (activeEndlessTelemetry.events || [])
+            .filter(event => event.wave === completedWave)
+    });
+    activeEndlessTelemetry.waveStart = null;
+}
+
+function getEndlessTelemetrySnapshot(finalWave, outcome = "defeat") {
+    const source = activeEndlessTelemetry || completedEndlessTelemetry;
+    if (!source) return null;
+    const waveLimit = Math.max(0, Math.floor(Number(finalWave) || 0));
+    return {
+        runId: source.runId,
+        mapId: source.mapId,
+        gameVersion: ENDLESS_TELEMETRY_VERSION,
+        telemetrySchema: ENDLESS_TELEMETRY_SCHEMA_VERSION,
+        startedAt: source.startedAt,
+        outcome: String(outcome || "defeat").slice(0, 16),
+        submittedWave: waveLimit,
+        finalHealth: Math.max(0, Math.round(playerHealth)),
+        finalScrap: Math.max(0, Math.round(scrap)),
+        totalEnemiesDefeated: Math.max(0, Math.floor(Number(totalEnemiesDefeated) || 0)),
+        survivorsRemaining: survivors.length,
+        waves: (source.waves || []).filter(wave => wave.wave <= waveLimit).slice(-250),
+        activeWave: source === activeEndlessTelemetry ? getEndlessTelemetryActiveWave() : null,
+        events: (source.events || []).slice(-5000)
+    };
+}
+
 function startWave() {
     if (!gameRunning || waveRunning) return;
 
@@ -1149,8 +1652,8 @@ function startWave() {
     waveRunning = true;
     gamePaused = false;
     leakedEnemiesThisWave = 0;
-
     const groups = getWaveGroups(currentWave);
+    beginEndlessTelemetryWave(groups);
 
     enemyGroups = groups.map(group => ({ ...group }));
     currentGroupIndex = 0;
@@ -1179,14 +1682,28 @@ let selectedSurvivor = null;
 let moveMode = false;
 
 const survivorCosts = {
-    mason: 55,
-    zach: 70,
+    // Common recruits should stay available after a few imperfect waves.
+    // Their lower entry costs preserve a meaningful early-game decision
+    // without flattening the rarity curve above them.
+    mason: 50,
+    zach: 65,
     brady: 100,
-    cody: 125,
+    cody: 120,
     james: 150,
     britney: 180
 };
-customSurvivors.forEach(survivor => { survivorCosts[survivor.id] = survivor.cost; });
+const deploymentCostFloors = {
+    common: 50,
+    uncommon: 95,
+    rare: 150,
+    legendary: 225
+};
+customSurvivors.forEach(survivor => {
+    survivorCosts[survivor.id] = Math.max(
+        deploymentCostFloors[survivor.rarity] || deploymentCostFloors.common,
+        survivor.cost
+    );
+});
 const scrapRewardPerKill = 5;
 
 function updateScrapDisplay() {
@@ -1225,6 +1742,13 @@ function selectSurvivorToDeploy(id) {
 // Handle clicks on the battlefield.
 canvas.addEventListener("click", function(event) {
         if (gameRunning) {
+        // Clicking back on the battlefield dismisses an expanded next-wave
+        // intel card so it never stays in the way while deploying or moving.
+        if (expandedWavePreviewKey !== null) {
+            expandedWavePreviewKey = null;
+            updateWavePreview();
+        }
+
         const rect = canvas.getBoundingClientRect();
         const clickX = (event.clientX - rect.left) * canvas.width / rect.width;
         const clickY = (event.clientY - rect.top) * canvas.height / rect.height;
@@ -1259,8 +1783,20 @@ canvas.addEventListener("click", function(event) {
                 }
             }
 
+            const previousX = inspectedSurvivor.x;
+            const previousY = inspectedSurvivor.y;
             inspectedSurvivor.x = clickX;
             inspectedSurvivor.y = clickY;
+            recordEndlessTelemetryEvent({
+                kind: "move",
+                survivorId: getEndlessTelemetrySurvivorId(inspectedSurvivor),
+                survivor: inspectedSurvivor.type,
+                fromX: Math.round(Number(previousX) || 0),
+                fromY: Math.round(Number(previousY) || 0),
+                toX: Math.round(clickX),
+                toY: Math.round(clickY),
+                level: getSurvivorUpgradeLevel(inspectedSurvivor)
+            });
 
             moveMode = false;
             updateMoveButton();
@@ -1332,12 +1868,27 @@ canvas.addEventListener("click", function(event) {
         }
     }
 
-    survivors.push({
+    const deployedSurvivor = {
         x,
         y,
         type: selectedSurvivor,
         name: survivorDetails[selectedSurvivor].name,
-        upgradeLevel: 0
+        upgradeLevel: 0,
+        targetingPriority: targetingPriority,
+        telemetryId: createRunId(),
+        telemetryAttacks: 0,
+        telemetryHits: 0,
+        telemetryActiveSeconds: 0
+    };
+    survivors.push(deployedSurvivor);
+    recordEndlessTelemetryEvent({
+        kind: "deploy",
+        survivorId: deployedSurvivor.telemetryId,
+        survivor: deployedSurvivor.type,
+        cost,
+        x: Math.round(x),
+        y: Math.round(y),
+        level: 0
     });
 
    
@@ -1398,11 +1949,26 @@ canvas.addEventListener("click", function(event) {
         }
     }
 
-    survivors.push({
+    const deployedSurvivor = {
         x,
         y,
         type: selectedSurvivor,
-        upgradeLevel: 0
+        upgradeLevel: 0,
+        targetingPriority: targetingPriority,
+        telemetryId: createRunId(),
+        telemetryAttacks: 0,
+        telemetryHits: 0,
+        telemetryActiveSeconds: 0
+    };
+    survivors.push(deployedSurvivor);
+    recordEndlessTelemetryEvent({
+        kind: "deploy",
+        survivorId: deployedSurvivor.telemetryId,
+        survivor: deployedSurvivor.type,
+        cost,
+        x: Math.round(x),
+        y: Math.round(y),
+        level: 0
     });
 
     scrap -= cost;
@@ -1520,12 +2086,20 @@ survivor.y + survivor.recoilY - height / 2 + bounce,
 // common = reliable, uncommon = stronger generalists, rare = high-impact
 // specialists, legendary = exceptional ceiling with a sharper tradeoff.
 const survivorStats = {
-    mason: { range: 135, damage: 15, fireRate: 1.0 },
-    james: { range: 115, damage: 17, fireRate: 1.0 },
-    cody: { range: 140, damage: 28, fireRate: 1.65 },
-    britney: { range: 225, damage: 58, fireRate: 2.35 },
-    zach: { range: 105, damage: 4, fireRate: 0.32 },
-    brady: { range: 135, damage: 31, fireRate: 1.5 }
+    mason: { range: 135, damage: 14, fireRate: 1.05 },
+    james: { range: 115, damage: 16, fireRate: 1.1 },
+    cody: { range: 140, damage: 24, fireRate: 1.75 },
+    // Britney is the rare single-target specialist.  Give her enough
+    // impact to justify the long firing interval without making her a
+    // general-purpose replacement for the crowd-control survivors.
+    britney: { range: 225, damage: 60, fireRate: 2.4 },
+    // Zach should stay the lower-damage fast-fire common, but not collapse
+    // when tested as an opening pick on his own.
+    // Zach's common SMG should be dependable from the opening wave.  His
+    // signature dual-wield upgrade is tuned separately below so this early
+    // buff does not compound his level-3 ceiling.
+    zach: { range: 115, damage: 6, fireRate: 0.34 },
+    brady: { range: 135, damage: 27, fireRate: 1.55 }
 };
 
 const survivorRarities = {
@@ -1539,13 +2113,23 @@ const survivorRarities = {
 
 const rarityPowerMultipliers = {
     common: 1,
-    uncommon: 1.15,
-    rare: 1.35,
-    legendary: 1.6
+    uncommon: 1.14,
+    rare: 1.32,
+    legendary: 1.55
 };
 
-const upgradeDamageMultipliers = [1, 1.18, 1.4, 1.65];
-const upgradeFireRateMultipliers = [1, 0.94, 0.88, 0.82];
+// Higher rarities hit harder, but their weapons are more demanding to use.
+// This keeps the power jump noticeable without making a legendary recruit a
+// flat upgrade in every situation.
+const rarityFireRateMultipliers = {
+    common: 1,
+    uncommon: 1,
+    rare: 1.12,
+    legendary: 1.2
+};
+
+const upgradeDamageMultipliers = [1, 1.16, 1.35, 1.6];
+const upgradeFireRateMultipliers = [1, 0.96, 0.9, 0.84];
 
 function getSurvivorRarity(type) {
     if (survivorRarities[type]) return survivorRarities[type];
@@ -1558,15 +2142,21 @@ function getRarityPowerMultiplier(type) {
 
 customSurvivors.forEach(survivor => {
     const customDamageTuning = {
-        selena: 1.05,
-        radhesh: 1.2,
-        rork: 1.5,
-        bas: 1.2,
+        selena: 1,
+        radhesh: 1.1,
+        rork: 1.25,
+        bas: 1.1,
         // Knox's three-round burst was underperforming for an uncommon
         // recruit. Give each burst a stronger, slightly faster pulse.
-        knox: 1.4
+        knox: 1.15
     };
-    const customFireRateTuning = { knox: 0.85 };
+    // Radhesh's sweep was consistently deleting targets before downstream
+    // survivors could engage.  A small cadence reduction preserves his
+    // crowd-control identity while giving the rest of the roster more work.
+    const customFireRateTuning = {
+        knox: 0.85,
+        radhesh: 1.1
+    };
     survivorStats[survivor.id] = {
         range: survivor.range,
         // Give custom weapons a little role headroom while still respecting
@@ -1609,26 +2199,29 @@ function getSurvivorStats(survivorOrType) {
     const bradyAutoShotty = isSurvivor && type === "brady" && level >= 3;
     const rarityMultiplier = getRarityPowerMultiplier(type);
     let damage = base.damage * rarityMultiplier * upgradeDamageMultipliers[level];
-    let fireRate = base.fireRate * upgradeFireRateMultipliers[level];
+    const rarityFireRateMultiplier = rarityFireRateMultipliers[getSurvivorRarity(type)] || 1;
+    let fireRate = base.fireRate * upgradeFireRateMultipliers[level] * rarityFireRateMultiplier;
 
     // Signature upgrades are power-defining choices, not just another flat
     // 20% level.  Their tradeoffs keep the roster from collapsing into one
     // best pick while still making level 3 feel exciting.
     if (masonHighCaliber) {
-        damage = base.damage * rarityMultiplier * 1.95;
-        fireRate = base.fireRate * 1.18;
+        damage = base.damage * rarityMultiplier * 1.9;
+        fireRate = base.fireRate * 1.2 * rarityFireRateMultiplier;
     } else if (codyHighlyExplosive) {
-        damage = base.damage * rarityMultiplier * 1.8;
-        fireRate = base.fireRate * 1.2;
+        damage = base.damage * rarityMultiplier * 1.75;
+        fireRate = base.fireRate * 1.2 * rarityFireRateMultiplier;
     } else if (britneySemiAuto) {
-        damage = base.damage * rarityMultiplier * 0.98;
-        fireRate = base.fireRate * 0.56;
+        damage = base.damage * rarityMultiplier * 1.05;
+        fireRate = base.fireRate * 0.62 * rarityFireRateMultiplier;
     } else if (zachDualWield) {
-        damage = base.damage * rarityMultiplier * 0.7;
-        fireRate = base.fireRate * 0.5;
+        // Keep the already-tested level-3 dual-wield ceiling stable after the
+        // opening-level damage buff above.
+        damage = base.damage * rarityMultiplier * 0.56;
+        fireRate = base.fireRate * 0.5 * rarityFireRateMultiplier;
     } else if (bradyAutoShotty) {
-        damage = base.damage * rarityMultiplier * 1.6;
-        fireRate = base.fireRate * 0.5;
+        damage = base.damage * rarityMultiplier * 1.55;
+        fireRate = base.fireRate * 0.5 * rarityFireRateMultiplier;
     }
 
     return {
@@ -1650,11 +2243,22 @@ function getSurvivorDps(survivorOrType) {
     const hitsPerAttack = attackProfile?.repeat
         ? attackProfile.repeat(level)
         : 1;
+    const targetMultiplier = type === "zach" && level >= 3
+        ? 2
+        : type === "radhesh" || type === "cody"
+            ? 1.5
+            : 1;
+    let estimatedDps = (stats.damage * hitsPerAttack * targetMultiplier) / stats.fireRate;
 
-    // This is single-target DPS. Multi-target effects such as Radhesh's
-    // sweep and Cody's blast are intentionally not multiplied by an unknown
-    // number of nearby enemies.
-    return Number(((stats.damage * hitsPerAttack) / stats.fireRate).toFixed(1));
+    // These are conservative estimates: one nearby splash target for area
+    // attacks and one active burn target. The detail panel now reflects the
+    // tools players actually see on the battlefield instead of hiding them.
+    if (type === "james") {
+        const burnStats = getJamesBurnStats(survivorOrType);
+        estimatedDps += burnStats.damage;
+    }
+
+    return Number(estimatedDps.toFixed(1));
 }
 
 function getCodyBlastRadius(survivor) {
@@ -1680,12 +2284,14 @@ function getJamesBurnStats(survivor) {
 function getSurvivorUpgradeCost(type, level) {
     const baseCost = survivorCosts[type];
     if (!baseCost || level < 1 || level > maxSurvivorUpgradeLevel) return 0;
-    const upgradeCostMultipliers = [0, 0.7, 1.2, 2.8];
+    // Upgrades are the long-term scrap sink: accessible first tier, a
+    // deliberate second-tier investment, and a premium signature upgrade.
+    const upgradeCostMultipliers = [0, 0.75, 1.25, 2.25];
     const rarityCostMultiplier = {
         common: 1,
-        uncommon: 1.1,
-        rare: 1.25,
-        legendary: 1.45
+        uncommon: 1.15,
+        rare: 1.35,
+        legendary: 1.6
     }[getSurvivorRarity(type)] || 1;
     return Math.round(baseCost * upgradeCostMultipliers[level] * rarityCostMultiplier);
 }
@@ -1878,6 +2484,8 @@ document.getElementById("survivorKills").textContent =
     deployedUnit ? deployedUnit.kills || 0 : 0;
     document.getElementById("survivorDetailDps").textContent =
         getSurvivorDps(deployedUnit || id).toFixed(1);
+    document.getElementById("survivorDetailDps").title =
+        "Estimated DPS includes a conservative nearby target for area attacks and active burn damage.";
 
    
 const deployedUpgradeLevel = getSurvivorUpgradeLevel(deployedUnit);
@@ -1912,6 +2520,7 @@ if (person.custom && deployedUpgradeLevel > 0) {
 }
 document.getElementById("survivorDetailDescription").textContent = detailDescription;
 
+updateSurvivorTargetingControl(deployedUnit || null);
 updateSurvivorUpgradeButton(deployedUnit || null);
 updateSellButton();
 updateMoveButton();
@@ -1958,6 +2567,38 @@ function knockEnemyBackAlongRoad(enemy, distance) {
             enemy.targetPoint--;
         }
     }
+}
+
+// Return a monotonic distance along the current road.  Array order is spawn
+// order, not threat order: a fast skitter or a splitter child can overtake an
+// older enemy and must become the next target immediately.
+function getEnemyPathProgress(enemy) {
+    if (!enemy || enemy.finished) return Number.POSITIVE_INFINITY;
+
+    const lastSegment = Math.max(1, roadPoints.length - 1);
+    const targetPoint = Math.max(1, Math.min(lastSegment, Math.floor(Number(enemy.targetPoint) || 1)));
+    let progress = 0;
+
+    for (let index = 0; index < targetPoint - 1; index++) {
+        const start = roadPoints[index];
+        const end = roadPoints[index + 1];
+        if (start && end) progress += Math.hypot(end.x - start.x, end.y - start.y);
+    }
+
+    const segmentStart = roadPoints[targetPoint - 1];
+    const segmentEnd = roadPoints[targetPoint];
+    if (!segmentStart || !segmentEnd) return progress;
+
+    const segmentX = segmentEnd.x - segmentStart.x;
+    const segmentY = segmentEnd.y - segmentStart.y;
+    const segmentLength = Math.hypot(segmentX, segmentY);
+    if (segmentLength <= 0) return progress;
+
+    const projection = (
+        (enemy.x - segmentStart.x) * segmentX
+        + (enemy.y - segmentStart.y) * segmentY
+    ) / segmentLength;
+    return progress + Math.max(0, Math.min(segmentLength, projection));
 }
 
 function drawSurvivorPreview() {
@@ -2260,9 +2901,20 @@ function applySurvivorDamage(survivor, enemy, damage, isSplash = false, hitIndex
         Number.isFinite(enemy.healthTrail) ? enemy.healthTrail : enemy.health,
         enemy.health
     );
-    const actualDamage = Math.min(damage, enemy.health);
+    const damageType = getSurvivorDamageType(survivor);
+    const damageTypeMultiplier = getEnemyDamageMultiplier(enemy, damageType);
+    const armorPiercing = ["mason", "cody", "brady"].includes(survivor.type)
+        || (survivor.type === "james" && getSurvivorUpgradeLevel(survivor) >= 3);
+    const armorMultiplier = enemy.isArmored
+        ? (armorPiercing ? 0.86 : (enemy.armorMultiplier || 0.58))
+        : 1;
+    const actualDamage = Math.min(
+        enemy.health,
+        Math.max(1, damage * armorMultiplier * damageTypeMultiplier)
+    );
     enemy.health -= actualDamage;
     enemy.lastHitBy = survivor;
+    survivor.telemetryHits = (survivor.telemetryHits || 0) + 1;
     enemy.hitFlash = 0.15;
     survivor.damageDealt += actualDamage;
 
@@ -2272,14 +2924,73 @@ function applySurvivorDamage(survivor, enemy, damage, isSplash = false, hitIndex
         amount: Math.round(actualDamage),
         life: 0.8,
         maxLife: 0.8,
-        isSplash
+        isSplash,
+        damageType,
+        isWeakness: damageTypeMultiplier > 1.01,
+        isResistance: damageTypeMultiplier < 0.99
     });
+}
+
+function compareAttackTargets(first, second, priority = targetingPriority) {
+    const firstEnemy = first.enemy;
+    const secondEnemy = second.enemy;
+
+    // Stable tie-breakers keep the order readable and prevent targets from
+    // flickering when two enemies have the same primary stat.
+    const progressDifference = second.pathProgress - first.pathProgress;
+    const speedDifference = (secondEnemy.speed || 0) - (firstEnemy.speed || 0);
+    const healthDifference = (secondEnemy.health || 0) - (firstEnemy.health || 0);
+    const maxHealthDifference = (secondEnemy.maxHealth || 0) - (firstEnemy.maxHealth || 0);
+
+    if (priority === "closest") {
+        if (Math.abs(first.distance - second.distance) > 0.01) {
+            return first.distance - second.distance;
+        }
+    } else if (priority === "strongest") {
+        if (Math.abs(maxHealthDifference) > 0.01) return maxHealthDifference;
+        if (Math.abs(healthDifference) > 0.01) return healthDifference;
+    } else if (priority === "fastest") {
+        if (Math.abs(speedDifference) > 0.01) return speedDifference;
+    } else if (Math.abs(progressDifference) > 0.01) {
+        // Default: prioritize the hostile furthest along the road.
+        return progressDifference;
+    }
+
+    if (Math.abs(progressDifference) > 0.01) return progressDifference;
+    if (Math.abs(speedDifference) > 0.01) return speedDifference;
+    if (Math.abs(healthDifference) > 0.01) return healthDifference;
+    return (secondEnemy.leakDamage || 0) - (firstEnemy.leakDamage || 0);
+}
+
+function updateSurvivorTargetingControl(survivor) {
+    const control = document.getElementById("survivorTargetingControl");
+    const select = document.getElementById("survivorTargetPrioritySelect");
+    if (!control || !select) return;
+
+    const isFieldedSurvivor = Boolean(survivor && survivors.includes(survivor));
+    control.hidden = !isFieldedSurvivor;
+    if (!isFieldedSurvivor) return;
+
+    const priority = Object.prototype.hasOwnProperty.call(
+        TARGETING_PRIORITY_LABELS,
+        survivor.targetingPriority
+    ) ? survivor.targetingPriority : "first";
+    survivor.targetingPriority = priority;
+    select.value = priority;
+    select.setAttribute(
+        "aria-label",
+        `${survivor.name || "Survivor"} targeting priority: ${TARGETING_PRIORITY_LABELS[priority]}`
+    );
 }
 
 function updateSurvivorCombat(deltaTime) {
     for (const survivor of survivors) {
         if (survivor.damageDealt === undefined) survivor.damageDealt = 0;
-if (survivor.kills === undefined) survivor.kills = 0;
+        if (survivor.kills === undefined) survivor.kills = 0;
+        if (waveRunning) {
+            survivor.telemetryActiveSeconds =
+                (survivor.telemetryActiveSeconds || 0) + deltaTime;
+        }
         const stats = getSurvivorStats(survivor);
         if (!stats) continue;
 
@@ -2302,12 +3013,28 @@ if (survivor.kills === undefined) survivor.kills = 0;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance <= stats.range) {
-                attackTargets.push({ enemy, dx, dy, distance });
-                if (attackTargets.length >= targetsPerAttack) break;
+                attackTargets.push({
+                    enemy,
+                    dx,
+                    dy,
+                    distance,
+                    pathProgress: getEnemyPathProgress(enemy)
+                });
             }
         }
 
+        attackTargets.sort((first, second) => compareAttackTargets(
+            first,
+            second,
+            survivor.targetingPriority || targetingPriority
+        ));
+        if (Number.isFinite(targetsPerAttack)) {
+            attackTargets.splice(targetsPerAttack);
+        }
+
         if (attackTargets.length === 0) continue;
+
+        survivor.telemetryAttacks = (survivor.telemetryAttacks || 0) + 1;
 
         for (const { enemy, dx, dy, distance } of attackTargets) {
             const repeatCount = customAttack?.repeat
@@ -2370,7 +3097,13 @@ if (survivor.kills === undefined) survivor.kills = 0;
                 addShotVisual(survivor, enemy, dx, dy, distance, survivor.type, hitIndex, repeatCount);
                 addImpactPixels(enemy, survivor.type, dx, dy);
                 if (survivor.type === "brady") {
-                    knockEnemyBackAlongRoad(enemy, 8);
+                    // Shotgun knockback has diminishing returns per target.
+                    // The opening blast creates space, but repeated hits cannot
+                    // permanently pin one enemy at the same road corner.
+                    const knockbackHits = Math.max(0, enemy.shotgunKnockbackHits || 0);
+                    const knockbackStrength = Math.max(1.25, 8 * Math.pow(0.52, knockbackHits));
+                    knockEnemyBackAlongRoad(enemy, knockbackStrength);
+                    enemy.shotgunKnockbackHits = knockbackHits + 1;
                 }
             }
         }
@@ -2389,15 +3122,25 @@ if (survivor.kills === undefined) survivor.kills = 0;
     for (let i = enemies.length - 1; i >= 0; i--) {
         if (enemies[i].health <= 0) {
             if (enemies[i].lastHitBy) {
-    enemies[i].lastHitBy.kills++;
-}
+                enemies[i].lastHitBy.kills++;
+            }
+            const defeatedEnemy = enemies[i];
+            recordEndlessTelemetryDefeat(defeatedEnemy);
+            if (defeatedEnemy.type === "mutantsnake") {
+                spawnSplitterChildren(defeatedEnemy);
+            }
             totalEnemiesDefeated++;
             enemies.splice(i, 1);
             // Endless scrap should fund decisions, not remove them.  Rewards
             // rise slowly with the run so a full roster still has to choose
             // which upgrades are worth buying.
-            const endlessKillReward = Math.min(4, 2 + Math.floor(currentWave / 30));
-            scrap += isEndlessStyleMode() ? endlessKillReward : scrapRewardPerKill;
+            // Endless scrap comes primarily from surviving a wave.  A tiny
+            // opening kill reward helps the first deployment without letting
+            // late-game enemy volume create an unlimited wallet.
+            const endlessKillReward = currentWave <= 3 && !defeatedEnemy.isSplitChild ? 1 : 0;
+            scrap += isEndlessStyleMode()
+                ? endlessKillReward
+                : (defeatedEnemy.isSplitChild ? 0 : scrapRewardPerKill);
         }
     }
 
@@ -2478,13 +3221,23 @@ function drawDamageNumbers() {
         ctx.strokeText(amount, x, y);
 
         // Bright, separated colors distinguish direct, splash, and burn hits.
-        ctx.fillStyle = number.isBurn
-            ? "#ff8a66"
-            : number.isSplash
-                ? "#ffc768"
-                : "#fff2a0";
+        ctx.fillStyle = number.isWeakness
+            ? "#9dffbf"
+            : number.isResistance
+                ? "#c3c7d3"
+                : number.isBurn
+                    ? "#ff8a66"
+                    : number.isSplash
+                        ? "#ffc768"
+                        : "#fff2a0";
 
         ctx.fillText(amount, x, y);
+
+        if (number.isWeakness || number.isResistance) {
+            ctx.font = "bold 9px monospace";
+            ctx.fillStyle = number.isWeakness ? "#9dffbf" : "#c3c7d3";
+            ctx.fillText(number.isWeakness ? "WEAK" : "RESIST", x, y - fontSize - 2);
+        }
     }
 
     ctx.restore();
@@ -2646,6 +3399,24 @@ function drawBlastEffects() {
 
     for (const effect of blastEffects) {
         const progress = 1 - effect.life / effect.maxLife;
+        if (effect.kind === "heal") {
+            ctx.globalAlpha = Math.max(0, effect.life / effect.maxLife) * 0.8;
+            ctx.strokeStyle = "#8ef0b0";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(
+                Math.round(effect.x),
+                Math.round(effect.y),
+                Math.round(effect.radius * Math.min(1, progress * 1.2)),
+                0,
+                Math.PI * 2
+            );
+            ctx.stroke();
+            ctx.fillStyle = "#b8ffd0";
+            ctx.fillRect(Math.round(effect.x) - 2, Math.round(effect.y) - 7, 4, 14);
+            ctx.fillRect(Math.round(effect.x) - 7, Math.round(effect.y) - 2, 14, 4);
+            continue;
+        }
         if (effect.kind === "bat") {
             const dx = effect.targetX - effect.x;
             const dy = effect.targetY - effect.y;
@@ -2684,6 +3455,7 @@ function drawBlastEffects() {
 
 function updateEnemies(deltaTime) {
     for (const enemy of enemies) {
+        const profile = getEnemyProfile(enemy.type);
         const healthTrail = Number.isFinite(enemy.healthTrail)
             ? enemy.healthTrail
             : enemy.health;
@@ -2691,6 +3463,14 @@ function updateEnemies(deltaTime) {
             enemy.health,
             healthTrail - enemy.maxHealth * 1.1 * deltaTime
         );
+
+        if (enemy.isMedic && enemy.health > 0) {
+            enemy.medicPulseTimer = (enemy.medicPulseTimer ?? 1.2) - deltaTime;
+            if (enemy.medicPulseTimer <= 0) {
+                applyMedicPulse(enemy);
+                enemy.medicPulseTimer = 2.8;
+            }
+        }
 
         const segmentStart = roadPoints[Math.max(0, enemy.targetPoint - 1)];
         const segmentEnd = roadPoints[enemy.targetPoint];
@@ -2710,7 +3490,8 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
     enemy.burnTimer -= deltaTime;
 
     if (enemy.burnTickTimer <= 0) {
-        const damage = Math.min(enemy.health, enemy.burnDamage);
+        const burnMultiplier = getEnemyDamageMultiplier(enemy, "fire");
+        const damage = Math.min(enemy.health, enemy.burnDamage * burnMultiplier);
 
         enemy.healthTrail = Math.max(
             Number.isFinite(enemy.healthTrail) ? enemy.healthTrail : enemy.health,
@@ -2727,7 +3508,9 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
                 amount: Math.round(damage),
                 life: 0.65,
                 maxLife: 0.65,
-                isBurn: true
+                isBurn: true,
+                isWeakness: burnMultiplier > 1.01,
+                isResistance: burnMultiplier < 0.99
             });
         }
 
@@ -2750,6 +3533,7 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
 );
         enemy.slowTimer = Math.max(0, (enemy.slowTimer || 0) - deltaTime);
         enemy.slowFlash = Math.max(0, (enemy.slowFlash || 0) - deltaTime);
+        enemy.healFlash = Math.max(0, (enemy.healFlash || 0) - deltaTime);
         const target = roadPoints[enemy.targetPoint];
 
         if (!target) {
@@ -2771,6 +3555,7 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
                 
 enemy.finished = true;
 leakedEnemiesThisWave++;
+recordEndlessTelemetryLeak(enemy);
 
 const leakDamage = enemy.leakDamage ?? getEnemyProfile(enemy.type).leakDamage;
 playerHealth = Math.max(0, playerHealth - leakDamage);
@@ -2866,16 +3651,18 @@ function drawEnemies() {
     for (const enemy of enemies) {
         const profile = getEnemyProfile(enemy.type);
         const sizeScale = enemy.sizeScale || 1;
-        const spriteHeight = profile.spriteHeight * sizeScale;
         const hitOffsetX = enemy.hitOffsetX || 0;
         const hitOffsetY = enemy.hitOffsetY || 0;
+        const laneOffsetY = enemy.visualLaneOffsetY || 0;
 
         ctx.save();
         ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
         ctx.beginPath();
         ctx.ellipse(
             enemy.x + hitOffsetX,
-            enemy.y + hitOffsetY + (enemy.visualLaneOffsetY || 0) + spriteHeight / 2 - 5,
+            // enemy.x/y is the road anchor.  The shadow sits at that anchor,
+            // which is also where the sprite's lowest opaque pixel lands.
+            enemy.y + hitOffsetY + laneOffsetY + 2,
             (profile.isHeavy || profile.isBoss ? 14 : 12) * sizeScale,
             4.5 * sizeScale,
             0,
@@ -2893,6 +3680,13 @@ function drawEnemies() {
         const sizeScale = enemy.sizeScale || 1;
         const spriteWidth = profile.spriteWidth * sizeScale;
         const spriteHeight = profile.spriteHeight * sizeScale;
+        const spriteBottomRatio = Number.isFinite(profile.spriteBottomRatio)
+            ? profile.spriteBottomRatio
+            : 1;
+        // Align the lowest opaque pixel of the transparent PNG to the road
+        // anchor.  This keeps short, tall, and differently-padded enemies
+        // standing on the same road centerline.
+        const spriteGroundOffsetY = spriteHeight * (0.5 - spriteBottomRatio);
 
         if (isHollow && enemy.health > 0) {
             hollowAlive = true;
@@ -2904,7 +3698,9 @@ function drawEnemies() {
         const hitOffsetX = enemy.hitOffsetX || 0;
         const hitOffsetY = enemy.hitOffsetY || 0;
         const spriteX = enemy.x + hitOffsetX;
-        const spriteY = enemy.y + hitOffsetY + bounce + (enemy.visualLaneOffsetY || 0);
+        const spriteY = enemy.y + hitOffsetY + bounce
+            + (enemy.visualLaneOffsetY || 0)
+            + spriteGroundOffsetY;
 
         if (image.complete && image.naturalWidth > 0) {
             ctx.save();
@@ -2942,7 +3738,42 @@ function drawEnemies() {
                 ctx.restore();
             }
 
+            if (enemy.healFlash > 0) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, enemy.healFlash / 0.35) * 0.38;
+                ctx.filter = "hue-rotate(75deg) saturate(2.2) brightness(1.25)";
+                ctx.drawImage(
+                    image,
+                    spriteX - spriteWidth / 2,
+                    spriteY - spriteHeight / 2,
+                    spriteWidth,
+                    spriteHeight
+                );
+                ctx.restore();
+            }
+
                      ctx.restore();
+        }
+
+        if (enemy.isArmored && enemy.health > 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.72;
+            ctx.strokeStyle = "#e8c66c";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.arc(Math.round(spriteX), Math.round(spriteY), Math.max(13, spriteWidth * 0.52), 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        if (enemy.isMedic && enemy.health > 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.9;
+            ctx.fillStyle = "#9af0b8";
+            ctx.fillRect(Math.round(spriteX) - 2, Math.round(spriteY - spriteHeight / 2 - 13), 4, 10);
+            ctx.fillRect(Math.round(spriteX) - 5, Math.round(spriteY - spriteHeight / 2 - 10), 10, 4);
+            ctx.restore();
         }
 
         // Larger, warmer health bars make mini-bosses and wave bosses easy to spot.
@@ -3120,6 +3951,16 @@ let awaitingNextWave = false;
 let autoStartWaveTimer = null;
 let waveCompleteToastTimer = null;
 let insufficientScrapToastTimer = null;
+// A global targeting order keeps the default behavior predictable while
+// giving players a meaningful decision when several enemies overlap in range.
+// "first" means furthest along the road (closest to the exit).
+let targetingPriority = "first";
+const TARGETING_PRIORITY_LABELS = {
+    first: "FIRST / EXIT",
+    closest: "CLOSEST",
+    strongest: "STRONGEST",
+    fastest: "FASTEST"
+};
 const scrapPenaltyPerLeak = 8;
 const startingWaveScrapReward = 45;
 const waveScrapRewardIncrease = 8;
@@ -3148,6 +3989,25 @@ function scheduleAutoStartWave() {
     cancelAutoStartWave();
     if (!autoStartWaves || !gameRunning || !awaitingNextWave) return;
 
+    // Auto-start is convenient, but a completely unattended run removes the
+    // decisions that make Endless fun.  Give the player a short checkpoint at
+    // each fifth cleared wave (and whenever the base is in critical health).
+    // currentWave has already advanced to the next wave by the time this
+    // timer is scheduled, so inspect the wave that was just cleared.
+    const completedWave = Math.max(0, currentWave - 1);
+    const checkpoint = gameMode === "endless"
+        && completedWave > 0
+        && (completedWave % 5 === 0 || playerHealth <= 30);
+    if (checkpoint) {
+        const status = document.getElementById("waveStatus");
+        if (status) {
+            status.textContent = playerHealth <= 30
+                ? "CHECKPOINT: REPAIR YOUR DEFENSES BEFORE THE NEXT WAVE."
+                : "CHECKPOINT: REVIEW YOUR SQUAD BEFORE THE NEXT WAVE.";
+        }
+        return;
+    }
+
     startWave();
 }
 
@@ -3164,16 +4024,19 @@ function hideWaveCompleteToast() {
     toast.setAttribute("aria-hidden", "true");
 }
 
-function showWaveCompleteToast(wave, reward, leaked = 0, leakPenalty = 0) {
+function showWaveCompleteToast(wave, reward, leaked = 0, leakPenalty = 0, upkeep = 0, checkpointBonus = 0) {
     const toast = document.getElementById("waveCompleteToast");
     if (!toast) return;
 
     hideWaveCompleteToast();
     document.getElementById("waveCompleteNumber").textContent = `WAVE ${wave}`;
+    const checkpointText = checkpointBonus ? ` · CHECKPOINT +${checkpointBonus}` : "";
     document.getElementById("waveCompleteReward").textContent =
         leaked > 0
-            ? `+${reward} SCRAP · ${leaked} LEAKED (-${leakPenalty})`
-            : `+${reward} SCRAP EARNED · CLEAN WAVE`;
+            ? `+${reward} SCRAP · ${leaked} LEAKED (-${leakPenalty})${upkeep ? ` · -${upkeep} UPKEEP` : ""}${checkpointText}`
+            : upkeep
+                ? `+${reward} SCRAP EARNED · -${upkeep} UPKEEP${checkpointText}`
+                : `+${reward} SCRAP EARNED · CLEAN WAVE${checkpointText}`;
     toast.setAttribute("aria-hidden", "false");
     void toast.offsetWidth;
     toast.classList.add("is-visible");
@@ -3206,6 +4069,10 @@ function showInsufficientScrapToast() {
 
 function setAutoStartWaves(enabled) {
     autoStartWaves = enabled;
+    recordEndlessTelemetryEvent({
+        kind: "auto_start",
+        enabled: Boolean(autoStartWaves)
+    });
     updateAutoStartButton();
 
     if (autoStartWaves && awaitingNextWave) {
@@ -3277,17 +4144,46 @@ function updateWaveSystem(deltaTime) {
         const completedWave = currentWave;
         if (gameMode === "daily") dailyLastCompletedAt = new Date().toISOString();
         const baseWaveReward = isEndlessStyleMode()
-            ? 25 + Math.min(145, (completedWave - 1) * 2)
+            ? 22 + Math.min(34, Math.floor((completedWave - 1) * 0.45))
             : startingWaveScrapReward + (completedWave - 1) * waveScrapRewardIncrease;
-        const leakPenalty = leakedEnemiesThisWave * scrapPenaltyPerLeak;
-        const waveReward = Math.max(0, baseWaveReward - leakPenalty);
+        const endlessLeakPenalty = completedWave <= 15
+            ? 3
+            : completedWave <= 40
+                ? 5
+                : scrapPenaltyPerLeak;
+        const cleanWaveBonus = isEndlessStyleMode() && leakedEnemiesThisWave === 0
+            ? Math.min(8, 3 + Math.floor(completedWave / 25))
+            : 0;
+        const leakPenalty = leakedEnemiesThisWave * (
+            isEndlessStyleMode() ? endlessLeakPenalty : scrapPenaltyPerLeak
+        );
+        const grossWaveReward = isEndlessStyleMode()
+            ? Math.max(4, baseWaveReward - leakPenalty + cleanWaveBonus)
+            : Math.max(0, baseWaveReward - leakPenalty);
+        // Give the player a modest economy checkpoint before the next
+        // difficulty tier. This helps a run recover without flattening the
+        // value of leaks, upgrades, or survivor placement decisions.
+        const checkpointBonus = gameMode === "endless"
+            && (completedWave === 5 || completedWave === 10)
+            ? 12
+            : 0;
+        // Once the roster is built, a small late-run upkeep charge keeps scrap
+        // meaningful without starving the opening build. It scales by active
+        // survivors and only begins after the first major boss milestone.
+        const endlessUpkeep = gameMode === "endless" && completedWave >= 50
+            ? Math.min(48, survivors.length * (2 + Math.floor((completedWave - 50) / 15)))
+            : 0;
+        const waveReward = Math.max(0, grossWaveReward + checkpointBonus - endlessUpkeep);
         scrap += waveReward;
         updateScrapDisplay();
+        recordEndlessTelemetryWave(completedWave, waveReward, leakPenalty, endlessUpkeep);
         showWaveCompleteToast(
             completedWave,
             waveReward,
             leakedEnemiesThisWave,
-            leakPenalty
+            leakPenalty,
+            endlessUpkeep,
+            checkpointBonus
         );
 
         document.getElementById("pauseButton").disabled = true;
@@ -4108,7 +5004,9 @@ function prepareReturnEndlessSubmission() {
             mapId: currentLevel,
             bestWave,
             submitted: false,
-            submitting: false
+            submitting: false,
+            telemetry: getEndlessTelemetrySnapshot(bestWave, "abandoned"),
+            telemetryLogged: false
         };
     }
 
@@ -4138,6 +5036,27 @@ function prepareDailyConfirmationSubmissions() {
     updateDailyScoreSubmissionUI();
 }
 
+async function persistEndlessRunTelemetry(client, score) {
+    const telemetry = score?.telemetry;
+    if (!client || !supabaseUser || !telemetry || score.telemetryLogged) return;
+    if (!telemetry.runId || !Number.isFinite(Number(telemetry.mapId))) return;
+
+    const { error } = await client.from("endless_run_logs").insert({
+        user_id: supabaseUser.id,
+        run_id: telemetry.runId,
+        map_id: Math.max(1, Math.min(6, Math.floor(Number(telemetry.mapId)))),
+        submitted_wave: Math.max(0, Math.floor(Number(score.bestWave) || 0)),
+        outcome: String(telemetry.outcome || "defeat").slice(0, 16),
+        game_version: String(telemetry.gameVersion || ENDLESS_TELEMETRY_VERSION).slice(0, 16),
+        payload: telemetry
+    });
+
+    // A retry after a successful leaderboard submission is harmless. Treat a
+    // duplicate run id as already recorded so it never blocks score posting.
+    if (error && error.code !== "23505") throw error;
+    score.telemetryLogged = true;
+}
+
 async function persistEndlessLeaderboardScore(score) {
     const client = await ensureSupabaseClient();
     const submittedWave = Math.max(0, Math.floor(Number(score.bestWave) || 0));
@@ -4156,6 +5075,15 @@ async function persistEndlessLeaderboardScore(score) {
     if (verificationError) throw verificationError;
     if (!savedScore || Number(savedScore.best_wave) < submittedWave) {
         throw new Error("The leaderboard could not verify this score. Please try again.");
+    }
+
+    try {
+        await persistEndlessRunTelemetry(client, score);
+    } catch (telemetryError) {
+        // Telemetry is best-effort. A missing migration, blocked network, or
+        // transient insert error must never make a verified leaderboard score
+        // look like it failed.
+        console.warn("Could not upload Endless balance telemetry:", telemetryError.message || telemetryError);
     }
 
     try {
@@ -5559,9 +6487,18 @@ function endGame() {
     if (gameMode === "endless") {
         const bestWave = Math.max(0, currentWave - 1);
         saveEndlessRecord(currentLevel, bestWave);
-        pendingEndlessScore = { mapId: currentLevel, bestWave, submitted: false, submitting: false };
+        completedEndlessTelemetry = getEndlessTelemetrySnapshot(bestWave, "defeat");
+        pendingEndlessScore = {
+            mapId: currentLevel,
+            bestWave,
+            submitted: false,
+            submitting: false,
+            telemetry: completedEndlessTelemetry,
+            telemetryLogged: false
+        };
         awardEndlessRunCoins(bestWave, activeEndlessRunId);
         activeEndlessRunId = null;
+        activeEndlessTelemetry = null;
     } else {
         pendingEndlessScore = null;
         renderEndlessCoinReward(0);
@@ -5634,6 +6571,8 @@ function showMenu() {
     returnDailyScoreSubmission = null;
     restartDailyScoreSubmission = null;
     returnEndlessScoreSubmission = null;
+    activeEndlessTelemetry = null;
+    completedEndlessTelemetry = null;
     document.getElementById("returnEndlessScoreSubmission").hidden = true;
     updateEndlessSubmissionUI();
     updateDailyScoreSubmissionUI();
@@ -5914,6 +6853,19 @@ function startDefense() {
 
     activeCampaignRunId = gameMode === "campaign" ? createRunId() : null;
     activeEndlessRunId = gameMode === "endless" ? createRunId() : null;
+    activeEndlessTelemetry = gameMode === "endless"
+        ? {
+            runId: activeEndlessRunId,
+            mapId: currentLevel,
+            gameVersion: ENDLESS_TELEMETRY_VERSION,
+            telemetrySchema: ENDLESS_TELEMETRY_SCHEMA_VERSION,
+            startedAt: new Date().toISOString(),
+            waves: [],
+            events: [],
+            waveStart: null
+        }
+        : null;
+    completedEndlessTelemetry = null;
 
     cancelAutoStartWave();
     awaitingNextWave = false;
@@ -6109,7 +7061,25 @@ bindUIEvent("startWaveButton", "click", startWave);
 bindUIEvent("autoStartButton", "click", () => {
     setAutoStartWaves(!autoStartWaves);
 });
+bindUIEvent("survivorTargetPrioritySelect", "change", event => {
+    if (!inspectedSurvivor || !survivors.includes(inspectedSurvivor)) return;
 
+    const nextPriority = String(event.target.value || "first");
+    inspectedSurvivor.targetingPriority = Object.prototype.hasOwnProperty.call(
+        TARGETING_PRIORITY_LABELS,
+        nextPriority
+    ) ? nextPriority : "first";
+    recordEndlessTelemetryEvent({
+        kind: "targeting",
+        survivorId: getEndlessTelemetrySurvivorId(inspectedSurvivor),
+        survivor: inspectedSurvivor.type,
+        targetingPriority: inspectedSurvivor.targetingPriority
+    });
+    updateSurvivorTargetingControl(inspectedSurvivor);
+    updateDeploymentMessage(
+        `${inspectedSurvivor.name} targeting: ${TARGETING_PRIORITY_LABELS[inspectedSurvivor.targetingPriority]}.`
+    );
+});
 bindUIEvent("startOverButton", "click", () => {
     cancelAutoStartWave();
     hideWaveCompleteToast();
@@ -6132,6 +7102,10 @@ bindUIEvent("pauseButton", "click", () => {
     if (!waveRunning) return;
 
     gamePaused = !gamePaused;
+    recordEndlessTelemetryEvent({
+        kind: "pause",
+        paused: Boolean(gamePaused)
+    });
 
     document.getElementById("pauseButton").textContent =
         gamePaused ? "RESUME" : "PAUSE";
@@ -6149,6 +7123,11 @@ bindUIEvent("speedButton", "click", () => {
     if (gameSpeed > 5) {
         gameSpeed = 1;
     }
+
+    recordEndlessTelemetryEvent({
+        kind: "speed",
+        speed: gameSpeed
+    });
 
     document.getElementById("speedButton").textContent = gameSpeed + "×";
 });
@@ -6269,7 +7248,7 @@ const survivorDetails = {
         role: "HANDGUN",
         icon: "M",
         iconClass: "scout",
-        cost: 55,
+        cost: 50,
         rarity: "common",
         unlocked: true
     },
@@ -6287,7 +7266,7 @@ const survivorDetails = {
         role: "GRENADE LAUNCHER",
         icon: "C",
         iconClass: "demo",
-        cost: 125,
+        cost: 120,
         rarity: "uncommon",
         unlocked: true
     },
@@ -6305,7 +7284,7 @@ const survivorDetails = {
         role: "SMG",
         icon: "Z",
         iconClass: "scout",
-        cost: 70,
+        cost: 65,
         rarity: "common",
         unlocked: true
     },
@@ -6326,7 +7305,7 @@ customSurvivors.forEach(survivor => {
         role: survivor.role,
         icon: survivor.name.slice(0, 1).toUpperCase(),
         iconClass: "scout",
-        cost: survivor.cost,
+        cost: survivorCosts[survivor.id] || survivor.cost,
         unlocked: !survivor.mysteryBoxOnly,
         mysteryBoxOnly: survivor.mysteryBoxOnly,
         custom: true,
@@ -6717,12 +7696,28 @@ bindUIEvent("cancelPlacementButton", "click", () => {
 });
 
 
+let expandedWavePreviewKey = null;
+let wavePreviewRenderWave = null;
+
 function updateWavePreview() {
     const preview = document.getElementById("wavePreview");
     if (!preview) return;
 
+    if (wavePreviewRenderWave !== currentWave) {
+        expandedWavePreviewKey = null;
+        wavePreviewRenderWave = currentWave;
+    }
+
     const groups = getWaveGroups(currentWave);
     const totalEnemies = groups.reduce((total, group) => total + group.count, 0);
+    const splitterChildren = groups.reduce((total, group) => {
+        const types = group.types?.length ? group.types : [group.type];
+        const snakeCount = group.types?.length
+            ? types.filter(type => type === "mutantsnake").length
+            : group.type === "mutantsnake" ? group.count : 0;
+        return total + snakeCount * 2;
+    }, 0);
+    const visibleEnemyTotal = totalEnemies + splitterChildren;
     const waveTypes = new Set(groups.flatMap(group =>
         group.types?.length ? group.types : [group.type]
     ));
@@ -6738,11 +7733,11 @@ function updateWavePreview() {
         .filter(group => group.specialRole === "miniBoss")
         .reduce((total, group) => total + group.count, 0);
     const regularCount = totalEnemies - miniBossCount - bossCount;
-    const threat = hasHollow || hasHeavy || hasMiniBoss || bossCount > 0 || totalEnemies >= 30
+    const threat = hasHollow || hasHeavy || hasMiniBoss || bossCount > 0 || visibleEnemyTotal >= 30
         ? "SEVERE"
-        : totalEnemies >= 20
+        : visibleEnemyTotal >= 20
             ? "HIGH"
-            : totalEnemies >= 12
+            : visibleEnemyTotal >= 12
                 ? "ELEVATED"
                 : "LOW";
 
@@ -6757,7 +7752,9 @@ function updateWavePreview() {
     // contains the former full-width enemy-row rules.
     enemyList.style.display = "grid";
     enemyList.style.gridTemplateColumns = "repeat(auto-fill, 64px)";
-    enemyList.style.gridAutoRows = "64px";
+    enemyList.style.gridAutoRows = expandedWavePreviewKey
+        ? "minmax(64px, auto)"
+        : "64px";
     enemyList.style.alignContent = "start";
     enemyList.style.justifyContent = "start";
     enemyList.style.gap = "5px";
@@ -6800,20 +7797,40 @@ function updateWavePreview() {
             : specialRole === "miniBoss"
                 ? `MINI-BOSS · ${label}`
                 : label;
-        const hint = specialRole === "boss"
+        const roleHint = specialRole === "boss"
             ? "Heavy boss contact"
             : specialRole === "miniBoss"
                 ? "Empowered contact"
-                : profile.isHeavy
-                    ? "Heavy hostile contact"
-                    : "Hostile contact";
+                : profile.isSplitter
+                    ? "Splits on defeat"
+                    : profile.isArmored
+                        ? "Armored contact"
+                        : profile.isMedic
+                            ? "Heals nearby hostiles"
+                            : profile.isHeavy
+                                ? "Heavy hostile contact"
+                                : "Hostile contact";
+        const weaknessHint = getEnemyWeaknessHint(type);
+        const hint = weaknessHint === "Hostile contact"
+            ? roleHint
+            : `${roleHint} · ${weaknessHint}`;
+        const splitChildren = type === "mutantsnake" ? count * 2 : 0;
+        const previewKey = `${specialRole}:${type}`;
+        const isExpanded = expandedWavePreviewKey === previewKey;
+        const previewHealth = getEnemyHealthForWave(type, specialRole, currentWave);
 
         const row = document.createElement("div");
         row.className = `preview-enemy enemy-${roleClass}`;
-        row.style.width = "64px";
-        row.style.height = "64px";
+        row.classList.toggle("is-expanded", isExpanded);
+        row.setAttribute("role", "button");
+        row.setAttribute("aria-expanded", String(isExpanded));
+        row.tabIndex = 0;
+        row.title = hint;
+        row.setAttribute("aria-label", `${roleLabel}: ${hint}; ${count} spawned${splitChildren ? `, plus ${splitChildren} skitters on defeat` : ""}`);
+        row.style.width = isExpanded ? "" : "64px";
+        row.style.height = isExpanded ? "" : "64px";
         row.style.minWidth = "64px";
-        row.style.minHeight = "64px";
+        row.style.minHeight = isExpanded ? "132px" : "64px";
         row.style.flex = "0 0 64px";
         row.style.aspectRatio = "auto";
         const image = document.createElement("img");
@@ -6824,12 +7841,53 @@ function updateWavePreview() {
         const name = document.createElement("strong");
         name.textContent = roleLabel;
         const description = document.createElement("span");
-        description.textContent = hint;
+        const firstWeakness = Object.entries(profile.weaknesses || {})[0];
+        const firstResistance = Object.entries(profile.resistances || {})[0];
+        const compactHint = splitChildren
+            ? "SPLITS"
+            : firstWeakness
+                ? `WEAK ${(damageTypeLabels[firstWeakness[0]] || firstWeakness[0]).replace(/ damage$/i, "").toUpperCase()}`
+                : firstResistance
+                    ? `RESISTS ${(damageTypeLabels[firstResistance[0]] || firstResistance[0]).replace(/ damage$/i, "").toUpperCase()}`
+                    : profile.isArmored
+                        ? "ARMORED"
+                        : profile.isMedic
+                            ? "MEDIC"
+                            : profile.isHeavy
+                                ? "HEAVY"
+                                : "HOSTILE";
+        description.textContent = compactHint;
+        description.style.display = "block";
+        description.style.maxWidth = "100%";
+        description.style.overflow = "hidden";
+        description.style.textOverflow = "ellipsis";
+        description.style.whiteSpace = "nowrap";
         info.append(name, description);
         const countElement = document.createElement("span");
         countElement.className = "preview-enemy-count";
-        countElement.textContent = `×${count}`;
-        row.append(image, info, countElement);
+        countElement.textContent = splitChildren
+            ? `×${count} +${splitChildren}`
+            : `×${count}`;
+        const detail = document.createElement("div");
+        detail.className = "preview-enemy-detail";
+        const health = document.createElement("strong");
+        health.textContent = `HEALTH ${previewHealth} HP`;
+        const detailDescription = document.createElement("span");
+        detailDescription.textContent = enemyDescriptions[type] || hint;
+        const detailIntel = document.createElement("span");
+        detailIntel.textContent = hint;
+        detail.append(health, detailDescription, detailIntel);
+        row.append(image, info, countElement, detail);
+        const toggleExpanded = () => {
+            expandedWavePreviewKey = isExpanded ? null : previewKey;
+            updateWavePreview();
+        };
+        row.addEventListener("click", toggleExpanded);
+        row.addEventListener("keydown", event => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            toggleExpanded();
+        });
         fragment.appendChild(row);
     });
     enemyList.replaceChildren(fragment);
@@ -6865,6 +7923,15 @@ bindUIEvent("upgradeSurvivorButton", "click", () => {
 
     scrap -= cost;
     survivor.upgradeLevel = currentLevel + 1;
+    recordEndlessTelemetryEvent({
+        kind: "upgrade",
+        survivorId: getEndlessTelemetrySurvivorId(survivor),
+        survivor: survivor.type,
+        fromLevel: currentLevel,
+        toLevel: currentLevel + 1,
+        cost,
+        scrapAfter: Math.max(0, Math.round(scrap))
+    });
     updateScrapDisplay();
     updateSellButton();
     showSurvivorDetails(survivor.type);
@@ -6878,6 +7945,18 @@ bindUIEvent("sellSurvivorButton", "click", () => {
     const index = survivors.indexOf(inspectedSurvivor);
 
     if (index === -1) return;
+
+    recordEndlessTelemetryEvent({
+        kind: "sell",
+        survivorId: getEndlessTelemetrySurvivorId(inspectedSurvivor),
+        survivor: inspectedSurvivor.type,
+        level: getSurvivorUpgradeLevel(inspectedSurvivor),
+        refund,
+        x: Math.round(Number(inspectedSurvivor.x) || 0),
+        y: Math.round(Number(inspectedSurvivor.y) || 0),
+        damageDealt: Math.round(Number(inspectedSurvivor.damageDealt) || 0),
+        kills: Math.max(0, Math.floor(Number(inspectedSurvivor.kills) || 0))
+    });
 
     survivors.splice(index, 1);
     scrap += refund;

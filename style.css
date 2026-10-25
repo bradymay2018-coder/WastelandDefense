@@ -4192,6 +4192,139 @@ main.game-layout > .control-panel {
     }
 }
 
+/* Per-survivor targeting lives in the expanded field-unit card. This keeps
+   the wave controls clean while making the choice feel attached to the unit
+   that will use it. */
+.survivor-targeting-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 9px;
+    padding: 9px 10px;
+    border: 1px solid rgba(155, 216, 196, 0.34);
+    border-left: 3px solid #9bd8c4;
+    border-radius: 3px;
+    background:
+        linear-gradient(110deg, rgba(155, 216, 196, 0.12), rgba(30, 29, 36, 0.82) 58%),
+        #202027;
+}
+
+.survivor-targeting-copy {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.survivor-targeting-copy span {
+    color: #9bd8c4;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+}
+
+.survivor-targeting-copy small {
+    color: #b9b2c0;
+    font-size: 8px;
+    line-height: 1.25;
+}
+
+.survivor-targeting-control select {
+    flex: 0 0 auto;
+    min-width: 112px;
+    padding: 8px 9px;
+    border: 1px solid rgba(226, 181, 98, 0.68);
+    border-radius: 3px;
+    background: #17171d;
+    color: #f6e4c3;
+    font: inherit;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+}
+
+.survivor-targeting-control select:hover {
+    border-color: #f0bf61;
+    background: #24232b;
+}
+
+.survivor-targeting-control select:focus-visible {
+    outline: 2px solid #9bd8c4;
+    outline-offset: 2px;
+}
+
+@media (max-width: 620px) {
+    .survivor-targeting-control {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 7px;
+    }
+    .survivor-targeting-control select {
+        width: 100%;
+    }
+}
+
+/* Clickable next-wave intel cards.  The compact tile stays small until the
+   player asks for detail, then expands across the preview grid. */
+.wave-preview .preview-enemy {
+    cursor: pointer;
+    user-select: none;
+}
+
+.wave-preview .preview-enemy:focus-visible {
+    outline: 2px solid #e8c840;
+    outline-offset: 2px;
+}
+
+.wave-preview .preview-enemy.is-expanded {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 132px !important;
+    flex: none;
+    align-items: center;
+    justify-content: stretch;
+    gap: 5px 8px;
+    padding: 9px 10px;
+    border: 1px solid #5d5362;
+    border-left: 3px solid #e4b35e;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #292833, #202126);
+    box-sizing: border-box;
+}
+
+.wave-preview .preview-enemy.is-expanded .preview-enemy-detail {
+    display: flex;
+    grid-column: 1 / -1;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    margin-top: 3px;
+    padding-top: 7px;
+    border-top: 1px solid #4a4652;
+    color: #b8bba9;
+    font-size: 9px;
+    line-height: 1.35;
+}
+
+.wave-preview .preview-enemy.is-expanded .preview-enemy-detail strong {
+    color: #efc26f;
+    font-size: 10px;
+    letter-spacing: 0.6px;
+}
+
+.wave-preview .preview-enemy.is-expanded .preview-enemy-detail span:last-child {
+    color: #8fd6d0;
+}
+
+.wave-preview .preview-enemy-detail {
+    display: none;
+}
+
 @media (max-width: 380px) {
     #mainMenu .menu-card {
         grid-template-columns: 34px minmax(0, 1fr);
@@ -6428,6 +6561,14 @@ main.game-layout > .control-panel {
     display: grid;
     gap: 7px;
     margin: 0 0 10px;
+}
+
+.score-telemetry-disclosure {
+    color: #8f8999;
+    font-size: 8px;
+    line-height: 1.4;
+    letter-spacing: 0.25px;
+    text-align: center;
 }
 
 #submitEndlessScoreButton,
