@@ -2021,6 +2021,7 @@ canvas.addEventListener("click", function(event) {
         telemetryActiveSeconds: 0
     };
     survivors.push(deployedSurvivor);
+    recordCloudSurvivorUsage(deployedSurvivor.type);
     recordEndlessTelemetryEvent({
         kind: "deploy",
         survivorId: deployedSurvivor.telemetryId,
@@ -2101,6 +2102,7 @@ canvas.addEventListener("click", function(event) {
         telemetryActiveSeconds: 0
     };
     survivors.push(deployedSurvivor);
+    recordCloudSurvivorUsage(deployedSurvivor.type);
     recordEndlessTelemetryEvent({
         kind: "deploy",
         survivorId: deployedSurvivor.telemetryId,
@@ -5851,6 +5853,41 @@ async function syncRemoteProfile() {
     }
 }
 
+// Keep a lightweight account-level count of deployments so friend dossiers
+// can show the six survivors a player actually uses most often. This is
+// intentionally fire-and-forget: a telemetry/save hiccup must never block
+// deployment or interrupt a run.
+function recordCloudSurvivorUsage(survivorId) {
+    if (!supabaseClient || !supabaseUser || !survivorId) return;
+    supabaseClient.rpc("record_survivor_deployment", {
+        p_survivor_id: survivorId
+    }).then(({ error }) => {
+        if (error) console.warn("Survivor usage could not sync:", error.message || error);
+    }).catch(error => {
+        console.warn("Survivor usage could not reach Supabase:", error.message || error);
+    });
+}
+
+async function loadFriendProgress(client, friendId) {
+    let response = await client
+        .from("player_progress")
+        .select("unlocked_survivors,survivor_usage")
+        .eq("user_id", friendId)
+        .maybeSingle();
+
+    // Older projects may not have applied survivor_usage.sql yet. Keep the
+    // dossier readable in that case and fall back to deterministic roster
+    // ordering until the migration is run.
+    if (response.error?.code === "42703") {
+        response = await client
+            .from("player_progress")
+            .select("unlocked_survivors")
+            .eq("user_id", friendId)
+            .maybeSingle();
+    }
+    return response;
+}
+
 async function initializeSupabaseAccount() {
     updateAccountUI(null);
     try {
@@ -6049,19 +6086,37 @@ async function showFriendProfile(friendId) {
     try {
         const [profileResponse, progressResponse, scoresResponse, trophiesResponse, dailyTrophiesResponse] = await Promise.all([
             supabaseClient.from("player_profiles").select("username,portrait_id").eq("id", friendId).single(),
-            supabaseClient.from("player_progress").select("unlocked_survivors").eq("user_id", friendId).maybeSingle(),
+            loadFriendProgress(supabaseClient, friendId),
             supabaseClient.from("endless_scores").select("best_wave").eq("user_id", friendId),
             supabaseClient.from("player_trophies").select("place").eq("user_id", friendId),
             supabaseClient.from("daily_challenge_trophies").select("place").eq("user_id", friendId)
         ]);
         if (profileResponse.error) throw profileResponse.error;
+        if (progressResponse.error) throw progressResponse.error;
         const profile = profileResponse.data;
-        const unlocked = new Set(progressResponse.data?.unlocked_survivors || []);
+        const unlockedList = Array.isArray(progressResponse.data?.unlocked_survivors)
+            ? progressResponse.data.unlocked_survivors
+            : [];
+        const unlocked = new Set(unlockedList);
+        const usage = progressResponse.data?.survivor_usage && typeof progressResponse.data.survivor_usage === "object"
+            ? progressResponse.data.survivor_usage
+            : {};
+        const unlockedIds = Object.entries(survivorDetails)
+            .filter(([id, survivor]) => !survivor.mysteryBoxOnly && unlocked.has(id))
+            .map(([id]) => id);
+        const rosterIds = unlockedIds
+            .map((id, index) => ({
+                id,
+                index,
+                uses: Math.max(0, Number(usage[id]) || 0)
+            }))
+            .sort((a, b) => b.uses - a.uses || a.index - b.index)
+            .slice(0, 6)
+            .map(entry => entry.id);
         const roster = document.getElementById("friendProfileRoster");
         roster.replaceChildren();
-        Object.entries(survivorDetails)
-            .filter(([id, survivor]) => !survivor.mysteryBoxOnly && (unlocked.size === 0 || unlocked.has(id)))
-            .forEach(([id, survivor]) => {
+        rosterIds.forEach(id => {
+            const survivor = survivorDetails[id];
             const card = document.createElement("div");
             card.className = "friend-roster-card";
             const image = document.createElement("img");
@@ -6076,7 +6131,9 @@ async function showFriendProfile(friendId) {
         });
         document.getElementById("friendProfileUsername").textContent = `@${profile.username}`;
         document.getElementById("friendProfileSubtitle").textContent = `BEST ENDLESS WAVE · ${Math.max(0, ...(scoresResponse.data || []).map(score => Number(score.best_wave) || 0))}`;
-        document.getElementById("friendProfileRosterCount").textContent = `${roster.children.length} SURVIVORS UNLOCKED`;
+        document.getElementById("friendProfileRosterCount").textContent = unlockedIds.length > 6
+            ? `${unlockedIds.length} UNLOCKED · TOP 6 MOST USED`
+            : `${unlockedIds.length} SURVIVORS UNLOCKED`;
         document.getElementById("friendProfilePortrait").src = profilePortraitSources[profile.portrait_id] || profilePortraitSources.mason;
         renderFriendTrophies(document.getElementById("friendProfileEndlessTrophies"), trophiesResponse.data || []);
         renderFriendTrophies(document.getElementById("friendProfileDailyTrophies"), dailyTrophiesResponse.data || []);

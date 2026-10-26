@@ -9042,6 +9042,22 @@ main.game-layout > .control-panel {
         touch-action: manipulation;
     }
 
+    /* Put the deployable roster beside the status cards on phones. This keeps
+       the most important mid-run action reachable without scrolling past the
+       wave controls and intel; desktop keeps the original reading order. */
+    main.game-layout > .control-panel {
+        display: flex;
+        flex-direction: column;
+    }
+
+    main.game-layout > .control-panel > .stat-grid { order: 1; }
+    main.game-layout > .control-panel > .roster-heading { order: 2; }
+    main.game-layout > .control-panel > .survivor-list { order: 3; }
+    main.game-layout > .control-panel > .survivor-details { order: 4; }
+    main.game-layout > .control-panel > .wave-controls { order: 5; }
+    main.game-layout > .control-panel > .wave-preview { order: 6; }
+    main.game-layout > .control-panel > .deployment-note { order: 7; }
+
     .battlefield #storyDialogue {
         left: 8px;
         right: 8px;
