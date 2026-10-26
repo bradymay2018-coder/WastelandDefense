@@ -4444,6 +4444,69 @@ main.game-layout > .control-panel {
     color: #8fd6d0;
 }
 
+/* The wave intel starts as one compact row. The small action stays in the
+   panel's lower corner and reveals the remaining enemy types on demand. */
+.wave-preview .wave-preview-expand {
+    display: block;
+    margin: 7px 0 0 auto;
+    padding: 5px 8px;
+    border: 1px solid #766c7b;
+    border-radius: 3px;
+    background: #24232b;
+    color: #d9c4ef;
+    font: inherit;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    line-height: 1.1;
+    cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.wave-preview .wave-preview-expand:hover,
+.wave-preview .wave-preview-expand:focus-visible {
+    border-color: #e5b95e;
+    background: #302a30;
+    color: #f0c96d;
+    outline: none;
+}
+
+.wave-preview .wave-preview-expand[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 620px) {
+    .wave-preview .wave-preview-expand {
+        min-height: 28px;
+        padding: 6px 9px;
+        font-size: 8px;
+    }
+}
+
+/* Cards stay in the roster so players can see what they are missing, but
+   cards that cannot currently be deployed are clearly de-emphasized. */
+#inGameSurvivorList .survivor-card.is-unaffordable {
+    filter: grayscale(0.85) saturate(0.38);
+    opacity: 0.56;
+    border-left-color: #555863 !important;
+    background: linear-gradient(100deg, #25262b, #191a1f 58%) !important;
+    cursor: not-allowed;
+}
+
+#inGameSurvivorList .survivor-card.is-unaffordable::before,
+#inGameSurvivorList .survivor-card.is-unaffordable.selected::before {
+    background: #5b5d66 !important;
+}
+
+#inGameSurvivorList .survivor-card.is-unaffordable:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+#inGameSurvivorList .survivor-card.is-unaffordable .unit-cost {
+    color: #c0a6a0;
+}
+
 /* The details container lives outside #previewEnemyList, so it is always a
    regular flow block beneath the compact tiles (never a grid popout). */
 .wave-preview #previewEnemyDetail {

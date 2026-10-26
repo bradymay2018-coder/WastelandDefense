@@ -873,6 +873,33 @@ const enemyProfiles = {
         spriteBottomRatio: 24 / 32,
         leakDamage: enemyDamage
     },
+    // Spider variants keep late waves from feeling like a single repeated
+    // enemy while making the differences readable at a glance: runners are
+    // fragile but urgent, brutes are durable but give the defense more time.
+    spiderRunner: {
+        image: spiderImage,
+        baseHealth: 18,
+        speed: 106,
+        size: 17,
+        spriteWidth: 36,
+        spriteHeight: 36,
+        spriteBottomRatio: 24 / 32,
+        leakDamage: 6,
+        variantRole: "runner",
+        weaknesses: { shotgun: 1.2 }
+    },
+    spiderBrute: {
+        image: spiderImage,
+        baseHealth: 68,
+        speed: 43,
+        size: 28,
+        spriteWidth: 54,
+        spriteHeight: 54,
+        spriteBottomRatio: 24 / 32,
+        leakDamage: 9,
+        variantRole: "brute",
+        resistances: { ballistic: 0.92 }
+    },
     skitter: {
         image: skitterImage,
         baseHealth: 20,
@@ -967,29 +994,51 @@ const enemyProfiles = {
         isSplitter: true,
         weaknesses: { fire: 1.35 },
         resistances: { ballistic: 0.9 }
+    },
+    mutantsnakered: {
+        image: mutantSnakeImage,
+        baseHealth: 205,
+        speed: 78,
+        size: 26,
+        spriteWidth: 48,
+        spriteHeight: 48,
+        spriteBottomRatio: 27 / 32,
+        leakDamage: 8,
+        isSplitter: true,
+        isFireImmune: true,
+        variantRole: "fireproof splitter",
+        // A zero multiplier is intentional: both James's direct hit and his
+        // burn ticks are fire damage, so this late-game variant ignores both.
+        resistances: { fire: 0, ballistic: 0.9 }
     }
 };
 
 const enemyLabels = {
     spider: "SPIDER",
+    spiderRunner: "RUNNER SPIDER",
+    spiderBrute: "BRUTE SPIDER",
     skitter: "SKITTER",
     hollow: "THE HOLLOW",
     fogkeeper: "FOGKEEPER",
     heavymutant: "HEAVY MUTANT",
     wastelandcow: "WASTELAND COW",
     mutantman: "MUTANT MAN",
-    mutantsnake: "MUTANT SNAKE"
+    mutantsnake: "MUTANT SNAKE",
+    mutantsnakered: "RED MUTANT SNAKE"
 };
 
 const enemyDescriptions = {
     spider: "A steady baseline hostile with balanced speed and health.",
+    spiderRunner: "A smaller, fragile spider that races toward the exit.",
+    spiderBrute: "A larger, tougher spider that moves slowly but soaks up damage.",
     skitter: "A fast runner that is especially vulnerable to shotgun damage.",
     hollow: "A field medic that periodically heals nearby hostiles.",
     fogkeeper: "A slow heavy hostile with high health and an explosive weakness.",
     heavymutant: "A very durable heavy hostile with an explosive weakness.",
     wastelandcow: "Armored contact: resists ballistic fire but is weak to explosives and blunt hits.",
     mutantman: "A standard hostile with steady speed and health.",
-    mutantsnake: "A fire-vulnerable splitter that releases two skitters when defeated."
+    mutantsnake: "A fire-vulnerable splitter that releases two skitters when defeated.",
+    mutantsnakered: "A hardened splitter that ignores fire and releases two skitters when defeated."
 };
 
 function getEnemyProfile(type) {
@@ -1049,6 +1098,7 @@ function getEnemyWeaknessHint(type) {
     });
     const resistanceText = resistances.slice(0, 2).map(([damageType, multiplier]) => {
         const label = damageTypeLabels[damageType] || `${damageType} damage`;
+        if (multiplier <= 0) return `IMMUNE TO ${label}`;
         return `RESISTS ${label} ${Math.round((multiplier - 1) * 100)}%`;
     });
     return [...weaknessText, ...resistanceText].join(" · ");
@@ -1193,8 +1243,20 @@ function spawnEnemy(type = "spider", specialRole = "normal", spawnOptions = {}) 
         shotgunKnockbackHits: 0,
         isArmored: profile.isArmored === true,
         armorMultiplier: profile.armorMultiplier || 1,
+        isFireImmune: profile.isFireImmune === true,
         isMedic: profile.isMedic === true,
         medicPulseTimer: profile.isMedic ? 1.2 : 0,
+        burnTimer: Number.isFinite(Number(spawnOptions.burnTimer))
+            ? Math.max(0, Number(spawnOptions.burnTimer))
+            : 0,
+        burnTickTimer: Number.isFinite(Number(spawnOptions.burnTickTimer))
+            ? Math.max(0, Number(spawnOptions.burnTickTimer))
+            : 1,
+        burnDamage: Number.isFinite(Number(spawnOptions.burnDamage))
+            ? Math.max(0, Number(spawnOptions.burnDamage))
+            : 0,
+        burnSource: spawnOptions.burnSource || null,
+        burnFlash: Number(spawnOptions.burnTimer) > 0 ? 0.2 : 0,
         health: health,
         maxHealth: health,
         healthTrail: health,
@@ -1211,8 +1273,12 @@ function spawnEnemy(type = "spider", specialRole = "normal", spawnOptions = {}) 
 }
 
 function spawnSplitterChildren(parent) {
-    if (!parent || parent.isSplitChild) return;
+    if (!parent || parent.isSplitChild || !getEnemyProfile(parent.type).isSplitter) return;
 
+    const inheritedBurnTimer = Number(parent.burnTimer) > 0
+        && Number(parent.burnDamage) > 0
+        ? Number(parent.burnTimer)
+        : 0;
     const childOffsets = [-12, 12];
     childOffsets.forEach(offset => {
         spawnEnemy("skitter", "normal", {
@@ -1221,7 +1287,14 @@ function spawnSplitterChildren(parent) {
             targetPoint: parent.targetPoint,
             visualLaneOffsetY: parent.visualLaneOffsetY,
             healthScale: 0.72,
-            isSplitChild: true
+            isSplitChild: true,
+            // Fire carries through a split: the spawned skitters inherit the
+            // snake's remaining burn duration and damage, preserving the
+            // payoff for setting a splitter alight before it dies.
+            burnTimer: inheritedBurnTimer,
+            burnTickTimer: parent.burnTickTimer,
+            burnDamage: inheritedBurnTimer > 0 ? parent.burnDamage : 0,
+            burnSource: inheritedBurnTimer > 0 ? parent.burnSource : null
         });
     });
 
@@ -1291,17 +1364,27 @@ function getEndlessWaveGroups(wave) {
         earlyPressureWave ? 0.3 : 0.28,
         (earlyPressureWave ? 0.19 : 0.14) + wave * 0.0016
     );
-    const snakeRatio = wave >= 9
+    // Rotate the specialist threats instead of presenting cows and snakes in
+    // every consecutive wave. Their milestone/mini-boss appearances are still
+    // allowed; this cadence controls the regular enemy groups.
+    const regularCowWave = wave >= 6 && (wave - 6) % 4 === 0;
+    const regularSnakeWave = wave >= 9 && (wave - 9) % 5 === 0;
+    const snakeRatio = regularSnakeWave
         ? Math.min(earlyPressureWave ? 0.12 : 0.1,
             (earlyPressureWave ? 0.05 : 0.025) + (wave - 9) * 0.001)
         : 0;
     const skitterCount = wave >= 2 ? Math.max(1, Math.floor(totalEnemies * skitterRatio)) : 0;
     const snakeCount = snakeRatio > 0 ? Math.max(1, Math.floor(totalEnemies * snakeRatio)) : 0;
-    const standardCount = Math.max(1, totalEnemies - skitterCount - snakeCount);
+    // Red splitters arrive only after the early game and only on alternating
+    // regular snake waves. They are fire-immune, so the late-game counterplay
+    // cannot be solved by stacking James alone.
+    const redSnakeWave = regularSnakeWave && wave >= 29 && (wave - 29) % 10 === 0;
+    const redSnakeCount = redSnakeWave ? 1 : 0;
+    const standardCount = Math.max(1, totalEnemies - skitterCount - snakeCount - redSnakeCount);
     const lateQualityTier = Math.max(0, Math.floor((wave - 50) / 10));
     // Hold the first armored contacts until wave 6 so the opening build has
     // enough time to establish a damage baseline before cow armor appears.
-    const cowCount = wave >= 6
+    const cowCount = regularCowWave
         ? Math.max(
             earlyPressureWave ? 2 : 1,
             Math.floor(standardCount * (wave >= 50 ? 0.16 : earlyPressureWave ? 0.22 : 0.14))
@@ -1324,6 +1407,15 @@ function getEndlessWaveGroups(wave) {
         1,
         standardCount - cowCount - mutantManCount - hollowCount - heavyCount
     );
+    const runnerSpiderWave = wave >= 4 && wave % 3 === 1;
+    const bruteSpiderWave = wave >= 8 && wave % 5 === 0;
+    const runnerSpiderCount = runnerSpiderWave
+        ? Math.max(1, Math.floor(spiderCount * (wave >= 50 ? 0.32 : 0.24)))
+        : 0;
+    const bruteSpiderCount = bruteSpiderWave
+        ? Math.max(1, Math.floor(spiderCount * (wave >= 50 ? 0.24 : 0.18)))
+        : 0;
+    const baselineSpiderCount = Math.max(0, spiderCount - runnerSpiderCount - bruteSpiderCount);
     const groups = [];
     const addGroup = (type, count, specialRole = "normal") => {
         if (count > 0) groups.push({ type, count, ...(specialRole === "normal" ? {} : { specialRole }) });
@@ -1331,7 +1423,9 @@ function getEndlessWaveGroups(wave) {
 
     // One enemy type per batch keeps the battlefield readable and makes Cody's
     // area damage and Radhesh's sweep feel intentional.
-    addGroup("spider", spiderCount);
+    addGroup("spider", baselineSpiderCount);
+    addGroup("spiderRunner", runnerSpiderCount);
+    addGroup("spiderBrute", bruteSpiderCount);
     addGroup("wastelandcow", cowCount);
     addGroup("mutantman", mutantManCount);
     addGroup("hollow", hollowCount);
@@ -1339,11 +1433,12 @@ function getEndlessWaveGroups(wave) {
     addGroup("heavymutant", heavyMutantCount);
     addGroup("skitter", skitterCount);
     addGroup("mutantsnake", snakeCount);
+    addGroup("mutantsnakered", redSnakeCount);
 
     if (wave % 5 === 0) {
         const miniBossTypes = [
             "spider", "skitter", "wastelandcow", "mutantman",
-            "mutantsnake", "hollow", "fogkeeper", "heavymutant"
+            "mutantsnake", "mutantsnakered", "hollow", "fogkeeper", "heavymutant"
         ];
         const miniBossCount = Math.min(3, 1 + (wave >= 50 ? Math.floor((wave - 50) / 25) + 1 : 0));
         const types = Array.from({ length: miniBossCount }, (_, index) =>
@@ -1402,17 +1497,33 @@ function getWaveGroups(wave) {
 
     const totalEnemies = 6 + (wave - 1) * 2;
     const skitterCount = Math.floor(totalEnemies * Math.min(0.38, 0.24 + Math.max(0, wave - 6) * 0.012));
-    const snakeCount = wave >= 8 ? Math.max(1, Math.floor(totalEnemies * 0.06)) : 0;
-    const standardCount = Math.max(0, totalEnemies - skitterCount - snakeCount);
-    const cowCount = wave >= 6 ? Math.floor(standardCount * 0.1) : 0;
+    const regularCowWave = wave >= 6 && (wave - 6) % 4 === 0;
+    const regularSnakeWave = wave >= 8 && (wave - 8) % 5 === 0;
+    const snakeCount = regularSnakeWave ? Math.max(1, Math.floor(totalEnemies * 0.06)) : 0;
+    const redSnakeWave = regularSnakeWave && wave >= 28 && (wave - 28) % 10 === 0;
+    const redSnakeCount = redSnakeWave ? 1 : 0;
+    const standardCount = Math.max(0, totalEnemies - skitterCount - snakeCount - redSnakeCount);
+    const cowCount = regularCowWave ? Math.floor(standardCount * 0.1) : 0;
     const mutantManCount = wave >= 6 ? Math.floor(standardCount * 0.1) : 0;
     const spiderCount = Math.max(0, standardCount - cowCount - mutantManCount);
+    const runnerSpiderWave = wave >= 4 && wave % 3 === 1;
+    const bruteSpiderWave = wave >= 8 && wave % 5 === 0;
+    const runnerSpiderCount = runnerSpiderWave
+        ? Math.max(1, Math.floor(spiderCount * 0.22))
+        : 0;
+    const bruteSpiderCount = bruteSpiderWave
+        ? Math.max(1, Math.floor(spiderCount * 0.16))
+        : 0;
+    const baselineSpiderCount = Math.max(0, spiderCount - runnerSpiderCount - bruteSpiderCount);
     const groups = [
-        { type: "spider", count: spiderCount },
+        { type: "spider", count: baselineSpiderCount },
+        { type: "spiderRunner", count: runnerSpiderCount },
+        { type: "spiderBrute", count: bruteSpiderCount },
         { type: "wastelandcow", count: cowCount },
         { type: "mutantman", count: mutantManCount },
         { type: "skitter", count: skitterCount },
-        { type: "mutantsnake", count: snakeCount }
+        { type: "mutantsnake", count: snakeCount },
+        { type: "mutantsnakered", count: redSnakeCount }
     ].filter(group => group.count > 0);
 
     const hollowCount = wave === 9 || wave === 12
@@ -1658,7 +1769,6 @@ function startWave() {
     waveRunning = true;
     gamePaused = false;
     leakedEnemiesThisWave = 0;
-    endlessKillScrapAwarded = 0;
     const groups = getWaveGroups(currentWave);
     beginEndlessTelemetryWave(groups);
 
@@ -1712,22 +1822,32 @@ customSurvivors.forEach(survivor => {
     );
 });
 const scrapRewardPerKill = 5;
-// Endless runs get a small, predictable trickle of income from combat. The
-// per-wave cap prevents high-volume late waves from creating an unlimited
-// wallet while still helping a player reach the next meaningful purchase.
+// Endless runs get a small combat income from kills. Each original hostile
+// has a 50% payout chance; split children remain free so snake splits cannot
+// be farmed for money.
 const endlessKillScrapPerKill = 1;
-const endlessKillScrapCap = 12;
-
-function getEndlessKillScrapCap() {
-    // Let combat income catch up gently once late-run survivor upkeep begins.
-    // Early waves retain the original cap; the bonus tops out so kill volume
-    // cannot create an unlimited wallet.
-    return Math.min(24, endlessKillScrapCap + Math.floor(Math.max(0, currentWave - 40) / 5));
-}
+const killScrapChance = 0.5;
 
 function updateScrapDisplay() {
     document.getElementById("scrapDisplay").textContent = scrap;
     updateSurvivorUpgradeButton(inspectedSurvivor);
+    updateInGameRosterAffordability();
+}
+
+// Keep the roster honest at a glance. Cards remain clickable so the existing
+// insufficient-scrap toast still explains why deployment is blocked, but an
+// unaffordable card is visibly muted and marked as disabled for assistive tech.
+function updateInGameRosterAffordability() {
+    document.querySelectorAll("#inGameSurvivorList .survivor-card").forEach(card => {
+        const id = card.dataset.survivor;
+        const cost = Number(survivorCosts[id] ?? 0);
+        const unaffordable = scrap < cost;
+        card.classList.toggle("is-unaffordable", unaffordable);
+        card.setAttribute("aria-disabled", String(unaffordable));
+        card.title = unaffordable
+            ? `Need ${cost - scrap} more scrap to deploy ${survivorDetails[id]?.name || id}.`
+            : `Deploy ${survivorDetails[id]?.name || id} for ${cost} scrap.`;
+    });
 }
 
 function updateDeploymentMessage(message) {
@@ -1763,8 +1883,9 @@ canvas.addEventListener("click", function(event) {
         if (gameRunning) {
         // Clicking back on the battlefield dismisses an expanded next-wave
         // intel card so it never stays in the way while deploying or moving.
-        if (expandedWavePreviewKey !== null) {
+        if (expandedWavePreviewKey !== null || wavePreviewExpanded) {
             expandedWavePreviewKey = null;
+            wavePreviewExpanded = false;
             updateWavePreview();
         }
 
@@ -2934,6 +3055,9 @@ function applySurvivorDamage(survivor, enemy, damage, isSplash = false, hitIndex
     );
     const damageType = getSurvivorDamageType(survivor);
     const damageTypeMultiplier = getEnemyDamageMultiplier(enemy, damageType);
+    // Fire-immune enemies take no direct fire damage. This check must happen
+    // before the normal minimum-damage floor so immunity is absolute.
+    if (damageTypeMultiplier <= 0) return;
     const armorPiercing = ["mason", "cody", "brady"].includes(survivor.type)
         || (survivor.type === "james" && getSurvivorUpgradeLevel(survivor) >= 3);
     const armorMultiplier = enemy.isArmored
@@ -3157,32 +3281,17 @@ function updateSurvivorCombat(deltaTime) {
             }
             const defeatedEnemy = enemies[i];
             recordEndlessTelemetryDefeat(defeatedEnemy);
-            if (defeatedEnemy.type === "mutantsnake") {
+            if (getEnemyProfile(defeatedEnemy.type).isSplitter) {
                 spawnSplitterChildren(defeatedEnemy);
             }
             totalEnemiesDefeated++;
             enemies.splice(i, 1);
-            // Endless scrap should fund decisions, not remove them.  Rewards
-            // rise slowly with the run so a full roster still has to choose
-            // which upgrades are worth buying.
-            // Endless scrap comes primarily from surviving a wave.  A tiny
-            // opening kill reward helps the first deployment without letting
-            // late-game enemy volume create an unlimited wallet.
-            const killScrapCap = getEndlessKillScrapCap();
-            const endlessKillReward = isEndlessStyleMode()
-                && !defeatedEnemy.isSplitChild
-                && endlessKillScrapAwarded < killScrapCap
-                ? endlessKillScrapPerKill
+            const earnsScrap = !defeatedEnemy.isSplitChild
+                && Math.random() < killScrapChance;
+            const killReward = earnsScrap
+                ? (isEndlessStyleMode() ? endlessKillScrapPerKill : scrapRewardPerKill)
                 : 0;
-            if (endlessKillReward > 0) {
-                endlessKillScrapAwarded = Math.min(
-                    killScrapCap,
-                    endlessKillScrapAwarded + endlessKillReward
-                );
-            }
-            scrap += isEndlessStyleMode()
-                ? endlessKillReward
-                : (defeatedEnemy.isSplitChild ? 0 : scrapRewardPerKill);
+            scrap += killReward;
         }
     }
 
@@ -3747,12 +3856,21 @@ function drawEnemies() {
         if (image.complete && image.naturalWidth > 0) {
             ctx.save();
 
-            if (enemy.burnFlash > 0) {
+            if (enemy.isFireImmune) {
+                // Red splitters are visually distinct without requiring a
+                // second sprite sheet. Their tint also communicates that
+                // fire is not the answer for this variant.
+                ctx.filter = "sepia(1) saturate(5) hue-rotate(300deg) brightness(0.9)";
+            }
+
+            if (enemy.burnFlash > 0 && !enemy.isFireImmune) {
                 ctx.globalAlpha = 0.6;
                 ctx.filter = "sepia(1) saturate(7) hue-rotate(330deg) brightness(1.3)";
             } else if (enemy.hitFlash > 0) {
                 ctx.globalAlpha = 0.55;
-                ctx.filter = "sepia(1) saturate(6) hue-rotate(315deg) brightness(1.2)";
+                if (!enemy.isFireImmune) {
+                    ctx.filter = "sepia(1) saturate(6) hue-rotate(315deg) brightness(1.2)";
+                }
             }
 
 
@@ -4007,7 +4125,6 @@ const scrapPenaltyPerLeak = 8;
 const startingWaveScrapReward = 45;
 const waveScrapRewardIncrease = 8;
 let leakedEnemiesThisWave = 0;
-let endlessKillScrapAwarded = 0;
 
 function cancelAutoStartWave() {
     if (autoStartWaveTimer !== null) {
@@ -6953,7 +7070,7 @@ function startDefense() {
                 ? 410
                 : 250;
 
-    document.getElementById("scrapDisplay").textContent = scrap;
+    updateScrapDisplay();
     updatePlayerHealthDisplay();
     document.getElementById("waveDisplay").textContent = isEndlessStyleMode()
         ? "WAVE 0"
@@ -7567,7 +7684,7 @@ role.title = survivorAbilityTags[id] || person.role;
 const cost = document.createElement("strong");
 cost.className = "unit-cost";
 const costValue = document.createElement("span");
-costValue.textContent = person.cost;
+costValue.textContent = survivorCosts[id] ?? person.cost;
 cost.append(costValue, document.createTextNode(" SCRAP"));
 unitInfo.append(name, role, cost);
 card.append(portrait, unitInfo);
@@ -7588,6 +7705,7 @@ card.addEventListener("click", () => {
     });
 
     rosterCountDisplay.textContent = selectedSurvivors.size + " UNITS";
+    updateInGameRosterAffordability();
 }
 
 // On phones, press and hold a roster card briefly before dragging it onto the
@@ -7749,6 +7867,7 @@ bindUIEvent("cancelPlacementButton", "click", () => {
 
 let expandedWavePreviewKey = null;
 let wavePreviewRenderWave = null;
+let wavePreviewExpanded = false;
 
 function updateWavePreview() {
     const preview = document.getElementById("wavePreview");
@@ -7762,6 +7881,7 @@ function updateWavePreview() {
 
     if (wavePreviewRenderWave !== previewWave) {
         expandedWavePreviewKey = null;
+        wavePreviewExpanded = false;
         wavePreviewRenderWave = previewWave;
     }
 
@@ -7770,8 +7890,8 @@ function updateWavePreview() {
     const splitterChildren = groups.reduce((total, group) => {
         const types = group.types?.length ? group.types : [group.type];
         const snakeCount = group.types?.length
-            ? types.filter(type => type === "mutantsnake").length
-            : group.type === "mutantsnake" ? group.count : 0;
+            ? types.filter(type => getEnemyProfile(type).isSplitter).length
+            : getEnemyProfile(group.type).isSplitter ? group.count : 0;
         return total + snakeCount * 2;
     }, 0);
     const visibleEnemyTotal = totalEnemies + splitterChildren;
@@ -7781,7 +7901,6 @@ function updateWavePreview() {
     const hasHollow = waveTypes.has("hollow") && !groups.some(group => group.specialRole === "miniBoss");
     const hasHeavy = [...waveTypes].some(type => getEnemyProfile(type).isHeavy);
     const hasSkitter = waveTypes.has("skitter");
-    const hasMutantSnake = waveTypes.has("mutantsnake");
     const hasMiniBoss = groups.some(group => group.specialRole === "miniBoss");
     const bossCount = groups
         .filter(group => group.specialRole === "boss")
@@ -7843,8 +7962,22 @@ function updateWavePreview() {
 
     const fragment = document.createDocumentFragment();
     const detailPanel = document.getElementById("previewEnemyDetail");
+    const expandButton = document.getElementById("wavePreviewExpandButton");
+    if (!wavePreviewExpanded) expandedWavePreviewKey = null;
+    // Show one visual row in the compact state (rather than just one enemy
+    // type). The calculation follows the panel width so desktop and mobile
+    // keep the same tidy one-row treatment.
+    const tileSize = 64;
+    const tileGap = 5;
+    const compactColumnCount = Math.max(
+        1,
+        Math.floor(((enemyList.clientWidth || 300) + tileGap) / (tileSize + tileGap))
+    );
+    const visibleRows = wavePreviewExpanded
+        ? rows
+        : rows.slice(0, compactColumnCount);
     let expandedDetail = null;
-    rows.forEach(({ type, count, specialRole }) => {
+    visibleRows.forEach(({ type, count, specialRole }) => {
         const profile = getEnemyProfile(type);
         const label = enemyLabels[type] || "HOSTILE";
         const roleClass = specialRole === "boss"
@@ -7861,20 +7994,26 @@ function updateWavePreview() {
             ? "Heavy boss contact"
             : specialRole === "miniBoss"
                 ? "Empowered contact"
-                : profile.isSplitter
-                    ? "Splits on defeat"
-                    : profile.isArmored
-                        ? "Armored contact"
-                        : profile.isMedic
-                            ? "Heals nearby hostiles"
-                            : profile.isHeavy
-                                ? "Heavy hostile contact"
-                                : "Hostile contact";
+                : profile.variantRole === "runner"
+                    ? "Fast, fragile runner"
+                    : profile.variantRole === "brute"
+                        ? "Slow, durable brute"
+                        : profile.variantRole === "fireproof splitter"
+                            ? "Fireproof splitter"
+                            : profile.isSplitter
+                                ? "Splits on defeat"
+                                : profile.isArmored
+                                    ? "Armored contact"
+                                    : profile.isMedic
+                                        ? "Heals nearby hostiles"
+                                        : profile.isHeavy
+                                            ? "Heavy hostile contact"
+                                            : "Hostile contact";
         const weaknessHint = getEnemyWeaknessHint(type);
         const hint = weaknessHint === "Hostile contact"
             ? roleHint
             : `${roleHint} · ${weaknessHint}`;
-        const splitChildren = type === "mutantsnake" ? count * 2 : 0;
+        const splitChildren = profile.isSplitter ? count * 2 : 0;
         const previewKey = `${specialRole}:${type}`;
         const isExpanded = expandedWavePreviewKey === previewKey;
         const previewHealth = getEnemyHealthForWave(type, specialRole, previewWave);
@@ -7904,18 +8043,20 @@ function updateWavePreview() {
         const firstWeakness = Object.entries(profile.weaknesses || {})[0];
         const firstResistance = Object.entries(profile.resistances || {})[0];
         const compactHint = splitChildren
-            ? "SPLITS"
-            : firstWeakness
-                ? `WEAK ${(damageTypeLabels[firstWeakness[0]] || firstWeakness[0]).replace(/ damage$/i, "").toUpperCase()}`
-                : firstResistance
-                    ? `RESISTS ${(damageTypeLabels[firstResistance[0]] || firstResistance[0]).replace(/ damage$/i, "").toUpperCase()}`
-                    : profile.isArmored
-                        ? "ARMORED"
-                        : profile.isMedic
-                            ? "MEDIC"
-                            : profile.isHeavy
-                                ? "HEAVY"
-                                : "HOSTILE";
+            ? profile.isFireImmune ? "FIRE IMMUNE · SPLITS" : "SPLITS"
+            : profile.isFireImmune
+                ? "FIRE IMMUNE"
+                : firstWeakness
+                    ? `WEAK ${(damageTypeLabels[firstWeakness[0]] || firstWeakness[0]).replace(/ damage$/i, "").toUpperCase()}`
+                    : firstResistance
+                        ? `RESISTS ${(damageTypeLabels[firstResistance[0]] || firstResistance[0]).replace(/ damage$/i, "").toUpperCase()}`
+                        : profile.isArmored
+                            ? "ARMORED"
+                            : profile.isMedic
+                                ? "MEDIC"
+                                : profile.isHeavy
+                                    ? "HEAVY"
+                                    : "HOSTILE";
         description.textContent = compactHint;
         description.style.display = "block";
         description.style.maxWidth = "100%";
@@ -7940,6 +8081,10 @@ function updateWavePreview() {
         row.append(image, info, countElement);
         if (isExpanded) expandedDetail = detail;
         const toggleExpanded = () => {
+            // A tile click is also a convenient way to inspect the intel. If
+            // the panel is collapsed, reveal the full list first so the detail
+            // card stays in normal document flow instead of becoming a popout.
+            if (!wavePreviewExpanded) wavePreviewExpanded = true;
             expandedWavePreviewKey = isExpanded ? null : previewKey;
             updateWavePreview();
         };
@@ -7964,7 +8109,22 @@ function updateWavePreview() {
             detailPanel.hidden = true;
         }
     }
+
+    if (expandButton) {
+        const hasMoreRows = rows.length > compactColumnCount;
+        expandButton.hidden = !hasMoreRows;
+        expandButton.setAttribute("aria-expanded", String(wavePreviewExpanded));
+        expandButton.textContent = wavePreviewExpanded
+            ? "COLLAPSE INTEL"
+            : `EXPAND INTEL · ${rows.length} TYPES`;
+    }
 }
+
+bindUIEvent("wavePreviewExpandButton", "click", () => {
+    wavePreviewExpanded = !wavePreviewExpanded;
+    expandedWavePreviewKey = null;
+    updateWavePreview();
+});
 
 function updateSellButton() {
     const sellButton = document.getElementById("sellSurvivorButton");
