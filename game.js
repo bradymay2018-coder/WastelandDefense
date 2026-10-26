@@ -1299,7 +1299,9 @@ function getEndlessWaveGroups(wave) {
     const snakeCount = snakeRatio > 0 ? Math.max(1, Math.floor(totalEnemies * snakeRatio)) : 0;
     const standardCount = Math.max(1, totalEnemies - skitterCount - snakeCount);
     const lateQualityTier = Math.max(0, Math.floor((wave - 50) / 10));
-    const cowCount = wave >= 4
+    // Hold the first armored contacts until wave 6 so the opening build has
+    // enough time to establish a damage baseline before cow armor appears.
+    const cowCount = wave >= 6
         ? Math.max(
             earlyPressureWave ? 2 : 1,
             Math.floor(standardCount * (wave >= 50 ? 0.16 : earlyPressureWave ? 0.22 : 0.14))
@@ -1716,6 +1718,13 @@ const scrapRewardPerKill = 5;
 const endlessKillScrapPerKill = 1;
 const endlessKillScrapCap = 12;
 
+function getEndlessKillScrapCap() {
+    // Let combat income catch up gently once late-run survivor upkeep begins.
+    // Early waves retain the original cap; the bonus tops out so kill volume
+    // cannot create an unlimited wallet.
+    return Math.min(24, endlessKillScrapCap + Math.floor(Math.max(0, currentWave - 40) / 5));
+}
+
 function updateScrapDisplay() {
     document.getElementById("scrapDisplay").textContent = scrap;
     updateSurvivorUpgradeButton(inspectedSurvivor);
@@ -2102,7 +2111,9 @@ const survivorStats = {
     // Britney is the rare single-target specialist.  Give her enough
     // impact to justify the long firing interval without making her a
     // general-purpose replacement for the crowd-control survivors.
-    britney: { range: 225, damage: 60, fireRate: 2.4 },
+    // A small damage lift keeps the rare sniper's long firing interval
+    // rewarding without turning her into a general-purpose crowd clearer.
+    britney: { range: 225, damage: 64, fireRate: 2.4 },
     // Zach should stay the lower-damage fast-fire common, but not collapse
     // when tested as an opening pick on his own.
     // Zach's common SMG should be dependable from the opening wave.  His
@@ -2184,7 +2195,9 @@ customSurvivors.forEach(survivor => {
 const customAttackProfiles = {
     selena: { kind: "dagger", repeat: level => level >= 3 ? 3 : 2 },
     radhesh: { kind: "bat", area: true },
-    bas: { kind: "syringe", slow: true },
+    // Bas's syringe sprays every enemy inside his range, applying the slow
+    // to the whole group rather than only the selected target.
+    bas: { kind: "syringe", area: true, slow: true },
     rork: { kind: "assault" },
     knox: { kind: "burst", repeat: () => 3 }
 };
@@ -2260,7 +2273,7 @@ function getSurvivorDps(survivorOrType) {
         : 1;
     const targetMultiplier = type === "zach" && level >= 3
         ? 2
-        : type === "radhesh" || type === "cody"
+        : type === "radhesh" || type === "cody" || type === "bas"
             ? 1.5
             : 1;
     let estimatedDps = (stats.damage * hitsPerAttack * targetMultiplier) / stats.fireRate;
@@ -2454,7 +2467,7 @@ const survivorAbilityTags = {
     brady: "KNOCKBACK",
     selena: "DOUBLE HIT",
     radhesh: "SWEEP",
-    bas: "50% SLOW",
+    bas: "AREA SLOW",
     rork: "ASSAULT",
     knox: "3-ROUND BURST"
 };
@@ -3155,14 +3168,15 @@ function updateSurvivorCombat(deltaTime) {
             // Endless scrap comes primarily from surviving a wave.  A tiny
             // opening kill reward helps the first deployment without letting
             // late-game enemy volume create an unlimited wallet.
+            const killScrapCap = getEndlessKillScrapCap();
             const endlessKillReward = isEndlessStyleMode()
                 && !defeatedEnemy.isSplitChild
-                && endlessKillScrapAwarded < endlessKillScrapCap
+                && endlessKillScrapAwarded < killScrapCap
                 ? endlessKillScrapPerKill
                 : 0;
             if (endlessKillReward > 0) {
                 endlessKillScrapAwarded = Math.min(
-                    endlessKillScrapCap,
+                    killScrapCap,
                     endlessKillScrapAwarded + endlessKillReward
                 );
             }
@@ -4172,11 +4186,16 @@ function updateWaveSystem(deltaTime) {
 
         const completedWave = currentWave;
         if (gameMode === "daily") dailyLastCompletedAt = new Date().toISOString();
+        const lateEndlessIncomeBonus = isEndlessStyleMode()
+            ? Math.min(20, Math.max(0, Math.floor((completedWave - 40) * 0.5)))
+            : 0;
         const baseWaveReward = isEndlessStyleMode()
             // Raise the early checkpoint slightly and let it grow gradually
             // so new recruits/upgrades remain reachable without creating an
             // unlimited late-run wallet.
-            ? 26 + Math.min(38, Math.floor((completedWave - 1) * 0.5))
+            ? 26
+                + Math.min(38, Math.floor((completedWave - 1) * 0.5))
+                + lateEndlessIncomeBonus
             : startingWaveScrapReward + (completedWave - 1) * waveScrapRewardIncrease;
         const endlessLeakPenalty = completedWave <= 15
             ? 3
