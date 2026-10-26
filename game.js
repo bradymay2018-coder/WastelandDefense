@@ -2141,8 +2141,10 @@ const rarityFireRateMultipliers = {
 // Upgrades should compete with a fresh deployment for the player's next
 // scrap investment.  The first two levels provide a visible combat jump and
 // a little more reach; level 3 remains the expensive signature ceiling.
-const upgradeDamageMultipliers = [1, 1.22, 1.5, 1.85];
-const upgradeFireRateMultipliers = [1, 0.94, 0.86, 0.78];
+// Level 1 aims for roughly 1.8x a unit's base output: clearly stronger than
+// one survivor, but still just below the combined output of two base copies.
+const upgradeDamageMultipliers = [1, 1.65, 1.8, 2.1];
+const upgradeFireRateMultipliers = [1, 0.92, 0.84, 0.78];
 
 function getSurvivorRarity(type) {
     if (survivorRarities[type]) return survivorRarities[type];
@@ -2219,13 +2221,13 @@ function getSurvivorStats(survivorOrType) {
     // 20% level.  Their tradeoffs keep the roster from collapsing into one
     // best pick while still making level 3 feel exciting.
     if (masonHighCaliber) {
-        damage = base.damage * rarityMultiplier * 2.25;
+        damage = base.damage * rarityMultiplier * 2.65;
         fireRate = base.fireRate * 1.2 * rarityFireRateMultiplier;
     } else if (codyHighlyExplosive) {
-        damage = base.damage * rarityMultiplier * 2.25;
+        damage = base.damage * rarityMultiplier * 2.65;
         fireRate = base.fireRate * 1.22 * rarityFireRateMultiplier;
     } else if (britneySemiAuto) {
-        damage = base.damage * rarityMultiplier * 1.12;
+        damage = base.damage * rarityMultiplier * 1.3;
         fireRate = base.fireRate * 0.58 * rarityFireRateMultiplier;
     } else if (zachDualWield) {
         // Keep the already-tested level-3 dual-wield ceiling stable after the
@@ -2297,16 +2299,18 @@ function getJamesBurnStats(survivor) {
 function getSurvivorUpgradeCost(type, level) {
     const baseCost = survivorCosts[type];
     if (!baseCost || level < 1 || level > maxSurvivorUpgradeLevel) return 0;
-    // Level 1 and 2 should be realistic alternatives to buying another unit
-    // when the board is getting crowded. Level 3 stays a premium signature
-    // investment, especially for higher-rarity survivors.
-    const upgradeCostMultipliers = [0, 0.45, 0.85, 2.25];
-    const rarityCostMultiplier = {
-        common: 1,
-        uncommon: 1.15,
-        rare: 1.35,
-        legendary: 1.6
-    }[getSurvivorRarity(type)] || 1;
+    // Level 1 is intentionally just below a fresh deployment of the same
+    // survivor. Higher levels are larger investments and retain the rarity
+    // premium because they unlock a stronger long-term ceiling.
+    const upgradeCostMultipliers = [0, 0.85, 1.25, 2.25];
+    const rarityCostMultiplier = level === 1
+        ? 1
+        : ({
+            common: 1,
+            uncommon: 1.15,
+            rare: 1.35,
+            legendary: 1.6
+        }[getSurvivorRarity(type)] || 1);
     return Math.round(baseCost * upgradeCostMultipliers[level] * rarityCostMultiplier);
 }
 
