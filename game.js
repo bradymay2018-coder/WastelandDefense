@@ -136,7 +136,7 @@ canvas.addEventListener("mousedown", function(event) {
 
     selectedSurvivor = null;
 
-    document.getElementById("survivorDetailsPanel").style.display = "none";
+    hideSurvivorDetails();
 
     document.querySelectorAll("#inGameSurvivorList .survivor-card")
         .forEach(card => card.classList.remove("selected"));
@@ -513,6 +513,50 @@ function drawMapGround(theme) {
     ctx.globalAlpha = 1;
 }
 
+// A quiet lighting pass gives the flat ground a little more volume while
+// preserving the stepped, pixel-art palette. It is baked into mapCanvas so
+// previews and the live battlefield share the same finish.
+function drawMapGroundDepth(theme) {
+    ctx.save();
+
+    const light = ctx.createRadialGradient(
+        canvas.width * 0.28,
+        canvas.height * 0.18,
+        20,
+        canvas.width * 0.28,
+        canvas.height * 0.18,
+        canvas.width * 0.82
+    );
+    light.addColorStop(0, "rgba(255, 236, 177, 0.09)");
+    light.addColorStop(0.48, "rgba(210, 220, 157, 0.025)");
+    light.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = light;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const lowerShade = ctx.createLinearGradient(0, canvas.height * 0.42, 0, canvas.height);
+    lowerShade.addColorStop(0, "rgba(7, 10, 10, 0)");
+    lowerShade.addColorStop(1, "rgba(7, 10, 10, 0.16)");
+    ctx.fillStyle = lowerShade;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // A few broad pixel blocks make large empty areas read as terrain rather
+    // than a single flat color. Keep them very subtle so units remain the
+    // visual focus.
+    ctx.globalAlpha = 0.055;
+    ctx.fillStyle = theme.ground[0];
+    for (let i = 0; i < 8; i++) {
+        const width = 56 + (i % 3) * 24;
+        const height = 18 + (i % 2) * 12;
+        const x = Math.round(((i * 137 + currentLevel * 41) % (canvas.width - width)) / 4) * 4;
+        const y = Math.round(((i * 83 + currentLevel * 29) % (canvas.height - height)) / 4) * 4;
+        if (!isOnRoad(x + width / 2, y + height / 2)) {
+            ctx.fillRect(x, y, width, height);
+        }
+    }
+
+    ctx.restore();
+}
+
 function drawMapRoad(theme) {
     ctx.save();
     ctx.lineCap = "butt";
@@ -549,6 +593,23 @@ function drawMapRoad(theme) {
         ctx.setLineDash([18, 20]);
         ctx.stroke();
     }
+
+    // A restrained inner highlight separates the drivable lane from its
+    // shoulder and gives turns a little material depth without changing the
+    // collision path or road width.
+    traceMapRoad();
+    ctx.strokeStyle = "rgba(255, 239, 183, 0.075)";
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = Math.max(2, roadWidth - 12);
+    ctx.setLineDash([]);
+    ctx.stroke();
+
+    traceMapRoad();
+    ctx.strokeStyle = "rgba(26, 25, 21, 0.18)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([2, 36]);
+    ctx.stroke();
+    ctx.setLineDash([]);
     ctx.restore();
 }
 
@@ -793,6 +854,7 @@ function drawMap() {
     const theme = mapThemes[currentLevel] || mapThemes[1];
 
     drawMapGround(theme);
+    drawMapGroundDepth(theme);
     drawMapRoad(theme);
     drawMapLandmarks(theme);
 
@@ -1171,7 +1233,17 @@ function getEnemyHealthForWave(type, specialRole = "normal", wave = currentWave,
                         : 0.01
         )
         : 1;
-    return Math.round(profile.baseHealth * waveHealthScale * specialHealthScale * healthScale * lateQualityBonus);
+    const dailyHealthScale = gameMode === "daily"
+        ? getDailyModifierValue("enemyHealthScale", 1)
+        : 1;
+    return Math.round(
+        profile.baseHealth
+        * waveHealthScale
+        * specialHealthScale
+        * healthScale
+        * lateQualityBonus
+        * dailyHealthScale
+    );
 }
 
 function spawnEnemy(type = "spider", specialRole = "normal", spawnOptions = {}) {
@@ -1222,6 +1294,9 @@ function spawnEnemy(type = "spider", specialRole = "normal", spawnOptions = {}) 
         )
         : 1;
 
+    const dailySpeedScale = gameMode === "daily"
+        ? getDailyModifierValue("enemySpeedScale", 1)
+        : 1;
     const spawnedEnemy = {
         type: type,
         x: Number.isFinite(Number(spawnOptions.x)) ? Number(spawnOptions.x) : roadPoints[0].x,
@@ -1234,7 +1309,7 @@ function spawnEnemy(type = "spider", specialRole = "normal", spawnOptions = {}) 
             : roadPoints[0].y === roadPoints[1]?.y
             ? horizontalEnemyLaneVisualOffset
             : 0,
-        speed: profile.speed * waveSpeedScale * specialSpeedScale,
+        speed: profile.speed * waveSpeedScale * specialSpeedScale * dailySpeedScale,
         size: profile.size * sizeScale,
         sizeScale,
         isMiniBoss: specialRole === "miniBoss",
@@ -1461,7 +1536,11 @@ function getEndlessWaveGroups(wave) {
 function getWaveGroups(wave) {
     if (gameMode === "daily" && activeDailyChallenge) {
         const [firstType, secondType, heavyType] = activeDailyChallenge.enemyTypes;
-        const totalRegularEnemies = 4 + Math.floor(wave * 0.75);
+        const dailyEnemyCountScale = getDailyModifierValue("enemyCountScale", 1);
+        const totalRegularEnemies = Math.max(
+            1,
+            Math.ceil((4 + Math.floor(wave * 0.75)) * dailyEnemyCountScale)
+        );
         const firstBatch = Math.ceil(totalRegularEnemies * 0.55);
         const groups = [
             { type: firstType, count: firstBatch },
@@ -1927,6 +2006,7 @@ canvas.addEventListener("click", function(event) {
             const previousY = inspectedSurvivor.y;
             inspectedSurvivor.x = clickX;
             inspectedSurvivor.y = clickY;
+            triggerSurvivorPlacementFeedback(inspectedSurvivor, "move");
             recordEndlessTelemetryEvent({
                 kind: "move",
                 survivorId: getEndlessTelemetrySurvivorId(inspectedSurvivor),
@@ -1969,13 +2049,14 @@ canvas.addEventListener("click", function(event) {
 
         if (nearestSurvivor) {
             inspectedSurvivor = nearestSurvivor;
+            triggerSurvivorSelectionFeedback(nearestSurvivor);
             showSurvivorDetails(nearestSurvivor.type);
             renderGame();
             return;
         }
 
         inspectedSurvivor = null;
-        document.getElementById("survivorDetailsPanel").style.display = "none";
+        hideSurvivorDetails();
     }
     if (!gameRunning || !selectedSurvivor) return;
 
@@ -2021,6 +2102,7 @@ canvas.addEventListener("click", function(event) {
         telemetryActiveSeconds: 0
     };
     survivors.push(deployedSurvivor);
+    triggerSurvivorPlacementFeedback(deployedSurvivor, "deploy");
     recordCloudSurvivorUsage(deployedSurvivor.type);
     recordEndlessTelemetryEvent({
         kind: "deploy",
@@ -2039,7 +2121,7 @@ updateScrapDisplay();
 // Clear the selection after a successful placement.
 selectedSurvivor = null;
 
-document.getElementById("survivorDetailsPanel").style.display = "none";
+hideSurvivorDetails();
 
 document.querySelectorAll("#inGameSurvivorList .survivor-card")
     .forEach(card => card.classList.remove("selected"));
@@ -2102,6 +2184,7 @@ canvas.addEventListener("click", function(event) {
         telemetryActiveSeconds: 0
     };
     survivors.push(deployedSurvivor);
+    triggerSurvivorPlacementFeedback(deployedSurvivor, "deploy");
     recordCloudSurvivorUsage(deployedSurvivor.type);
     recordEndlessTelemetryEvent({
         kind: "deploy",
@@ -2129,28 +2212,96 @@ canvas.addEventListener("click", function(event) {
 
 
 function drawSurvivorLevelPips(centerX, centerY, level) {
+    // Keep the rank marker as a deliberately simple pixel badge. A tiny
+    // outlined block stays crisp when the battlefield canvas is scaled down.
     const pipCount = level >= 3 ? 1 : Math.min(2, Math.floor(level));
-    const pipSize = 4;
-    const outlineSize = 1;
-    const pipBoxSize = pipSize + outlineSize * 2;
-    const gap = 2;
-    const totalWidth = pipCount * pipBoxSize + (pipCount - 1) * gap;
+    if (pipCount <= 0) return;
+
+    const blockSize = 7;
+    const gap = 3;
+    const totalWidth = pipCount * blockSize + (pipCount - 1) * gap;
     const startX = Math.round(centerX - totalWidth / 2);
-    const y = Math.round(centerY - pipBoxSize / 2);
-    const accent = level >= 3 ? "#c49bea" : "#f3c45d";
+    const y = Math.round(centerY - blockSize / 2);
+    const accent = level >= 3 ? "#b995e9" : "#efbd4d";
+    const highlight = level >= 3 ? "#eadbff" : "#fff0a3";
 
     ctx.save();
+    ctx.imageSmoothingEnabled = false;
     for (let index = 0; index < pipCount; index++) {
-        const x = startX + index * (pipBoxSize + gap);
-        ctx.fillStyle = "#09090a";
-        ctx.fillRect(x, y, pipBoxSize, pipBoxSize);
+        const x = startX + index * (blockSize + gap);
+        ctx.fillStyle = "#08090a";
+        ctx.fillRect(x, y, blockSize, blockSize);
         ctx.fillStyle = accent;
-        ctx.fillRect(x + outlineSize, y + outlineSize, pipSize, pipSize);
+        ctx.fillRect(x + 1, y + 1, blockSize - 2, blockSize - 2);
+        ctx.fillStyle = highlight;
+        ctx.fillRect(x + 2, y + 2, blockSize - 3, 1);
+        ctx.fillStyle = "#6f5429";
+        if (level < 3) ctx.fillRect(x + 2, y + blockSize - 2, blockSize - 3, 1);
     }
     ctx.restore();
 }
 
-function drawSurvivors() {
+const survivorSelectionPulseDuration = 260;
+const survivorPlacementFeedbackDuration = 420;
+const survivorUpgradeFeedbackDuration = 820;
+
+function triggerSurvivorSelectionFeedback(survivor) {
+    if (!survivor || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    survivor.selectionPulseUntil = performance.now() + survivorSelectionPulseDuration;
+}
+
+function getSurvivorSelectionPulse(survivor, now = performance.now()) {
+    const until = Number(survivor?.selectionPulseUntil) || 0;
+    if (!until || until <= now) {
+        if (survivor && until) survivor.selectionPulseUntil = 0;
+        return 0;
+    }
+
+    const progress = 1 - (until - now) / survivorSelectionPulseDuration;
+    return Math.sin(Math.max(0, Math.min(1, progress)) * Math.PI);
+}
+
+// A newly deployed or repositioned survivor gets a short arrival bounce. It
+// is deliberately separate from selection feedback so clicking a unit does
+// not make it jump every time the dossier is inspected.
+function triggerSurvivorPlacementFeedback(survivor, kind = "deploy") {
+    if (!survivor || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    survivor.placementFeedbackUntil = performance.now() + survivorPlacementFeedbackDuration;
+    survivor.placementFeedbackKind = kind;
+}
+
+function getSurvivorPlacementPulse(survivor, now = performance.now()) {
+    const until = Number(survivor?.placementFeedbackUntil) || 0;
+    if (!until || until <= now) {
+        if (survivor && until) survivor.placementFeedbackUntil = 0;
+        return 0;
+    }
+
+    const progress = 1 - (until - now) / survivorPlacementFeedbackDuration;
+    return Math.sin(Math.max(0, Math.min(1, progress)) * Math.PI);
+}
+
+function triggerSurvivorUpgradeFeedback(survivor, level) {
+    if (!survivor) return;
+
+    const now = performance.now();
+    survivor.upgradeFeedbackStartedAt = now;
+    survivor.upgradeFeedbackUntil = now + survivorUpgradeFeedbackDuration;
+    survivor.upgradeFeedbackLevel = Math.max(1, Math.min(3, Number(level) || 1));
+}
+
+function getSurvivorUpgradePulse(survivor, now = performance.now()) {
+    const until = Number(survivor?.upgradeFeedbackUntil) || 0;
+    if (!until || until <= now) {
+        if (survivor && until) survivor.upgradeFeedbackUntil = 0;
+        return 0;
+    }
+
+    const progress = 1 - (until - now) / survivorUpgradeFeedbackDuration;
+    return Math.sin(Math.max(0, Math.min(1, progress)) * Math.PI);
+}
+
+function drawSurvivors(onlySurvivor = null) {
     const survivorImages = {
         mason: masonImage,
         james: jamesImage,
@@ -2161,6 +2312,7 @@ function drawSurvivors() {
     };
 
     for (const survivor of survivors) {
+        if (onlySurvivor && survivor !== onlySurvivor) continue;
         const image = survivorImages[survivor.type] || customSurvivorImages[survivor.type];
 
         if (!image || !image.complete || image.naturalWidth === 0) {
@@ -2171,53 +2323,202 @@ if (survivor.recoilY === undefined) survivor.recoilY = 0;
         const width = 64;
         const height = 64;
        
-const bounce = gamePaused || !waveRunning
+        const bounce = gamePaused || !waveRunning
     ? 0
     : Math.sin(
         performance.now() / 250 * gameSpeed + survivor.x * 0.1
     ) * 2;
+const selectionPulse = getSurvivorSelectionPulse(survivor);
+const selectionNudge = selectionPulse * 3;
+const placementPulse = getSurvivorPlacementPulse(survivor);
+const placementNudge = placementPulse * 7;
+const upgradePulse = getSurvivorUpgradePulse(survivor);
+// A short celebratory hop makes a successful upgrade feel physical without
+// obscuring the model or changing its actual battlefield position.
+const upgradeNudge = upgradePulse * 8;
 
 // Animate recoil back toward the survivor's normal position.
 const recoilReturn = Math.min(1, 12 * (1 / 60) * gameSpeed);
 survivor.recoilX *= 1 - recoilReturn;
 survivor.recoilY *= 1 - recoilReturn;
-        ctx.save();// Soft shadow under the survivor
-ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-ctx.beginPath();
-ctx.ellipse(
-   survivor.x + survivor.recoilX,
-survivor.y + survivor.recoilY + 35,
-    15,
-    5,
-    0,
-    0,
-    Math.PI * 2
-);
-ctx.fill();
+        ctx.save();
+        // Layered contact shadows make the models feel planted on the map.
+        // The soft outer pass gives depth; the small inner pass keeps a crisp
+        // pixel-art contact point beneath the feet.
+        const shadowX = survivor.x + survivor.recoilX;
+        const shadowY = survivor.y + survivor.recoilY + 35
+            + bounce - selectionNudge * 0.35 - placementNudge * 0.22 - upgradeNudge * 0.28;
+        const shadowSquash = 1 - placementPulse * 0.18 - upgradePulse * 0.12;
+        const shadow = ctx.createRadialGradient(
+            shadowX,
+            shadowY,
+            1,
+            shadowX,
+            shadowY,
+            20
+        );
+        shadow.addColorStop(0, "rgba(0, 0, 0, 0.42)");
+        shadow.addColorStop(0.55, "rgba(0, 0, 0, 0.24)");
+        shadow.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = shadow;
+        ctx.beginPath();
+        ctx.ellipse(shadowX, shadowY, 20 * shadowSquash, 7 * shadowSquash, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+        ctx.beginPath();
+        ctx.ellipse(shadowX, shadowY, 11 * shadowSquash, 3.5 * shadowSquash, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(250, 220, 150, 0.09)";
+        ctx.fillRect(Math.round(shadowX - 6), Math.round(shadowY - 1), 12, 1);
         ctx.imageSmoothingEnabled = false;
 
         ctx.drawImage(
     image,
     survivor.x + survivor.recoilX - width / 2,
-survivor.y + survivor.recoilY - height / 2 + bounce,
+    // A small arrival bounce gives deployment and repositioning a tactile
+    // response while preserving the crisp pixel-art silhouette.
+    survivor.y + survivor.recoilY - height / 2 + bounce - selectionNudge - placementNudge - upgradeNudge,
     width,
     height
 );
 
-        const upgradeLevel = getSurvivorUpgradeLevel(survivor);
-        const upgradePipsY = Math.max(
-            4,
-            survivor.y + survivor.recoilY - height / 2 - 6 + bounce
+        ctx.restore();
+    }
+}
+
+function drawSurvivorSelectionFeedback() {
+    const now = performance.now();
+
+    for (const survivor of survivors) {
+        const pulse = getSurvivorSelectionPulse(survivor, now);
+        if (pulse <= 0) continue;
+
+        const x = survivor.x + (survivor.recoilX || 0);
+        const y = survivor.y + (survivor.recoilY || 0) + 27;
+        const radius = 17 + pulse * 5;
+
+        ctx.save();
+        ctx.globalAlpha = 0.16 + pulse * 0.48;
+        ctx.strokeStyle = "#f3c86e";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+    }
+}
+
+function drawSurvivorPlacementFeedback() {
+    const now = performance.now();
+
+    for (const survivor of survivors) {
+        const until = Number(survivor?.placementFeedbackUntil) || 0;
+        const pulse = getSurvivorPlacementPulse(survivor, now);
+        if (pulse <= 0 || !until) continue;
+
+        const progress = 1 - Math.max(0, until - now) / survivorPlacementFeedbackDuration;
+        const x = survivor.x + (survivor.recoilX || 0);
+        const y = survivor.y + (survivor.recoilY || 0) + 29;
+        const radius = 13 + Math.max(0, Math.min(1, progress)) * 14;
+
+        ctx.save();
+        ctx.globalAlpha = (1 - Math.max(0, Math.min(1, progress))) * 0.42;
+        ctx.strokeStyle = survivor.placementFeedbackKind === "move"
+            ? "#8ed7ff"
+            : "#f3c86e";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+    }
+}
+
+function drawSurvivorUpgradeFeedback() {
+    const now = performance.now();
+
+    for (const survivor of survivors) {
+        const until = Number(survivor?.upgradeFeedbackUntil) || 0;
+        const pulse = getSurvivorUpgradePulse(survivor, now);
+        if (pulse <= 0 || !until) continue;
+
+        const progress = Math.max(
+            0,
+            Math.min(1, 1 - (until - now) / survivorUpgradeFeedbackDuration)
         );
-        if (upgradeLevel > 0) {
-            drawSurvivorLevelPips(
-                survivor.x + survivor.recoilX,
-                upgradePipsY,
-                upgradeLevel
+        const x = Math.round(survivor.x + (survivor.recoilX || 0));
+        const y = Math.round(
+            survivor.y + (survivor.recoilY || 0) - 36 - pulse * 8
+        );
+        const accent = Number(survivor.upgradeFeedbackLevel) >= 3
+            ? "#c49bea"
+            : "#f3c45d";
+
+        ctx.save();
+        ctx.globalAlpha = (1 - progress) * 0.75;
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x, y, 8 + pulse * 10, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Four compact pixel sparks rise out of the badge. They are drawn on
+        // whole pixels so the effect stays sharp at high-DPI browser scales.
+        ctx.fillStyle = accent;
+        const sparks = [
+            [-12, -2, 2],
+            [10, -5, 2],
+            [-5, -14, 1],
+            [5, -16, 2]
+        ];
+        for (const [offsetX, offsetY, size] of sparks) {
+            const drift = Math.round(progress * (offsetY < -10 ? 7 : 4));
+            ctx.fillRect(
+                x + offsetX,
+                y + offsetY - drift,
+                size,
+                size
             );
         }
-
         ctx.restore();
+    }
+}
+
+// Level markers are a foreground layer. Drawing them after every sprite has
+// been rendered keeps one survivor's upgrade indicator visible when units
+// overlap in a crowded deployment area.
+function drawSurvivorLevelMarkers() {
+    const width = 64;
+    const height = 64;
+
+    for (const survivor of survivors) {
+        const upgradeLevel = getSurvivorUpgradeLevel(survivor);
+        if (upgradeLevel <= 0) continue;
+
+        const bounce = gamePaused || !waveRunning
+            ? 0
+            : Math.sin(
+                performance.now() / 250 * gameSpeed + survivor.x * 0.1
+            ) * 2;
+        const selectionNudge = getSurvivorSelectionPulse(survivor) * 3;
+        const placementNudge = getSurvivorPlacementPulse(survivor) * 7;
+        const upgradeNudge = getSurvivorUpgradePulse(survivor) * 8;
+        const upgradePipsY = Math.max(
+            4,
+            survivor.y + (survivor.recoilY || 0) - height / 2 - 6 + bounce - selectionNudge - placementNudge - upgradeNudge
+        );
+
+        drawSurvivorLevelPips(
+            survivor.x + (survivor.recoilX || 0),
+            upgradePipsY,
+            upgradeLevel
+        );
     }
 }
 
@@ -2375,10 +2676,17 @@ function getSurvivorStats(survivorOrType) {
         fireRate = base.fireRate * 0.5 * rarityFireRateMultiplier;
     }
 
+    const dailyRangeScale = isSurvivor && gameMode === "daily"
+        ? getDailyModifierValue("survivorRangeScale", 1)
+        : 1;
+    const dailyFireRateScale = isSurvivor && gameMode === "daily"
+        ? getDailyModifierValue("survivorFireRateScale", 1)
+        : 1;
+
     return {
         damage: Number(damage.toFixed(2)),
-        range: Math.round(base.range * (1 + 0.06 * level)),
-        fireRate
+        range: Math.round(base.range * (1 + 0.06 * level) * dailyRangeScale),
+        fireRate: fireRate * dailyFireRateScale
     };
 }
 
@@ -2529,7 +2837,7 @@ function updateSurvivorUpgradeButton(survivor) {
     const customDetails = survivorDetails[survivor.type]?.custom ? survivorDetails[survivor.type] : null;
     if (customDetails) {
         const upgrade = customDetails.upgrades?.[nextLevel - 1];
-        label.textContent = upgrade?.name || `UPGRADE TO LEVEL ${nextLevel}`;
+        label.textContent = "UPGRADE";
         costLabel.textContent = `${cost} SCRAP`;
         button.disabled = scrap < cost;
         button.title = scrap < cost
@@ -2543,17 +2851,7 @@ function updateSurvivorUpgradeButton(survivor) {
     const unlocksSemiAuto = survivor.type === "britney" && nextLevel === 3;
     const unlocksDualWield = survivor.type === "zach" && nextLevel === 3;
     const unlocksAutoShotty = survivor.type === "brady" && nextLevel === 3;
-    label.textContent = unlocksHighCaliber
-        ? "HIGH CALIBER"
-        : unlocksNapalmThrower
-            ? "NAPALM THROWER"
-            : unlocksHighlyExplosive
-                ? "HIGHLY EXPLOSIVE"
-                    : unlocksSemiAuto
-                        ? "SEMI AUTO"
-                        : unlocksDualWield
-                            ? "DUAL WIELD"
-                            : unlocksAutoShotty ? "AUTO SHOTTY" : `UPGRADE TO LEVEL ${nextLevel}`;
+    label.textContent = "UPGRADE";
     costLabel.textContent = `${cost} SCRAP`;
     button.disabled = scrap < cost;
     button.title = scrap < cost
@@ -2598,6 +2896,26 @@ customSurvivors.forEach(survivor => {
     survivorDescriptions[survivor.id] = survivor.description;
 });
 
+function hideSurvivorDetails() {
+    const detailsPanel = document.getElementById("survivorDetailsPanel");
+    if (!detailsPanel) return;
+
+    detailsPanel.classList.remove(
+        "is-visible",
+        "rarity-common",
+        "rarity-uncommon",
+        "rarity-rare",
+        "rarity-legendary"
+    );
+    detailsPanel.hidden = true;
+    detailsPanel.style.display = "none";
+    detailsPanel.style.removeProperty("height");
+    detailsPanel.style.removeProperty("max-height");
+    detailsPanel.style.removeProperty("overflow");
+    detailsPanel.removeAttribute("aria-expanded");
+    detailsPanel.setAttribute("aria-hidden", "true");
+}
+
 function showSurvivorDetails(id) {
     const person = survivorDetails[id];
 
@@ -2609,7 +2927,37 @@ function showSurvivorDetails(id) {
     const detail = getSurvivorStats(deployedUnit || id);
     if (!person || !detail) return;
 
-    document.getElementById("survivorDetailsPanel").style.display = "block";
+    const detailsPanel = document.getElementById("survivorDetailsPanel");
+    const detailRarity = person.rarity || getSurvivorRarity(id) || "common";
+    detailsPanel.classList.remove(
+        "rarity-common",
+        "rarity-uncommon",
+        "rarity-rare",
+        "rarity-legendary"
+    );
+    detailsPanel.classList.add(`rarity-${detailRarity}`, "is-visible");
+    detailsPanel.hidden = false;
+    detailsPanel.style.display = "block";
+    // The command panel is a flex column.  Keep the open dossier as a real
+    // flow item instead of allowing the panel's compact sizing rules to
+    // shrink it down to a border-only sliver on phones.
+    detailsPanel.style.setProperty("flex", "0 0 auto", "important");
+    detailsPanel.style.setProperty("min-height", "0", "important");
+    detailsPanel.style.removeProperty("height");
+    detailsPanel.style.removeProperty("max-height");
+    detailsPanel.style.removeProperty("overflow");
+    detailsPanel.setAttribute("aria-expanded", "true");
+    detailsPanel.setAttribute("aria-hidden", "false");
+
+    const commandPanel = detailsPanel.closest(".control-panel");
+    const isMobileLayout = window.matchMedia?.("(max-width: 900px)").matches;
+    if (commandPanel && isMobileLayout) {
+        commandPanel.style.setProperty("height", "auto", "important");
+        commandPanel.style.setProperty("max-height", "none", "important");
+        commandPanel.style.setProperty("overflow", "visible", "important");
+        commandPanel.style.setProperty("overflow-y", "visible", "important");
+        detailsPanel.style.setProperty("min-height", "220px", "important");
+    }
 const portraitFiles = {
     mason: "model-portraits/Mason.png",
     james: "model-portraits/James.png",
@@ -2678,6 +3026,19 @@ updateSurvivorTargetingControl(deployedUnit || null);
 updateSurvivorUpgradeButton(deployedUnit || null);
 updateSellButton();
 updateMoveButton();
+
+    // On a phone the roster is kept at the top of the command panel. Once a
+    // card is selected, bring its dossier into view instead of making the
+    // player hunt for it below the roster.
+    if (window.matchMedia?.("(max-width: 900px)").matches) {
+        window.requestAnimationFrame(() => {
+            detailsPanel.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+                inline: "nearest"
+            });
+        });
+    }
 }
 
 
@@ -2952,6 +3313,50 @@ function playWeaponAttackSound(type, delay = 0) {
     noise.stop(now + noiseDuration + 0.005);
 }
 
+function playSurvivorUpgradeSound(level = 1) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (gameAudioMuted || !AudioContextClass) return;
+
+    if (!window.jamesAudioContext) {
+        window.jamesAudioContext = new AudioContextClass();
+    }
+
+    const audio = window.jamesAudioContext;
+    if (!window.wastelandSoundGain) {
+        window.wastelandSoundGain = audio.createGain();
+        window.wastelandSoundGain.gain.value = gameAudioMuted ? 0 : 1;
+        window.wastelandSoundGain.connect(audio.destination);
+    }
+    if (audio.state === "suspended") audio.resume();
+
+    // A short rising arpeggio reads as a reward without becoming a menu
+    // jingle. Level three gets a slightly brighter final note.
+    const now = audio.currentTime;
+    const notes = level >= 3
+        ? [523.25, 659.25, 783.99, 1046.5]
+        : [523.25, 659.25, 783.99];
+    const master = audio.createGain();
+    master.gain.setValueAtTime(0.0001, now);
+    master.gain.exponentialRampToValueAtTime(0.11, now + 0.018);
+    master.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+    master.connect(window.wastelandSoundGain);
+
+    notes.forEach((frequency, index) => {
+        const oscillator = audio.createOscillator();
+        const noteGain = audio.createGain();
+        const start = now + index * 0.075;
+        oscillator.type = index === notes.length - 1 ? "sine" : "triangle";
+        oscillator.frequency.setValueAtTime(frequency, start);
+        noteGain.gain.setValueAtTime(0.0001, start);
+        noteGain.gain.exponentialRampToValueAtTime(0.72, start + 0.012);
+        noteGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+        oscillator.connect(noteGain);
+        noteGain.connect(master);
+        oscillator.start(start);
+        oscillator.stop(start + 0.18);
+    });
+}
+
 function addShotVisual(survivor, enemy, dx, dy, distance, type, shotIndex = 0, shotCount = 1) {
     const unitX = dx / distance;
     const unitY = dy / distance;
@@ -3078,9 +3483,11 @@ function applySurvivorDamage(survivor, enemy, damage, isSplash = false, hitIndex
     floatingDamageNumbers.push({
         x: enemy.x + (hitIndex % 2 === 0 ? -5 : 5),
         y: enemy.y - 25 - hitIndex * 4,
+        driftX: hitIndex % 2 === 0 ? -2.5 : 2.5,
         amount: Math.round(actualDamage),
         life: 0.8,
         maxLife: 0.8,
+        spawnedAt: performance.now(),
         isSplash,
         damageType,
         isWeakness: damageTypeMultiplier > 1.01,
@@ -3291,7 +3698,11 @@ function updateSurvivorCombat(deltaTime) {
             const earnsScrap = !defeatedEnemy.isSplitChild
                 && Math.random() < killScrapChance;
             const killReward = earnsScrap
-                ? (isEndlessStyleMode() ? endlessKillScrapPerKill : scrapRewardPerKill)
+                ? (isEndlessStyleMode()
+                    ? endlessKillScrapPerKill
+                    : scrapRewardPerKill + (gameMode === "daily"
+                        ? getDailyModifierBonus("killScrapBonus", 0)
+                        : 0))
                 : 0;
             scrap += killReward;
         }
@@ -3306,6 +3717,7 @@ function updateDamageNumbers(deltaTime) {
 
         number.life -= deltaTime;
         number.y -= 45 * deltaTime;
+        number.x += (Number(number.driftX) || 0) * deltaTime;
 
         if (number.life <= 0) {
             floatingDamageNumbers.splice(i, 1);
@@ -3355,9 +3767,12 @@ function drawDamageNumbers() {
 
     for (const number of floatingDamageNumbers) {
         const progress = 1 - Math.max(0, Math.min(1, number.life / number.maxLife));
-        const fade = Math.max(0, Math.min(1, (1 - progress) / 0.24));
+        // Hold the hit at full brightness briefly, then ease it out near the
+        // end of its travel so damage remains readable during busy volleys.
+        const fade = Math.max(0, Math.min(1, (1 - progress) / 0.28));
         const amount = Math.round(number.amount);
-        const fontSize = amount >= 100 ? 17 : amount >= 40 ? 16 : 15;
+        const fontSize = amount >= 100 ? 18 : amount >= 40 ? 17 : 16;
+        const pop = Math.sin(Math.min(1, progress / 0.16) * Math.PI);
 
         // Keep the text on whole pixels so the bold outline stays sharp.
         const x = Math.round(number.x);
@@ -3365,13 +3780,16 @@ function drawDamageNumbers() {
 
         ctx.font = `bold ${fontSize}px monospace`;
         ctx.globalAlpha = fade;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1 + pop * 0.12, 1 + pop * 0.12);
 
-        // A heavier near-black edge keeps the numbers readable over sprites,
-        // road tiles, and overlapping effects.
+        // A two-pass edge keeps the numbers readable over sprites and gives
+        // hits a polished stamped look without soft blur.
         ctx.strokeStyle = "#080b10";
-        ctx.lineWidth = 5;
+        ctx.lineWidth = 5.5;
         ctx.lineJoin = "miter";
-        ctx.strokeText(amount, x, y);
+        ctx.strokeText(amount, 0, 0);
 
         // Bright, separated colors distinguish direct, splash, and burn hits.
         ctx.fillStyle = number.isWeakness
@@ -3384,13 +3802,19 @@ function drawDamageNumbers() {
                         ? "#ffc768"
                         : "#fff2a0";
 
-        ctx.fillText(amount, x, y);
+        ctx.fillText(amount, 0, 0);
+
+        ctx.globalAlpha = fade * 0.55;
+        ctx.fillStyle = "#fffce6";
+        ctx.fillText(amount, 0, -1);
 
         if (number.isWeakness || number.isResistance) {
             ctx.font = "bold 9px monospace";
             ctx.fillStyle = number.isWeakness ? "#9dffbf" : "#c3c7d3";
-            ctx.fillText(number.isWeakness ? "WEAK" : "RESIST", x, y - fontSize - 2);
+            ctx.globalAlpha = fade;
+            ctx.fillText(number.isWeakness ? "WEAK" : "RESIST", 0, -fontSize - 2);
         }
+        ctx.restore();
     }
 
     ctx.restore();
@@ -3658,9 +4082,11 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
             floatingDamageNumbers.push({
                 x: enemy.x,
                 y: enemy.y - 35,
+                driftX: 0,
                 amount: Math.round(damage),
                 life: 0.65,
                 maxLife: 0.65,
+                spawnedAt: performance.now(),
                 isBurn: true,
                 isWeakness: burnMultiplier > 1.01,
                 isResistance: burnMultiplier < 0.99
@@ -3809,19 +4235,22 @@ function drawEnemies() {
         const laneOffsetY = enemy.visualLaneOffsetY || 0;
 
         ctx.save();
-        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        const shadowX = enemy.x + hitOffsetX;
+        // enemy.x/y is the road anchor. The shadow stays at that anchor,
+        // which is also where the sprite's lowest opaque pixel lands.
+        const shadowY = enemy.y + hitOffsetY + laneOffsetY + 2;
+        const shadowWidth = (profile.isHeavy || profile.isBoss ? 16 : 14) * sizeScale;
+        // Keep this pass deliberately gradient-free: late Endless waves can
+        // contain dozens of enemies, and crisp layered shapes are cheaper
+        // while still reading as a soft contact shadow at game scale.
+        ctx.fillStyle = "rgba(0, 0, 0, 0.24)";
         ctx.beginPath();
-        ctx.ellipse(
-            enemy.x + hitOffsetX,
-            // enemy.x/y is the road anchor.  The shadow sits at that anchor,
-            // which is also where the sprite's lowest opaque pixel lands.
-            enemy.y + hitOffsetY + laneOffsetY + 2,
-            (profile.isHeavy || profile.isBoss ? 14 : 12) * sizeScale,
-            4.5 * sizeScale,
-            0,
-            0,
-            Math.PI * 2
-        );
+        ctx.ellipse(shadowX, shadowY, shadowWidth, 6 * sizeScale, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.beginPath();
+        ctx.ellipse(shadowX, shadowY, shadowWidth * 0.66, 3 * sizeScale, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
     }
@@ -4048,6 +4477,7 @@ function drawHollowBossBar(hollowAlive) {
 
 function renderGame() {
     ctx.drawImage(mapCanvas, 0, 0);
+    drawBattlefieldAtmosphere();
     drawSurvivors();
     drawEnemies();
     drawBullets();
@@ -4056,6 +4486,14 @@ function renderGame() {
     drawDamageNumbers();
     drawSurvivorPreview();
     drawSelectedSurvivorRange();
+    // Repaint only the inspected model after its range so the selected
+    // survivor remains the visual focal point instead of being washed out by
+    // the translucent circle.
+    if (inspectedSurvivor) drawSurvivors(inspectedSurvivor);
+    drawSurvivorLevelMarkers();
+    drawSurvivorSelectionFeedback();
+    drawSurvivorPlacementFeedback();
+    drawSurvivorUpgradeFeedback();
     if (inspectedSurvivor) {
     document.getElementById("survivorDamageDealt").textContent =
         Math.round(inspectedSurvivor.damageDealt || 0);
@@ -4064,6 +4502,76 @@ function renderGame() {
         inspectedSurvivor.kills || 0;
 }
 }
+
+// A restrained animated pass over the static map gives the battlefield some
+// depth without softening the pixel art. The moving road glint makes the lane
+// readable during busy waves, while the vignette keeps attention on combat.
+function drawBattlefieldAtmosphere() {
+    const time = performance.now();
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+
+    if (Array.isArray(roadPoints) && roadPoints.length > 1) {
+        ctx.save();
+        ctx.globalAlpha = 0.11;
+        ctx.strokeStyle = "#f6d88b";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "butt";
+        ctx.setLineDash([5, 52]);
+        ctx.lineDashOffset = -(time / 110);
+        traceMapRoad();
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    const topGlow = ctx.createLinearGradient(0, 0, 0, 190);
+    topGlow.addColorStop(0, "rgba(255, 255, 255, 0.045)");
+    topGlow.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = topGlow;
+    ctx.fillRect(0, 0, canvas.width, 190);
+
+    const vignette = ctx.createRadialGradient(
+        canvas.width / 2,
+        canvas.height / 2,
+        170,
+        canvas.width / 2,
+        canvas.height / 2,
+        600
+    );
+    vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vignette.addColorStop(0.72, "rgba(0, 0, 0, 0.025)");
+    vignette.addColorStop(1, "rgba(3, 5, 7, 0.24)");
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Dust motes add life to otherwise quiet sections of the map. They drift
+    // from continuous positions (rather than jumping on a timer), which keeps
+    // the motion smooth even at higher game speeds. Positions are seeded so
+    // the atmosphere feels consistent whenever a map is revisited.
+    const particleSpanX = canvas.width + 48;
+    const particleSpanY = canvas.height + 48;
+    for (let i = 0; i < 28; i++) {
+        const speedX = 0.0048 + (i % 5) * 0.00105;
+        const speedY = 0.00055 + (i % 4) * 0.00016;
+        const rawX = (i * 151 + currentLevel * 37 + time * speedX) % particleSpanX;
+        const rawY = (i * 73 + currentLevel * 19 + time * speedY
+            + Math.sin(time / (1800 + i * 90) + i) * 13) % particleSpanY;
+        const x = rawX - 24;
+        const y = rawY - 24;
+        if (isOnRoad(x, y)) continue;
+
+        const pulse = 0.25 + (Math.sin(time / (820 + i * 23) + i * 1.7) + 1) * 0.13;
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = i % 6 === 0 ? "#bcd9bd" : "#f2d99a";
+        const size = i % 7 === 0 ? 3 : i % 3 === 0 ? 2 : 1;
+        ctx.fillRect(x, y, size, size);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+}
+
 function drawSelectedSurvivorRange() {
     if (!inspectedSurvivor) return;
     const range = getSurvivorStats(inspectedSurvivor)?.range;
@@ -4083,8 +4591,31 @@ function drawSelectedSurvivorRange() {
     ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
     ctx.fill();
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    const pulse = 0.72 + Math.sin(performance.now() / 180) * 0.16;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${pulse})`;
     ctx.lineWidth = 2;
+    ctx.setLineDash([8, 10]);
+    ctx.lineDashOffset = -(performance.now() / 90);
+    ctx.stroke();
+
+    // A small reticle makes the selected unit obvious even when several
+    // sprites overlap in a tight deployment area.
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "rgba(246, 216, 139, 0.95)";
+    ctx.lineWidth = 1;
+    const reticleSize = 8;
+    const reticleGap = 4;
+    const x = Math.round(inspectedSurvivor.x);
+    const y = Math.round(inspectedSurvivor.y);
+    ctx.beginPath();
+    ctx.moveTo(x - reticleSize, y - reticleGap);
+    ctx.lineTo(x - reticleGap, y - reticleGap);
+    ctx.moveTo(x + reticleGap, y - reticleGap);
+    ctx.lineTo(x + reticleSize, y - reticleGap);
+    ctx.moveTo(x - reticleSize, y + reticleGap);
+    ctx.lineTo(x - reticleGap, y + reticleGap);
+    ctx.moveTo(x + reticleGap, y + reticleGap);
+    ctx.lineTo(x + reticleSize, y + reticleGap);
     ctx.stroke();
 
     ctx.restore();
@@ -4463,6 +4994,12 @@ if (!gamePaused) {
 }
 
 renderGame();
+    } else if (survivors.some(survivor =>
+        Number(survivor.placementFeedbackUntil) > timestamp
+    )) {
+        // Keep short placement feedback animated on the pre-wave deployment
+        // screen, where combat is not yet running its normal render branch.
+        renderGame();
     }
 
     requestAnimationFrame(gameLoop);
@@ -4482,6 +5019,7 @@ const campaignSelect = document.getElementById("campaignSelect");
 const levelSelect = document.getElementById("levelSelect");
 const leaderboardScreen = document.getElementById("leaderboardScreen");
 const deploymentScreen = document.getElementById("deploymentScreen");
+const loadoutScreen = document.getElementById("loadoutScreen");
 const gameLayout = document.querySelector(".game-layout");
 
 function syncMainMenuHeaderAlignment() {
@@ -4499,6 +5037,7 @@ const endlessRecordKey = "wastelandDefense.endlessRecords.v1";
 const coinBalanceKey = "wastelandDefense.coins.v1";
 const playerProfileKey = "wastelandDefense.profile.v1";
 const unlockedSurvivorsKey = "wastelandDefense.unlockedSurvivors.v1";
+const loadoutsKey = "wastelandDefense.loadouts.v1";
 const linkedCloudAccountKey = "wastelandDefense.cloudAccountId.v1";
 const campaignLevelCoinReward = 100;
 const dailyChallengeCoinReward = 250;
@@ -4525,6 +5064,15 @@ let activeLeaderboardScope = "global";
 let activeLeaderboardMode = "endless";
 let activeDailyLeaderboardDate = null;
 let leaderboardReturnScreen = "menu";
+let rosterSortMode = "rarity-asc";
+// Preserve unlock order independently from survivor object order so the
+// recently-obtained roster sort remains meaningful after cloud reloads.
+let unlockedSurvivorOrder = [];
+let loadoutDraftIds = new Set();
+let loadoutEditingId = null;
+let pendingLoadoutIds = null;
+let pendingLoadoutName = null;
+let loadoutReturnScreen = "menu";
 const profilePortraitSources = {
     mason: "Images/model-portraits/Mason.png",
     james: "Images/model-portraits/James.png",
@@ -4537,6 +5085,74 @@ customSurvivors.forEach(survivor => {
     profilePortraitSources[survivor.id] = survivor.portraitData;
 });
 const trophyPlaceNames = { 1: "GOLD", 2: "SILVER", 3: "BRONZE" };
+
+// Daily modifiers are generated from the UTC date, so every player sees the
+// same challenge rules without storing another piece of mutable server state.
+// Each day pairs one hazard with one small compensating boon to keep the
+// challenge interesting without turning it into an unwinnable dice roll.
+const dailyModifierDefinitions = {
+    iron_hide: {
+        label: "IRON HIDE",
+        description: "Hostiles have 18% more health.",
+        kind: "hazard",
+        enemyHealthScale: 1.18
+    },
+    rush_hour: {
+        label: "RUSH HOUR",
+        description: "Hostiles move 12% faster.",
+        kind: "hazard",
+        enemySpeedScale: 1.12
+    },
+    swarm: {
+        label: "SWARM",
+        description: "Each wave sends 20% more regular hostiles.",
+        kind: "hazard",
+        enemyCountScale: 1.2
+    },
+    overclock: {
+        label: "OVERCLOCK",
+        description: "Survivors attack 10% faster.",
+        kind: "boon",
+        survivorFireRateScale: 0.9
+    },
+    long_sight: {
+        label: "LONG SIGHT",
+        description: "Survivor attack ranges are 12% wider.",
+        kind: "boon",
+        survivorRangeScale: 1.12
+    },
+    bounty: {
+        label: "BOUNTY",
+        description: "Paid kills award 1 extra scrap.",
+        kind: "boon",
+        killScrapBonus: 1
+    }
+};
+
+const dailyModifierHazards = ["iron_hide", "rush_hour", "swarm"];
+const dailyModifierBoons = ["overclock", "long_sight", "bounty"];
+
+function getDailyModifiers(challenge = null) {
+    if (gameMode !== "daily" && !challenge) return [];
+    const source = challenge || activeDailyChallenge || currentDailyChallenge;
+    return (Array.isArray(source?.modifierIds) ? source.modifierIds : [])
+        .map(id => dailyModifierDefinitions[id])
+        .filter(Boolean);
+}
+
+function getDailyModifierValue(property, fallback = 1, challenge = null) {
+    return getDailyModifiers(challenge).reduce((value, modifier) => {
+        const modifierValue = Number(modifier[property]);
+        return Number.isFinite(modifierValue) ? value * modifierValue : value;
+    }, fallback);
+}
+
+function getDailyModifierBonus(property, fallback = 0, challenge = null) {
+    return getDailyModifiers(challenge).reduce((value, modifier) => {
+        const modifierValue = Number(modifier[property]);
+        return Number.isFinite(modifierValue) ? value + modifierValue : value;
+    }, fallback);
+}
 
 function getDailyChallengeDate(date = new Date()) {
     return date.toISOString().slice(0, 10);
@@ -4566,11 +5182,16 @@ function createDailyChallenge(dateKey = getDailyChallengeDate()) {
     const survivorIds = shuffled(["mason", "james", "cody", "britney", "zach", "brady"]).slice(0, 3);
     const regularTypes = shuffled(["spider", "skitter", "wastelandcow", "mutantman", "mutantsnake"]).slice(0, 2);
     const heavyType = shuffled(["hollow", "fogkeeper", "heavymutant"])[0];
+    const modifierIds = [
+        dailyModifierHazards[Math.floor(random() * dailyModifierHazards.length)],
+        dailyModifierBoons[Math.floor(random() * dailyModifierBoons.length)]
+    ];
     return {
         date: dateKey,
         mapId: 1 + Math.floor(random() * 6),
         survivorIds,
-        enemyTypes: [...regularTypes, heavyType]
+        enemyTypes: [...regularTypes, heavyType],
+        modifierIds
     };
 }
 
@@ -4658,8 +5279,8 @@ function updateProfileIdentity() {
 }
 
 function getUnlockedProfilePortraits() {
-    return Object.entries(survivorDetails)
-        .filter(([id, survivor]) => survivor.unlocked === true && profilePortraitSources[id]);
+    return getSortedRosterEntries()
+        .filter(([id]) => profilePortraitSources[id]);
 }
 
 function renderProfilePortraitOptions() {
@@ -4837,6 +5458,7 @@ function resetSignedOutState() {
     Object.entries(survivorDetails).forEach(([id, survivor]) => {
         survivor.unlocked = builtinSurvivorIds.has(id);
     });
+    unlockedSurvivorOrder = [...builtinSurvivorIds];
     playerCoinBalance = 0;
     playerProfile = { campaignLevels: [], portrait: "mason" };
     playerTrophyRecords = [];
@@ -5685,9 +6307,12 @@ async function submitAccount(action) {
 }
 
 function getLocalUnlockedSurvivors() {
-    return Object.entries(survivorDetails)
-        .filter(([, survivor]) => survivor.unlocked === true)
+    const ordered = unlockedSurvivorOrder
+        .filter(id => survivorDetails[id]?.unlocked === true);
+    const missing = Object.entries(survivorDetails)
+        .filter(([id, survivor]) => survivor.unlocked === true && !ordered.includes(id))
         .map(([id]) => id);
+    return [...ordered, ...missing];
 }
 
 function persistUnlockedSurvivors() {
@@ -5704,6 +6329,26 @@ function storeEndlessRecords(records) {
     } catch {
         // Keep the save in memory when local storage is unavailable.
     }
+}
+
+const playerProgressSelect = "coins,unlocked_survivors,completed_campaign_levels,legacy_imported_at,loadouts";
+
+async function fetchPlayerProgress(client, userId) {
+    let response = await client
+        .from("player_progress")
+        .select(playerProgressSelect)
+        .eq("user_id", userId)
+        .single();
+
+    // Keep older deployments usable until the loadouts migration is run.
+    if (response.error?.code === "42703") {
+        response = await client
+            .from("player_progress")
+            .select("coins,unlocked_survivors,completed_campaign_levels,legacy_imported_at")
+            .eq("user_id", userId)
+            .single();
+    }
+    return response;
 }
 
 async function importLocalProgress(client, progress, freshAccount = false) {
@@ -5723,11 +6368,7 @@ async function importLocalProgress(client, progress, freshAccount = false) {
         p_portrait_id: useCloudDefaults ? "mason" : (playerProfile.portrait || "mason")
     });
     if (error) throw error;
-    const { data, error: reloadError } = await client
-        .from("player_progress")
-        .select("coins,unlocked_survivors,completed_campaign_levels,legacy_imported_at")
-        .eq("user_id", supabaseUser.id)
-        .single();
+    const { data, error: reloadError } = await fetchPlayerProgress(client, supabaseUser.id);
     if (reloadError) throw reloadError;
     return data;
 }
@@ -5765,10 +6406,11 @@ async function handleSupabaseSession(session) {
 
 async function loadRemotePlayerData(user, generation) {
     const client = await ensureSupabaseClient();
-    let [{ data: profile, error: profileError }, { data: progress, error: progressError }] = await Promise.all([
+    let [{ data: profile, error: profileError }, progressResponse] = await Promise.all([
         client.from("player_profiles").select("id,username,portrait_id").eq("id", user.id).single(),
-        client.from("player_progress").select("coins,unlocked_survivors,completed_campaign_levels,legacy_imported_at").eq("user_id", user.id).single()
+        fetchPlayerProgress(client, user.id)
     ]);
+    let { data: progress, error: progressError } = progressResponse;
     if (profileError) throw profileError;
     if (progressError) throw progressError;
 
@@ -5789,13 +6431,22 @@ async function loadRemotePlayerData(user, generation) {
     };
     persistPlayerProfile();
 
-    const unlocked = new Set(progress.unlocked_survivors || []);
+    const unlockedList = Array.isArray(progress.unlocked_survivors)
+        ? progress.unlocked_survivors.filter(id => survivorDetails[id])
+        : [];
+    unlockedSurvivorOrder = [...unlockedList];
+    const unlocked = new Set(unlockedList);
     Object.entries(survivorDetails).forEach(([id, survivor]) => {
         survivor.unlocked = survivor.mysteryBoxOnly
             ? unlocked.has(id)
             : survivor.custom === true || unlocked.has(id);
     });
     persistUnlockedSurvivors();
+    // Hydrate account presets after the roster is marked unlocked so saved
+    // squads keep every recruit instead of being filtered during sign-in.
+    if (Array.isArray(progress.loadouts)) {
+        writeSavedLoadouts(normalizeSavedLoadouts(progress.loadouts));
+    }
     renderMenuCrewRoster();
     if (!getUnlockedProfilePortraits().some(([id]) => id === playerProfile.portrait)) {
         playerProfile.portrait = getUnlockedProfilePortraits()[0]?.[0] || "mason";
@@ -6564,6 +7215,7 @@ function showLeaderboard() {
     levelSelect.style.display = "none";
     leaderboardScreen.style.display = "flex";
     deploymentScreen.style.display = "none";
+    if (loadoutScreen) loadoutScreen.style.display = "none";
     gameLayout.style.display = "none";
     document.getElementById("gameOverScreen").style.display = "none";
     document.getElementById("victoryScreen").style.display = "none";
@@ -6595,6 +7247,7 @@ function showProfile() {
     campaignSelect.style.display = "none";
     levelSelect.style.display = "none";
     deploymentScreen.style.display = "none";
+    if (loadoutScreen) loadoutScreen.style.display = "none";
     gameLayout.style.display = "none";
     returnMenuConfirm.style.display = "none";
     restartConfirm.style.display = "none";
@@ -6604,6 +7257,8 @@ function showProfile() {
     document.getElementById("profileButton").style.visibility = "hidden";
     document.getElementById("mainMenuButton").style.visibility = "hidden";
     document.getElementById("profileSaveNotice").textContent = "";
+    const profileSort = document.getElementById("profilePortraitSort");
+    if (profileSort) profileSort.value = rosterSortMode;
     updateProfileIdentity();
     renderProfilePortraitOptions();
     updateProfileStats();
@@ -6782,6 +7437,16 @@ function showMenu() {
     autoStartWaves = false;
     updateAutoStartButton();
     updateCoinBalanceDisplay();
+    const dailyMenuSummary = document.getElementById("dailyChallengeMenuSummary");
+    if (dailyMenuSummary) {
+        const todayChallenge = getTodaysDailyChallenge();
+        const modifierLabels = getDailyModifiers(todayChallenge)
+            .map(modifier => modifier.label)
+            .join(" · ");
+        dailyMenuSummary.textContent = modifierLabels
+            ? `One shared map, three survivors, fifteen waves, and ${modifierLabels}.`
+            : "One shared map, three survivors, and fifteen waves.";
+    }
     hideWaveCompleteToast();
     previousTime = 0;
     clearInterval(dialogueTimer);
@@ -6820,7 +7485,7 @@ function showMenu() {
     moveMode = false;
 
     // Hide survivor details.
-    document.getElementById("survivorDetailsPanel").style.display = "none";
+    hideSurvivorDetails();
 
     mainMenu.style.display = "block";
     profileScreen.style.display = "none";
@@ -6828,6 +7493,7 @@ function showMenu() {
     campaignSelect.style.display = "none";
     levelSelect.style.display = "none";
     deploymentScreen.style.display = "none";
+    if (loadoutScreen) loadoutScreen.style.display = "none";
     document.getElementById("leaderboardButton").style.visibility = "visible";
     document.getElementById("profileButton").style.visibility = "visible";
     document.getElementById("mainMenuButton").style.visibility = "hidden";
@@ -6847,6 +7513,7 @@ function showCampaignSelect() {
     campaignSelect.style.display = "flex";
     levelSelect.style.display = "none";
     deploymentScreen.style.display = "none";
+    if (loadoutScreen) loadoutScreen.style.display = "none";
     document.getElementById("profileButton").style.visibility = "hidden";
     document.getElementById("mainMenuButton").style.visibility = "visible";
     gameLayout.style.display = "none";
@@ -6910,6 +7577,7 @@ function showLevelSelect() {
     campaignSelect.style.display = "none";
     levelSelect.style.display = "block";
     deploymentScreen.style.display = "none";
+    if (loadoutScreen) loadoutScreen.style.display = "none";
     document.getElementById("profileButton").style.visibility = "hidden";
     document.getElementById("mainMenuButton").style.visibility = "visible";
     gameLayout.style.display = "none";
@@ -6969,6 +7637,63 @@ bindUIEvent("dialogueContinue", "click", () => {
     document.getElementById("startWaveButton").disabled = false;
 });
 
+function applyLoadoutToDeployment(loadout) {
+    if (!loadout || gameMode === "daily") return false;
+
+    selectedSurvivors.clear();
+    loadout.ids
+        .filter(id => isSurvivorAvailableForCurrentMode(id))
+        .slice(0, getMaxRosterSize())
+        .forEach(id => selectedSurvivors.add(id));
+    pendingLoadoutIds = null;
+    pendingLoadoutName = loadout.name;
+
+    document.querySelectorAll("#deploymentRoster button[data-survivor]").forEach(card => {
+        const selected = selectedSurvivors.has(card.dataset.survivor);
+        card.classList.toggle("selected", selected);
+        card.setAttribute("aria-pressed", String(selected));
+    });
+    updateRosterSummary();
+    renderDeploymentLoadouts();
+    updateDeploymentMessage(`${loadout.name.toUpperCase()} READY. ${selectedSurvivors.size} SURVIVORS SELECTED.`);
+    return true;
+}
+
+function renderDeploymentLoadouts() {
+    const bar = document.getElementById("deploymentLoadoutBar");
+    const list = document.getElementById("deploymentLoadoutList");
+    const status = document.getElementById("deploymentLoadoutStatus");
+    if (!bar || !list || !status) return;
+
+    const visible = gameMode !== "daily";
+    bar.hidden = !visible;
+    if (!visible) return;
+
+    const saved = readSavedLoadouts();
+    status.textContent = pendingLoadoutName
+        ? `${pendingLoadoutName.toUpperCase()} READY — SQUAD LOCKED IN.`
+        : saved.length
+            ? "Choose a saved squad or build your own roster below."
+            : "No saved loadouts yet. Build one in the Safehouse.";
+
+    const fragment = document.createDocumentFragment();
+    saved.forEach(loadout => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "deployment-loadout-chip";
+        button.dataset.deploymentLoadoutId = loadout.id;
+        button.setAttribute("role", "listitem");
+        if (pendingLoadoutName === loadout.name) button.classList.add("is-active");
+        const title = document.createElement("strong");
+        title.textContent = loadout.name.toUpperCase();
+        const summary = document.createElement("small");
+        summary.textContent = loadout.ids.map(id => survivorDetails[id]?.name || id).join(" · ");
+        button.append(title, summary);
+        fragment.append(button);
+    });
+    list.replaceChildren(fragment);
+}
+
 function showDeployment(level = 1) {
     setMuteButtonVisible(false);
     currentLevel = level;
@@ -6977,16 +7702,24 @@ function showDeployment(level = 1) {
     const levelCard = document.getElementById(`level${level}Button`);
     const levelName = levelCard?.querySelector("strong")?.textContent.trim() || `LEVEL ${String(level).padStart(2, "0")}`;
     const dailyDetails = document.getElementById("dailyChallengeDetails");
+    const dailyModifiers = document.getElementById("dailyChallengeModifiers");
     const dailyMapPanel = document.getElementById("dailyChallengeMapPanel");
     if (gameMode === "daily" && currentDailyChallenge) {
         const squadNames = currentDailyChallenge.survivorIds.map(id => survivorDetails[id]?.name || id).join(" · ");
         const enemyNames = currentDailyChallenge.enemyTypes.map(type => enemyLabels[type] || type.toUpperCase()).join(" · ");
+        const modifierText = getDailyModifiers(currentDailyChallenge)
+            .map(modifier => `${modifier.label}: ${modifier.description}`)
+            .join("  //  ");
         document.getElementById("deploymentLocation").textContent =
             `DAILY CHALLENGE // ${currentDailyChallenge.date} UTC // ${levelName}`;
         document.querySelector(".deployment-subtitle").textContent =
             "Choose your squad from today's three survivors. Clear all 15 waves for 250 coins.";
         dailyDetails.textContent = `TODAY'S SQUAD: ${squadNames}  //  HOSTILES: ${enemyNames}`;
         dailyDetails.hidden = false;
+        if (dailyModifiers) {
+            dailyModifiers.textContent = `TODAY'S MODIFIERS: ${modifierText}`;
+            dailyModifiers.hidden = false;
+        }
         try {
             document.getElementById("dailyChallengeMapPreview").src = mapCanvas.toDataURL("image/png");
             document.getElementById("dailyChallengeMapName").textContent = levelName;
@@ -7006,10 +7739,28 @@ function showDeployment(level = 1) {
         document.querySelector(".deployment-subtitle").textContent =
             `Choose up to ${getMaxRosterSize()} survivors. Tap a card to add or remove them.`;
         dailyDetails.hidden = true;
+        if (dailyModifiers) dailyModifiers.hidden = true;
         dailyMapPanel.hidden = true;
     }
     updateDeploymentRosterAvailability();
+    const deploymentSort = document.getElementById("deploymentRosterSort");
+    if (deploymentSort) deploymentSort.value = rosterSortMode;
+    sortDeploymentRosterCards();
+    if (pendingLoadoutIds && gameMode !== "daily") {
+        selectedSurvivors.clear();
+        pendingLoadoutIds
+            .filter(id => isSurvivorAvailableForCurrentMode(id))
+            .slice(0, getMaxRosterSize())
+            .forEach(id => selectedSurvivors.add(id));
+        pendingLoadoutIds = null;
+        document.querySelectorAll("#deploymentRoster button[data-survivor]").forEach(card => {
+            const selected = selectedSurvivors.has(card.dataset.survivor);
+            card.classList.toggle("selected", selected);
+            card.setAttribute("aria-pressed", String(selected));
+        });
+    }
     updateRosterSummary();
+    renderDeploymentLoadouts();
 
     gameRunning = false;
     previousTime = 0;
@@ -7020,6 +7771,7 @@ function showDeployment(level = 1) {
     campaignSelect.style.display = "none";
     levelSelect.style.display = "none";
     deploymentScreen.style.display = "block";
+    if (loadoutScreen) loadoutScreen.style.display = "none";
     document.getElementById("profileButton").style.visibility = "hidden";
     document.getElementById("mainMenuButton").style.visibility = "visible";
 
@@ -7111,7 +7863,7 @@ function startDefense() {
     survivors.length = 0;
     selectedSurvivor = null;
     inspectedSurvivor = null;
-    document.getElementById("survivorDetailsPanel").style.display = "none";
+    hideSurvivorDetails();
     enemies.length = 0;
     bullets.length = 0;
     impactPixels.length = 0;
@@ -7124,7 +7876,7 @@ function startDefense() {
         : gameMode === "endless"
             ? 150
             : gameMode === "daily"
-                ? 410
+                ? 300
                 : 250;
 
     updateScrapDisplay();
@@ -7388,6 +8140,113 @@ bindUIEvent("dailyChallengeButton", "click", () => {
     showDeployment(currentDailyChallenge.mapId);
 });
 bindUIEvent("shopRecruitButton", "click", () => { window.location.href = "shop/"; });
+bindUIEvent("openLoadoutButton", "click", showLoadout);
+bindUIEvent("deploymentLoadoutList", "click", event => {
+    const button = event.target.closest("button[data-deployment-loadout-id]");
+    if (!button) return;
+    const saved = readSavedLoadouts().find(loadout => loadout.id === button.dataset.deploymentLoadoutId);
+    if (saved) applyLoadoutToDeployment(saved);
+});
+bindUIEvent("deploymentManageLoadoutsButton", "click", () => showLoadout("deployment"));
+bindUIEvent("loadoutBackButton", "click", closeLoadout);
+bindUIEvent("loadoutRosterSort", "change", event => {
+    rosterSortMode = event.target.value;
+    renderLoadoutRoster();
+});
+bindUIEvent("deploymentRosterSort", "change", event => {
+    rosterSortMode = event.target.value;
+    sortDeploymentRosterCards();
+});
+bindUIEvent("profilePortraitSort", "change", event => {
+    rosterSortMode = event.target.value;
+    renderProfilePortraitOptions();
+});
+bindUIEvent("loadoutRosterGrid", "click", event => {
+    const card = event.target.closest("button[data-survivor]");
+    if (!card) return;
+    const id = card.dataset.survivor;
+    if (loadoutDraftIds.has(id)) {
+        loadoutDraftIds.delete(id);
+    } else if (loadoutDraftIds.size < 6) {
+        loadoutDraftIds.add(id);
+    } else {
+        setLoadoutNotice("A loadout can hold six survivors. Remove one before adding another.", "warning");
+        return;
+    }
+    setLoadoutNotice("");
+    renderLoadoutRoster();
+});
+bindUIEvent("loadoutNameInput", "input", event => {
+    const title = event.target.value.trim() || "UNNAMED LOADOUT";
+    document.getElementById("loadoutPreviewTitle").textContent = title.toUpperCase();
+});
+bindUIEvent("loadoutForm", "submit", event => {
+    event.preventDefault();
+    const nameInput = document.getElementById("loadoutNameInput");
+    const name = nameInput.value.trim();
+    if (loadoutDraftIds.size !== 6) {
+        setLoadoutNotice("Select exactly six survivors before saving.", "warning");
+        return;
+    }
+    if (!name) {
+        setLoadoutNotice("Give this squad a name first.", "warning");
+        nameInput.focus();
+        return;
+    }
+    if (!supabaseUser) {
+        setLoadoutNotice("SIGN IN TO SAVE LOADOUTS TO YOUR ACCOUNT.", "warning");
+        return;
+    }
+    const saved = readSavedLoadouts();
+    const next = {
+        id: loadoutEditingId || (crypto.randomUUID?.() || `loadout-${Date.now()}`),
+        name: name.slice(0, 24),
+        ids: [...loadoutDraftIds],
+        createdAt: new Date().toISOString()
+    };
+    const index = saved.findIndex(loadout => loadout.id === next.id);
+    if (index >= 0) saved[index] = next;
+    else saved.unshift(next);
+    const nextSaved = saved.slice(0, 12);
+    writeSavedLoadouts(nextSaved);
+    loadoutEditingId = next.id;
+    setLoadoutNotice("SAVING LOADOUT TO YOUR ACCOUNT…", "success");
+    renderSavedLoadouts();
+    syncSavedLoadouts(nextSaved).then(synced => {
+        setLoadoutNotice(
+            synced
+                ? `${next.name.toUpperCase()} SAVED TO YOUR ACCOUNT.`
+                : `${next.name.toUpperCase()} SAVED ON THIS DEVICE. RUN THE LOADOUTS SQL MIGRATION TO SYNC IT.`,
+            synced ? "success" : "warning"
+        );
+    });
+});
+bindUIEvent("savedLoadoutsList", "click", event => {
+    const button = event.target.closest("button[data-loadout-action]");
+    if (!button) return;
+    const saved = readSavedLoadouts().find(loadout => loadout.id === button.dataset.loadoutId);
+    if (!saved) return;
+    if (button.dataset.loadoutAction === "use") {
+        pendingLoadoutIds = saved.ids.filter(id => survivorDetails[id]?.unlocked === true).slice(0, 6);
+        pendingLoadoutName = saved.name;
+        setLoadoutNotice(`${saved.name.toUpperCase()} WILL BE READY AT DEPLOYMENT.`, "success");
+        if (loadoutReturnScreen === "deployment") {
+            loadoutReturnScreen = "menu";
+            showDeployment(currentLevel);
+        }
+        if (loadoutReturnScreen === "levels") {
+            loadoutReturnScreen = "menu";
+            showLevelSelect();
+        }
+    } else if (button.dataset.loadoutAction === "edit") {
+        loadoutDraftIds = new Set(saved.ids.filter(id => survivorDetails[id]?.unlocked === true).slice(0, 6));
+        loadoutEditingId = saved.id;
+        document.getElementById("loadoutNameInput").value = saved.name;
+        document.getElementById("loadoutPreviewTitle").textContent = saved.name.toUpperCase();
+        setLoadoutNotice(`EDITING ${saved.name.toUpperCase()}.`);
+        renderLoadoutRoster();
+    }
+});
 
 bindUIEvent("leaderboardButton", "click", showLeaderboard);
 bindUIEvent("muteButton", "click", () => setGameAudioMuted(!gameAudioMuted));
@@ -7544,6 +8403,7 @@ customSurvivors.forEach(survivor => {
 try {
     const savedUnlocked = JSON.parse(localStorage.getItem(unlockedSurvivorsKey) || "null");
     if (Array.isArray(savedUnlocked)) {
+        unlockedSurvivorOrder = savedUnlocked.filter(id => survivorDetails[id]);
         const unlockedIds = new Set(savedUnlocked);
         Object.entries(survivorDetails).forEach(([id, survivor]) => {
         customSurvivors
@@ -7556,6 +8416,276 @@ try {
     }
 } catch {
     // Use the game's default unlock list when there is no readable local cache.
+}
+
+const survivorRarityOrder = {
+    common: 0,
+    uncommon: 1,
+    rare: 2,
+    legendary: 3
+};
+
+function getSurvivorPortraitSource(id) {
+    const survivor = survivorDetails[id];
+    return survivor?.portraitData || profilePortraitSources[id] || profilePortraitSources.mason;
+}
+
+function getSortedRosterEntries({ unlockedOnly = true, sortMode = rosterSortMode } = {}) {
+    const recentOrder = new Map(
+        (getLocalUnlockedSurvivors() || []).map((id, index) => [id, index])
+    );
+    const entries = Object.entries(survivorDetails)
+        .filter(([, survivor]) => !unlockedOnly || survivor.unlocked === true);
+
+    return entries.sort(([idA, survivorA], [idB, survivorB]) => {
+        if (sortMode === "recent") {
+            const recentA = recentOrder.has(idA) ? recentOrder.get(idA) : -1;
+            const recentB = recentOrder.has(idB) ? recentOrder.get(idB) : -1;
+            if (recentA !== recentB) return recentB - recentA;
+        } else {
+            const rarityA = survivorRarityOrder[survivorA.rarity] ?? 0;
+            const rarityB = survivorRarityOrder[survivorB.rarity] ?? 0;
+            if (rarityA !== rarityB) {
+                return sortMode === "rarity-desc" ? rarityB - rarityA : rarityA - rarityB;
+            }
+        }
+        return survivorA.name.localeCompare(survivorB.name);
+    });
+}
+
+function getLoadoutStorageKey() {
+    return `${loadoutsKey}.${supabaseUser?.id || "guest"}`;
+}
+
+function readSavedLoadouts() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(getLoadoutStorageKey()) || "[]");
+        return normalizeSavedLoadouts(saved);
+    } catch {
+        return [];
+    }
+}
+
+function writeSavedLoadouts(loadouts) {
+    try {
+        localStorage.setItem(getLoadoutStorageKey(), JSON.stringify(loadouts));
+    } catch {
+        // Loadouts remain available for the current page when storage is unavailable.
+    }
+}
+
+function normalizeSavedLoadouts(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .filter(loadout => loadout && typeof loadout === "object")
+        .map((loadout, index) => ({
+            id: typeof loadout.id === "string" && loadout.id ? loadout.id : `loadout-${index}`,
+            name: String(loadout.name || "LOADOUT").trim().slice(0, 24),
+            ids: [...new Set(Array.isArray(loadout.ids) ? loadout.ids : [])]
+                .filter(id => survivorDetails[id]?.unlocked === true)
+                .slice(0, 6),
+            createdAt: loadout.createdAt || new Date().toISOString()
+        }))
+        .filter(loadout => loadout.name && loadout.ids.length === 6)
+        .slice(0, 12);
+}
+
+async function syncSavedLoadouts(loadouts) {
+    if (!supabaseClient || !supabaseUser) return false;
+    try {
+        const { error } = await supabaseClient.rpc("save_player_loadouts", {
+            p_loadouts: normalizeSavedLoadouts(loadouts)
+        });
+        if (error) throw error;
+        return true;
+    } catch (error) {
+        console.warn("Loadouts could not sync to the account:", error.message || error);
+        return false;
+    }
+}
+
+function setLoadoutNotice(message, tone = "") {
+    const notice = document.getElementById("loadoutNotice");
+    if (!notice) return;
+    notice.textContent = message;
+    notice.dataset.tone = tone;
+}
+
+function renderLoadoutSlots() {
+    const slots = document.getElementById("loadoutSlots");
+    if (!slots) return;
+    const selected = [...loadoutDraftIds];
+    const fragment = document.createDocumentFragment();
+
+    for (let index = 0; index < 6; index++) {
+        const id = selected[index];
+        const slot = document.createElement("div");
+        slot.className = id ? "loadout-slot is-filled" : "loadout-slot is-empty";
+        slot.setAttribute("aria-label", id ? survivorDetails[id]?.name || id : "Empty loadout slot");
+        if (id && survivorDetails[id]) {
+            const portrait = document.createElement("img");
+            portrait.src = getSurvivorPortraitSource(id);
+            portrait.alt = "";
+            const label = document.createElement("span");
+            label.textContent = survivorDetails[id].name;
+            slot.append(portrait, label);
+        } else {
+            slot.innerHTML = "<span aria-hidden=\"true\">+</span><small>EMPTY</small>";
+        }
+        fragment.append(slot);
+    }
+
+    slots.replaceChildren(fragment);
+    const count = `${selected.length} / 6`;
+    const countDisplay = document.getElementById("loadoutSelectionCount");
+    const status = document.getElementById("loadoutPreviewStatus");
+    if (countDisplay) countDisplay.textContent = count;
+    if (status) status.textContent = `${count} SELECTED`;
+    const saveButton = document.getElementById("loadoutSaveButton");
+    if (saveButton) saveButton.disabled = selected.length !== 6;
+}
+
+function renderLoadoutRoster() {
+    const grid = document.getElementById("loadoutRosterGrid");
+    if (!grid) return;
+    const fragment = document.createDocumentFragment();
+
+    getSortedRosterEntries().forEach(([id, survivor]) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `loadout-survivor-card rarity-${survivor.rarity || "common"}`;
+        card.dataset.survivor = id;
+        card.setAttribute("aria-pressed", String(loadoutDraftIds.has(id)));
+        if (loadoutDraftIds.has(id)) card.classList.add("selected");
+
+        const portrait = document.createElement("img");
+        portrait.src = getSurvivorPortraitSource(id);
+        portrait.alt = "";
+        portrait.className = "loadout-survivor-portrait";
+        const copy = document.createElement("span");
+        copy.className = "loadout-survivor-copy";
+        const name = document.createElement("strong");
+        name.textContent = survivor.name;
+        const role = document.createElement("small");
+        role.textContent = survivor.role;
+        const rarity = document.createElement("em");
+        rarity.textContent = (survivor.rarity || "common").toUpperCase();
+        copy.append(name, role, rarity);
+        const check = document.createElement("span");
+        check.className = "loadout-survivor-check";
+        check.textContent = loadoutDraftIds.has(id) ? "✓" : "+";
+        check.setAttribute("aria-hidden", "true");
+        card.append(portrait, copy, check);
+        fragment.append(card);
+    });
+
+    grid.replaceChildren(fragment);
+    const unlockedCount = getSortedRosterEntries().length;
+    const totalCount = Object.keys(survivorDetails).length;
+    const unlockCount = document.getElementById("loadoutUnlockCount");
+    if (unlockCount) {
+        unlockCount.innerHTML = `<strong>${unlockedCount}/${totalCount}</strong><span>UNLOCKED</span>`;
+    }
+    renderLoadoutSlots();
+}
+
+function renderSavedLoadouts() {
+    const list = document.getElementById("savedLoadoutsList");
+    const count = document.getElementById("savedLoadoutCount");
+    if (!list) return;
+    const saved = readSavedLoadouts();
+    if (count) count.textContent = String(saved.length).padStart(2, "0");
+    if (saved.length === 0) {
+        list.innerHTML = "<p class=\"saved-loadouts-empty\">No presets saved yet. Build your first six-unit squad above.</p>";
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    saved.forEach(loadout => {
+        const row = document.createElement("div");
+        row.className = "saved-loadout-row";
+        const copy = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = loadout.name;
+        const summary = document.createElement("small");
+        summary.textContent = loadout.ids.map(id => survivorDetails[id]?.name || id).join(" · ");
+        copy.append(title, summary);
+        const actions = document.createElement("div");
+        actions.className = "saved-loadout-actions";
+        const useButton = document.createElement("button");
+        useButton.type = "button";
+        useButton.dataset.loadoutAction = "use";
+        useButton.dataset.loadoutId = loadout.id;
+        useButton.textContent = "USE";
+        const editButton = document.createElement("button");
+        editButton.type = "button";
+        editButton.dataset.loadoutAction = "edit";
+        editButton.dataset.loadoutId = loadout.id;
+        editButton.textContent = "EDIT";
+        actions.append(useButton, editButton);
+        row.append(copy, actions);
+        fragment.append(row);
+    });
+    list.replaceChildren(fragment);
+}
+
+function showLoadout(returnTo = "menu") {
+    loadoutReturnScreen = returnTo;
+    setMuteButtonVisible(false);
+    gameRunning = false;
+    previousTime = 0;
+    mainMenu.style.display = "none";
+    profileScreen.style.display = "none";
+    leaderboardScreen.style.display = "none";
+    campaignSelect.style.display = "none";
+    levelSelect.style.display = "none";
+    deploymentScreen.style.display = "none";
+    if (loadoutScreen) loadoutScreen.style.display = "block";
+    gameLayout.style.display = "none";
+    document.getElementById("leaderboardButton").style.visibility = "hidden";
+    document.getElementById("profileButton").style.visibility = "hidden";
+    document.getElementById("mainMenuButton").style.visibility = "hidden";
+    const loadoutBackButton = document.getElementById("loadoutBackButton");
+    if (loadoutBackButton) {
+        loadoutBackButton.textContent = returnTo === "deployment"
+            ? "< BACK TO SQUAD"
+            : returnTo === "levels"
+                ? "< ENDLESS SELECT"
+                : "< MAIN MENU";
+    }
+    loadoutEditingId = null;
+    loadoutDraftIds = new Set();
+    const loadoutSort = document.getElementById("loadoutRosterSort");
+    if (loadoutSort) loadoutSort.value = rosterSortMode;
+    document.getElementById("loadoutNameInput").value = "";
+    document.getElementById("loadoutPreviewTitle").textContent = "UNNAMED LOADOUT";
+    setLoadoutNotice("");
+    renderLoadoutRoster();
+    renderSavedLoadouts();
+}
+
+function closeLoadout() {
+    if (loadoutReturnScreen === "deployment") {
+        loadoutReturnScreen = "menu";
+        showDeployment(currentLevel);
+        return;
+    }
+    if (loadoutReturnScreen === "levels") {
+        loadoutReturnScreen = "menu";
+        showLevelSelect();
+        return;
+    }
+    loadoutReturnScreen = "menu";
+    showMenu();
+}
+
+function sortDeploymentRosterCards() {
+    const roster = document.getElementById("deploymentRoster");
+    if (!roster) return;
+    const order = new Map(getSortedRosterEntries({ unlockedOnly: false }).map(([id], index) => [id, index]));
+    [...roster.querySelectorAll("button[data-survivor]")]
+        .sort((a, b) => (order.get(a.dataset.survivor) ?? 999) - (order.get(b.dataset.survivor) ?? 999))
+        .forEach(card => roster.append(card));
 }
 
 function renderMenuCrewRoster() {
@@ -7640,6 +8770,42 @@ function updateRosterSummary() {
 const survivorCards = document.querySelectorAll(
     "#deploymentRoster button[data-survivor]"
 );
+
+// Keep the squad-picker badge and accent tied to the same rarity source used
+// by the in-game dossier.  The six built-in cards start as static HTML, so
+// normalizing them here prevents a stale label (for example COMMON) from
+// disagreeing with the survivor's actual accent color.
+function syncDeploymentRarityLabels() {
+    const rarityLabels = {
+        common: "Common",
+        uncommon: "Uncommon",
+        rare: "Rare",
+        legendary: "Legendary"
+    };
+
+    survivorCards.forEach(card => {
+        const id = card.dataset.survivor;
+        if (!survivorDetails[id]) return;
+
+        const rarity = getSurvivorRarity(id);
+        card.classList.remove(
+            "rarity-common",
+            "rarity-uncommon",
+            "rarity-rare",
+            "rarity-legendary"
+        );
+        card.classList.add(`rarity-${rarity}`);
+
+        const badge = card.querySelector(".survivor-rarity");
+        if (!badge) return;
+        badge.className = `survivor-rarity rarity-${rarity}`;
+        badge.textContent = rarity.toUpperCase();
+        badge.setAttribute("aria-label", `${rarityLabels[rarity] || "Common"} rarity`);
+    });
+}
+
+syncDeploymentRarityLabels();
+sortDeploymentRosterCards();
 
 function updateDeploymentRosterAvailability() {
     survivorCards.forEach(card => {
@@ -7750,13 +8916,22 @@ card.append(portrait, unitInfo);
         rosterList.appendChild(card);
 
 card.addEventListener("click", () => {
+    // Always open the dossier first.  An unaffordable card can still be
+    // inspected; it simply cannot be selected for deployment.
+    showSurvivorDetails(id);
+
     if (gameRunning && scrap < survivorCosts[id]) {
+        selectedSurvivor = null;
+        document.querySelectorAll("#inGameSurvivorList .survivor-card")
+            .forEach(rosterCard => rosterCard.classList.remove("selected"));
         showInsufficientScrapToast();
+        updateDeploymentMessage(
+            `Need ${survivorCosts[id] - scrap} more scrap to deploy ${survivorDetails[id]?.name || id}.`
+        );
         return;
     }
 
     selectSurvivorToDeploy(id);
-    showSurvivorDetails(id);
     
 });
     });
@@ -7913,7 +9088,7 @@ document.addEventListener("touchcancel", clearTouchSurvivorDrag, { passive: true
 bindUIEvent("cancelPlacementButton", "click", () => {
     selectedSurvivor = null;
 
-    document.getElementById("survivorDetailsPanel").style.display = "none";
+    hideSurvivorDetails();
 
     document.querySelectorAll("#inGameSurvivorList .survivor-card")
         .forEach(card => card.classList.remove("selected"));
@@ -8213,6 +9388,8 @@ bindUIEvent("upgradeSurvivorButton", "click", () => {
 
     scrap -= cost;
     survivor.upgradeLevel = currentLevel + 1;
+    triggerSurvivorUpgradeFeedback(survivor, survivor.upgradeLevel);
+    playSurvivorUpgradeSound(survivor.upgradeLevel);
     recordEndlessTelemetryEvent({
         kind: "upgrade",
         survivorId: getEndlessTelemetrySurvivorId(survivor),
@@ -8252,7 +9429,7 @@ bindUIEvent("sellSurvivorButton", "click", () => {
     scrap += refund;
     inspectedSurvivor = null;
 
-    document.getElementById("survivorDetailsPanel").style.display = "none";
+    hideSurvivorDetails();
 
     updateScrapDisplay();
     updateDeploymentMessage("Survivor sold for " + refund + " scrap!");

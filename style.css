@@ -2231,6 +2231,45 @@ button:focus-visible {
     }
 }
 
+/* Battlefield presentation pass: keep the art crisp while giving the play
+   space a stronger physical frame and a little more separation from the UI. */
+main.game-layout > .battlefield {
+    position: relative;
+    border: 2px solid rgba(117, 130, 98, 0.82);
+    border-radius: 7px;
+    background: #252a23;
+    box-shadow:
+        0 22px 46px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(239, 198, 111, 0.08),
+        inset 0 0 0 1px rgba(255, 237, 177, 0.07);
+    isolation: isolate;
+}
+
+main.game-layout > .battlefield::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border: 1px solid rgba(240, 214, 157, 0.08);
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+#gameCanvas {
+    position: relative;
+    z-index: 1;
+    border-radius: 5px;
+    image-rendering: pixelated;
+}
+
+main.game-layout > .control-panel {
+    border-radius: 7px;
+    box-shadow:
+        0 18px 38px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(240, 214, 157, 0.05),
+        inset 0 1px 0 rgba(255, 237, 177, 0.05);
+}
+
 /* Homepage update callout for the newly available account features. */
 #mainMenu .menu-whats-new {
     display: grid;
@@ -2747,6 +2786,878 @@ button.campaign-card:hover {
         transition-duration: 0.01ms !important;
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
+    }
+}
+
+/* Safehouse loadouts and squad-pick polish */
+#loadoutScreen .loadout-panel {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle, #f2c76d16 1px, transparent 1.4px) 0 0 / 18px 18px,
+        linear-gradient(145deg, #1b1c25f7, #12141af8);
+    box-shadow:
+        0 28px 72px #000b,
+        0 0 0 1px #f2c76d12,
+        inset 0 1px #ffffff16;
+}
+
+#loadoutScreen .loadout-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(115deg, transparent 0 38%, #ffffff06 50%, transparent 62%);
+    opacity: .7;
+}
+
+#loadoutScreen .loadout-heading-row,
+#loadoutScreen .loadout-builder {
+    position: relative;
+    z-index: 1;
+}
+
+#loadoutScreen #loadoutBackButton,
+#loadoutScreen .menu-button {
+    color: #f2e9dc;
+    border: 1px solid #806449;
+    border-bottom: 3px solid #4e392b;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #302d35, #1d1d24);
+    box-shadow: 0 4px 0 #0a0b0d, 0 10px 20px #0007, inset 0 1px #ffffff12;
+    text-shadow: 0 1px #0008;
+}
+
+#loadoutScreen #loadoutBackButton:hover,
+#loadoutScreen #loadoutBackButton:focus-visible,
+#loadoutScreen .menu-button:hover,
+#loadoutScreen .menu-button:focus-visible {
+    color: #fff2d3;
+    border-color: #f2c76d;
+    background: linear-gradient(180deg, #4a3c32, #29232a);
+    transform: translateY(-2px);
+    outline: none;
+}
+
+#loadoutScreen .loadout-roster-shell,
+#loadoutScreen .loadout-side-card {
+    background:
+        radial-gradient(circle, #f2c76d12 1px, transparent 1.35px) 0 0 / 16px 16px,
+        linear-gradient(145deg, #24242d, #191a21);
+    box-shadow: 0 14px 30px #0007, inset 0 1px #ffffff10;
+}
+
+#loadoutScreen .roster-sortbar,
+#loadoutScreen .saved-loadout-row,
+#loadoutScreen .loadout-slot {
+    background:
+        radial-gradient(circle, #8dd8c312 1px, transparent 1.35px) 0 0 / 14px 14px,
+        #17181f;
+}
+
+#loadoutScreen .loadout-survivor-card {
+    box-shadow: 0 5px 0 #0b0c0e, 0 8px 16px #0005, inset 0 1px #ffffff10;
+}
+
+#loadoutScreen .loadout-survivor-card.selected {
+    box-shadow: 0 6px 0 #0b0c0e, 0 12px 20px #0008, inset 0 1px #ffffff18;
+}
+
+#loadoutScreen #loadoutSaveButton:not(:disabled),
+#loadoutScreen .saved-loadout-actions button {
+    border-color: #d9ab58;
+    background: linear-gradient(180deg, #f2c873, #dca856);
+    box-shadow: 0 3px 0 #7e5b2c, 0 8px 16px #0005;
+}
+
+#loadoutScreen #loadoutSaveButton:not(:disabled):hover,
+#loadoutScreen .saved-loadout-actions button:hover {
+    filter: brightness(1.09);
+    transform: translateY(-1px);
+}
+
+.deployment-loadout-bar {
+    width: 100%;
+    margin: 20px 0 0;
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: minmax(180px, 245px) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    border: 1px solid #4e6470;
+    border-left: 3px solid #8dd8c3;
+    border-radius: 4px;
+    background:
+        radial-gradient(circle, #8dd8c312 1px, transparent 1.35px) 0 0 / 16px 16px,
+        linear-gradient(145deg, #20252a, #171b20);
+    box-shadow: 0 10px 22px #0006, inset 0 1px #ffffff10;
+}
+
+.deployment-loadout-bar[hidden] {
+    display: none !important;
+}
+
+.deployment-loadout-heading {
+    display: grid;
+    gap: 4px;
+}
+
+.deployment-loadout-heading .menu-eyebrow {
+    margin: 0;
+    color: #e6b866;
+}
+
+.deployment-loadout-heading > span {
+    color: #b8bdca;
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.deployment-loadout-list {
+    min-width: 0;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 4px;
+}
+
+.deployment-loadout-chip {
+    min-width: 145px;
+    padding: 9px 11px;
+    display: grid;
+    gap: 4px;
+    color: #f2eadb;
+    text-align: left;
+    border: 1px solid #5b5362;
+    border-bottom: 2px solid #39333e;
+    border-radius: 3px;
+    background: #26242c;
+    cursor: pointer;
+    transition: transform 130ms ease, border-color 130ms ease, filter 130ms ease;
+}
+
+.deployment-loadout-chip:hover,
+.deployment-loadout-chip:focus-visible,
+.deployment-loadout-chip.is-active {
+    border-color: #f2c76d;
+    filter: brightness(1.12);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.deployment-loadout-chip strong {
+    overflow: hidden;
+    color: #f2c76d;
+    font-size: 10px;
+    letter-spacing: .8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.deployment-loadout-chip small {
+    overflow: hidden;
+    color: #aeb5c9;
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.deployment-loadout-bar > .menu-button {
+    min-width: 142px;
+    padding: 10px 12px;
+    color: #f0d39b;
+    border-color: #8d6e43;
+}
+
+@media (max-width: 720px) {
+    .deployment-loadout-bar {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .deployment-loadout-list {
+        margin: 0 -2px;
+    }
+
+    .deployment-loadout-bar > .menu-button {
+        width: 100%;
+    }
+}
+
+/* Endless loadout shortcut */
+.level-select-loadout-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin: 22px 0 4px;
+    padding: 16px 18px;
+    border: 1px solid #4b5360;
+    border-left: 3px solid #8dd8c3;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #202329 0%, #17191d 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 10px 26px rgba(0,0,0,.22);
+}
+
+.level-select-loadout-bar[hidden] {
+    display: none !important;
+}
+
+.level-select-loadout-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.level-select-loadout-copy .menu-eyebrow {
+    margin: 0;
+    color: #d8a15d;
+    font-size: 10px;
+    letter-spacing: 2px;
+}
+
+.level-select-loadout-copy strong {
+    overflow: hidden;
+    color: #f1f1f2;
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.level-select-loadout-copy span {
+    color: #a3a3a8;
+    font-size: 11px;
+}
+
+.level-select-loadout-bar .menu-button {
+    min-width: 190px;
+    border-color: #d8a15d;
+    white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+    .level-select-loadout-bar {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 16px;
+    }
+
+    .level-select-loadout-bar .menu-button {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+/* LOADOUTS // SAFEHOUSE SQUAD BUILDER */
+#mainMenu .menu-crew-panel {
+    position: relative;
+}
+
+.menu-crew-loadout-button {
+    width: 100%;
+    margin-top: 22px;
+    padding: 13px 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    color: #f8e9c7;
+    text-align: left;
+    border: 1px solid #8dd8c3;
+    border-radius: 5px;
+    background:
+        linear-gradient(115deg, #173331cc, #202532e6),
+        radial-gradient(circle at 90% 20%, #8dd8c326, transparent 46%);
+    box-shadow: 0 4px 0 #0a1011, 0 12px 24px #0006, inset 0 1px #ffffff14;
+    cursor: pointer;
+    transition: transform 140ms ease, filter 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.menu-crew-loadout-button span {
+    display: grid;
+    gap: 4px;
+}
+
+.menu-crew-loadout-button strong {
+    color: #8dd8c3;
+    font-size: 11px;
+    letter-spacing: 1.35px;
+}
+
+.menu-crew-loadout-button small {
+    color: #c5c7d5;
+    font-size: 11px;
+    letter-spacing: .35px;
+}
+
+.menu-crew-loadout-button b {
+    color: #f2c76d;
+    font-size: 20px;
+    line-height: 1;
+}
+
+.menu-crew-loadout-button:hover,
+.menu-crew-loadout-button:focus-visible {
+    filter: brightness(1.12);
+    border-color: #f2c76d;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 0 #0a1011, 0 16px 28px #0008, inset 0 1px #ffffff1f;
+    outline: none;
+}
+
+.loadout-screen {
+    min-height: calc(100vh - 120px);
+    padding: clamp(20px, 4vw, 58px) clamp(14px, 5vw, 76px) 80px;
+    overflow: auto;
+}
+
+.loadout-panel {
+    width: min(1240px, 100%);
+    margin: 0 auto;
+    padding: clamp(24px, 4vw, 48px);
+    border: 1px solid #4e4b59;
+    border-top: 3px solid #f2c76d;
+    border-radius: 5px;
+    background:
+        linear-gradient(145deg, #1b1b24f5, #171820f7),
+        radial-gradient(circle at 8% 0%, #f2c76d10, transparent 42%);
+    box-shadow: 0 26px 70px #000a, inset 0 1px #ffffff12;
+}
+
+.loadout-heading-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 210px) minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 28px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid #55515f;
+}
+
+.loadout-heading-copy {
+    text-align: center;
+}
+
+.loadout-heading-copy h2 {
+    margin: 8px 0 10px;
+    color: #f7f0e3;
+    font-size: clamp(28px, 4vw, 48px);
+    letter-spacing: 4px;
+    text-shadow: 3px 3px 0 #bb735640;
+}
+
+.loadout-heading-copy .menu-description {
+    margin: 0 auto;
+    max-width: 630px;
+}
+
+.loadout-unlock-count {
+    min-width: 122px;
+    padding: 12px 14px;
+    display: grid;
+    gap: 2px;
+    text-align: right;
+    border: 1px solid #a98b50;
+    border-radius: 3px;
+    background: #24212a;
+}
+
+.loadout-unlock-count strong {
+    color: #f2c76d;
+    font-size: 24px;
+    letter-spacing: 1px;
+}
+
+.loadout-unlock-count span,
+.loadout-side-heading > span {
+    color: #9da2b6;
+    font-size: 9px;
+    letter-spacing: 1.25px;
+}
+
+.loadout-builder {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 350px);
+    gap: 22px;
+    align-items: start;
+}
+
+.loadout-roster-shell,
+.loadout-side-card {
+    border: 1px solid #4d4a58;
+    border-radius: 4px;
+    background: #202027cc;
+    box-shadow: 0 12px 28px #0005, inset 0 1px #ffffff0b;
+}
+
+.loadout-roster-shell {
+    padding: 22px;
+}
+
+.loadout-section-heading,
+.loadout-side-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.loadout-section-heading h3,
+.loadout-side-heading h3 {
+    margin: 6px 0 0;
+    color: #f1ebdf;
+    font-size: 20px;
+    letter-spacing: 1.7px;
+}
+
+.loadout-selection-count {
+    padding: 9px 11px;
+    color: #f2c76d;
+    border: 1px solid #896f3e;
+    background: #2a2521;
+    font-size: 16px;
+    letter-spacing: 1px;
+}
+
+.roster-sortbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 9px 11px;
+    border: 1px solid #4d4a58;
+    border-left: 3px solid #8dd8c3;
+    background: #17181f;
+}
+
+.roster-sortbar label {
+    color: #aeb5c9;
+    font-size: 10px;
+    letter-spacing: 1.35px;
+}
+
+.roster-sortbar select {
+    min-width: 188px;
+    padding: 8px 10px;
+    color: #f4ead5;
+    border: 1px solid #a88a4f;
+    border-radius: 3px;
+    background: #24232b;
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: .8px;
+}
+
+.loadout-roster-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+    gap: 11px;
+}
+
+.loadout-survivor-card {
+    --rarity: #8dd8c3;
+    min-height: 94px;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr) 24px;
+    align-items: center;
+    gap: 10px;
+    color: #eee8da;
+    text-align: left;
+    border: 1px solid #514e5a;
+    border-left: 4px solid var(--rarity);
+    border-radius: 3px;
+    background: linear-gradient(140deg, #25242d, #1d1e25);
+    box-shadow: 0 4px 0 #0b0c0e, inset 0 1px #ffffff0b;
+    cursor: pointer;
+    transition: transform 130ms ease, filter 130ms ease, border-color 130ms ease, box-shadow 130ms ease;
+}
+
+.loadout-survivor-card.rarity-common { --rarity: #76c98c; }
+.loadout-survivor-card.rarity-uncommon { --rarity: #8dd8d1; }
+.loadout-survivor-card.rarity-rare { --rarity: #b19be8; }
+.loadout-survivor-card.rarity-legendary { --rarity: #f2c76d; }
+
+.loadout-survivor-card:hover,
+.loadout-survivor-card:focus-visible,
+.loadout-survivor-card.selected {
+    filter: brightness(1.12);
+    transform: translateY(-2px);
+    border-color: var(--rarity);
+    outline: none;
+    box-shadow: 0 6px 0 #0b0c0e, 0 10px 18px #0008, inset 0 1px #ffffff13;
+}
+
+.loadout-survivor-card.selected {
+    background: linear-gradient(140deg, color-mix(in srgb, var(--rarity) 18%, #25242d), #1d1e25);
+}
+
+.loadout-survivor-portrait {
+    width: 58px;
+    height: 58px;
+    object-fit: cover;
+    image-rendering: pixelated;
+    border: 1px solid var(--rarity);
+    background: #11131a;
+}
+
+.loadout-survivor-copy {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.loadout-survivor-copy strong {
+    overflow: hidden;
+    color: #f5eee0;
+    font-size: 13px;
+    letter-spacing: .8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.loadout-survivor-copy small {
+    overflow: hidden;
+    color: #b5b2bd;
+    font-size: 9px;
+    letter-spacing: .45px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.loadout-survivor-copy em {
+    color: var(--rarity);
+    font-size: 8px;
+    font-style: normal;
+    letter-spacing: 1px;
+}
+
+.loadout-survivor-check {
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    color: var(--rarity);
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.loadout-sidebar {
+    display: grid;
+    gap: 16px;
+}
+
+.loadout-side-card {
+    padding: 18px;
+}
+
+.loadout-active-card {
+    border-top: 2px solid #f2c76d;
+}
+
+.loadout-side-heading {
+    align-items: start;
+}
+
+.loadout-slot-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.loadout-slot {
+    min-height: 75px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 4px;
+    color: #777b8c;
+    text-align: center;
+    border: 1px dashed #54515d;
+    background: #17181e;
+}
+
+.loadout-slot.is-filled {
+    border-style: solid;
+    border-color: #a88a4f;
+    background: #28252a;
+}
+
+.loadout-slot img {
+    width: 42px;
+    height: 42px;
+    object-fit: cover;
+    image-rendering: pixelated;
+}
+
+.loadout-slot span {
+    color: #f2c76d;
+    font-size: 22px;
+    line-height: 1;
+}
+
+.loadout-slot small,
+.loadout-slot label {
+    color: #858999;
+    font-size: 8px;
+    letter-spacing: .7px;
+}
+
+.loadout-slot.is-filled label,
+.loadout-slot.is-filled span {
+    max-width: 95%;
+    overflow: hidden;
+    color: #eee8da;
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.loadout-save-card {
+    display: grid;
+    gap: 9px;
+}
+
+.loadout-save-card label {
+    color: #f2c76d;
+    font-size: 10px;
+    letter-spacing: 1.25px;
+}
+
+.loadout-save-card input {
+    width: 100%;
+    padding: 12px;
+    color: #f1ebdf;
+    border: 1px solid #5a5663;
+    border-radius: 3px;
+    background: #15161b;
+    font: inherit;
+    letter-spacing: .8px;
+}
+
+.loadout-save-card input:focus {
+    border-color: #8dd8c3;
+    outline: 2px solid #8dd8c333;
+}
+
+.loadout-save-card button,
+.saved-loadout-actions button {
+    padding: 10px 12px;
+    color: #18161a;
+    border: 1px solid #d9ab58;
+    border-radius: 3px;
+    background: linear-gradient(#f2c873, #dca856);
+    box-shadow: 0 3px 0 #7e5b2c;
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 1px;
+    cursor: pointer;
+}
+
+.loadout-save-card button:disabled {
+    color: #777784;
+    border-color: #4b4a52;
+    background: #302f36;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.loadout-notice,
+#loadoutNotice {
+    min-height: 14px;
+    color: #9aa0b0;
+    font-size: 9px;
+    letter-spacing: .45px;
+}
+
+#loadoutNotice[data-tone="success"] { color: #8dd8c3; }
+#loadoutNotice[data-tone="warning"] { color: #f0a18e; }
+
+.saved-loadouts-list {
+    margin-top: 14px;
+    display: grid;
+    gap: 8px;
+}
+
+.saved-loadout-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px;
+    border: 1px solid #4f4b58;
+    background: #181920;
+}
+
+.saved-loadout-row > div:first-child {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.saved-loadout-row strong {
+    overflow: hidden;
+    color: #f1ebdf;
+    font-size: 11px;
+    letter-spacing: .8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.saved-loadout-row small,
+.saved-loadouts-empty {
+    overflow: hidden;
+    color: #8c91a3;
+    font-size: 9px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+}
+
+.saved-loadout-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 5px;
+}
+
+.saved-loadout-actions button {
+    padding: 7px 8px;
+    color: #f0d39b;
+    border-color: #6d5a36;
+    background: #29252a;
+    box-shadow: none;
+    font-size: 8px;
+}
+
+.saved-loadout-actions button:first-child {
+    color: #8dd8c3;
+    border-color: #4e907e;
+}
+
+.profile-portrait-sortbar {
+    margin-bottom: 12px;
+}
+
+.deployment-sortbar {
+    margin: 14px 0 12px;
+}
+
+@media (max-width: 900px) {
+    .loadout-heading-row {
+        grid-template-columns: 1fr auto;
+    }
+
+    .loadout-heading-copy {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        order: -1;
+    }
+
+    .loadout-builder {
+        grid-template-columns: 1fr;
+    }
+
+    .loadout-sidebar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .loadout-active-card {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 560px) {
+    .loadout-screen {
+        padding: 14px 8px 42px;
+    }
+
+    .loadout-panel {
+        padding: 16px 12px 24px;
+    }
+
+    .loadout-heading-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+    }
+
+    .loadout-heading-copy {
+        width: 100%;
+        order: -1;
+    }
+
+    .loadout-heading-copy h2 {
+        font-size: 28px;
+        letter-spacing: 2px;
+    }
+
+    .loadout-unlock-count {
+        margin-left: auto;
+    }
+
+    .loadout-roster-shell {
+        padding: 13px;
+    }
+
+    .loadout-section-heading h3,
+    .loadout-side-heading h3 {
+        font-size: 16px;
+    }
+
+    .roster-sortbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .roster-sortbar select {
+        width: 100%;
+    }
+
+    .loadout-roster-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .loadout-sidebar {
+        grid-template-columns: 1fr;
+    }
+
+    .loadout-active-card {
+        grid-column: auto;
+    }
+
+    .menu-crew-loadout-button small {
+        font-size: 9px;
+    }
+}
+
+/* Never let an open survivor dossier collapse inside the command panel's
+   flex column.  This is intentionally outside the responsive blocks so it
+   wins against the older compact-panel rules at every viewport size. */
+.control-panel > #survivorDetailsPanel.is-visible {
+    display: block !important;
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+@media (max-width: 900px) {
+    main.game-layout > .control-panel {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        overflow-y: visible !important;
+    }
+
+    .control-panel > #survivorDetailsPanel.is-visible {
+        min-height: 220px !important;
     }
 }
 
@@ -4442,6 +5353,1838 @@ main.game-layout > .control-panel {
 
 .wave-preview .preview-enemy-detail-panel span:last-child {
     color: #8fd6d0;
+}
+
+/* Final gameplay polish overrides: keep the visual pass above the older
+   responsive/control-panel overrides in this stylesheet. */
+.battlefield {
+    border-radius: 7px;
+    border-color: #747a63;
+    box-shadow:
+        0 24px 52px #000b,
+        0 0 0 1px #f1d49a18,
+        inset 0 0 0 1px #ffffff12,
+        inset 0 0 30px #07090880;
+}
+
+.control-panel {
+    box-shadow:
+        0 24px 52px #000a,
+        0 0 0 1px #f5d79112,
+        inset 0 1px #ffffff0b;
+}
+
+.control-panel .stat-grid .stat-box,
+.control-panel .wave-preview,
+.control-panel .survivor-details {
+    box-shadow:
+        0 6px 14px #0005,
+        inset 0 1px #ffffff0a;
+}
+
+.control-panel .survivor-list .survivor-card {
+    transition:
+        transform 120ms ease,
+        box-shadow 120ms ease,
+        border-color 120ms ease,
+        filter 120ms ease;
+    box-shadow:
+        0 4px 9px #0005,
+        inset 0 1px #ffffff08;
+}
+
+.control-panel .survivor-list .survivor-card:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+    box-shadow:
+        0 8px 16px #0008,
+        inset 0 1px #ffffff12;
+}
+
+.control-panel .wave-controls button:not(:disabled),
+.control-panel .survivor-action-buttons button:not(:disabled) {
+    transition:
+        transform 120ms ease,
+        box-shadow 120ms ease,
+        filter 120ms ease;
+    box-shadow:
+        0 4px 0 #0b0c0e,
+        0 8px 16px #0006;
+}
+
+.control-panel .wave-controls button:not(:disabled):hover,
+.control-panel .survivor-action-buttons button:not(:disabled):hover {
+    filter: brightness(1.07);
+}
+
+.control-panel .wave-controls button:not(:disabled):active,
+.control-panel .survivor-action-buttons button:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow:
+        0 2px 0 #0b0c0e,
+        0 4px 9px #0006;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .control-panel .survivor-list .survivor-card,
+    .control-panel .wave-controls button:not(:disabled),
+    .control-panel .survivor-action-buttons button:not(:disabled) {
+        transition: none;
+    }
+}
+
+/* Final loadout theme overrides */
+#loadoutScreen .loadout-panel {
+    background:
+        radial-gradient(circle, #f2c76d16 1px, transparent 1.4px) 0 0 / 18px 18px,
+        linear-gradient(145deg, #1b1c25f7, #12141af8);
+    box-shadow: 0 28px 72px #000b, 0 0 0 1px #f2c76d12, inset 0 1px #ffffff16;
+}
+
+#loadoutScreen #loadoutBackButton,
+#loadoutScreen .menu-button {
+    color: #f2e9dc;
+    border: 1px solid #806449;
+    border-bottom: 3px solid #4e392b;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #302d35, #1d1d24);
+    box-shadow: 0 4px 0 #0a0b0d, 0 10px 20px #0007, inset 0 1px #ffffff12;
+}
+
+#loadoutScreen #loadoutBackButton:hover,
+#loadoutScreen #loadoutBackButton:focus-visible,
+#loadoutScreen .menu-button:hover,
+#loadoutScreen .menu-button:focus-visible {
+    color: #fff2d3;
+    border-color: #f2c76d;
+    background: linear-gradient(180deg, #4a3c32, #29232a);
+    transform: translateY(-2px);
+    outline: none;
+}
+
+#loadoutScreen .loadout-roster-shell,
+#loadoutScreen .loadout-side-card {
+    background:
+        radial-gradient(circle, #f2c76d12 1px, transparent 1.35px) 0 0 / 16px 16px,
+        linear-gradient(145deg, #24242d, #191a21);
+    box-shadow: 0 14px 30px #0007, inset 0 1px #ffffff10;
+}
+
+#loadoutScreen .roster-sortbar,
+#loadoutScreen .saved-loadout-row,
+#loadoutScreen .loadout-slot {
+    background:
+        radial-gradient(circle, #8dd8c312 1px, transparent 1.35px) 0 0 / 14px 14px,
+        #17181f;
+}
+
+#loadoutScreen #loadoutSaveButton:not(:disabled),
+#loadoutScreen .saved-loadout-actions button {
+    box-shadow: 0 3px 0 #7e5b2c, 0 8px 16px #0005;
+}
+
+.deployment-loadout-bar {
+    width: 100%;
+    margin: 20px 0 0;
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: minmax(180px, 245px) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    border: 1px solid #4e6470;
+    border-left: 3px solid #8dd8c3;
+    border-radius: 4px;
+    background:
+        radial-gradient(circle, #8dd8c312 1px, transparent 1.35px) 0 0 / 16px 16px,
+        linear-gradient(145deg, #20252a, #171b20);
+    box-shadow: 0 10px 22px #0006, inset 0 1px #ffffff10;
+}
+
+.deployment-loadout-bar[hidden] { display: none !important; }
+
+.deployment-loadout-heading { display: grid; gap: 4px; }
+.deployment-loadout-heading .menu-eyebrow { margin: 0; color: #e6b866; }
+.deployment-loadout-heading > span { color: #b8bdca; font-size: 10px; line-height: 1.4; }
+
+.deployment-loadout-list {
+    min-width: 0;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 4px;
+}
+
+.deployment-loadout-chip {
+    min-width: 145px;
+    padding: 9px 11px;
+    display: grid;
+    gap: 4px;
+    color: #f2eadb;
+    text-align: left;
+    border: 1px solid #5b5362;
+    border-bottom: 2px solid #39333e;
+    border-radius: 3px;
+    background: #26242c;
+    cursor: pointer;
+    transition: transform 130ms ease, border-color 130ms ease, filter 130ms ease;
+}
+
+.deployment-loadout-chip:hover,
+.deployment-loadout-chip:focus-visible,
+.deployment-loadout-chip.is-active {
+    border-color: #f2c76d;
+    filter: brightness(1.12);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.deployment-loadout-chip strong {
+    overflow: hidden;
+    color: #f2c76d;
+    font-size: 10px;
+    letter-spacing: .8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.deployment-loadout-chip small {
+    overflow: hidden;
+    color: #aeb5c9;
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.deployment-loadout-bar > .menu-button {
+    min-width: 142px;
+    padding: 10px 12px;
+    color: #f0d39b;
+    border-color: #8d6e43;
+}
+
+@media (max-width: 720px) {
+    .deployment-loadout-bar { grid-template-columns: 1fr; align-items: stretch; }
+    .deployment-loadout-bar > .menu-button { width: 100%; }
+}
+
+/* Keep the squad-pick loadout action in the same dark safehouse language as
+   the rest of the deployment controls.  The generic menu-button rule is
+   intentionally light in a few older surfaces, so this selector is scoped to
+   the deployment bar and wins without affecting navigation elsewhere. */
+#deploymentScreen .deployment-loadout-bar > #deploymentManageLoadoutsButton {
+    color: #f2e9dc;
+    border: 1px solid #806449;
+    border-bottom: 3px solid #4e392b;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #302d35, #1d1d24);
+    box-shadow: 0 4px 0 #0a0b0d, 0 10px 20px #0007, inset 0 1px #ffffff12;
+}
+
+#deploymentScreen .deployment-loadout-bar > #deploymentManageLoadoutsButton:hover,
+#deploymentScreen .deployment-loadout-bar > #deploymentManageLoadoutsButton:focus-visible {
+    color: #fff2d3;
+    border-color: #f2c76d;
+    background: linear-gradient(180deg, #4a3c32, #29232a);
+    box-shadow: 0 5px 0 #0a0b0d, 0 14px 26px #0008, inset 0 1px #ffffff1c;
+    transform: translateY(-2px);
+    outline: none;
+}
+
+/* -------------------------------------------------------------------------
+   SAFEHOUSE UI POLISH BASE
+   This last layer keeps the non-gameplay surfaces visually consistent even
+   when older responsive and component rules appear earlier in the stylesheet.
+--------------------------------------------------------------------------- */
+:root {
+    --safehouse-gold: #efc26c;
+    --safehouse-gold-soft: #dca86a;
+    --safehouse-mint: #91d4c1;
+    --safehouse-violet: #b79cdd;
+    --safehouse-panel: #1a1a22;
+    --safehouse-panel-raised: #25242d;
+    --safehouse-line: #514b5a;
+    --safehouse-ink: #f4edf1;
+    --safehouse-muted: #b5aebd;
+}
+
+/* Shared tactile surface treatment. */
+.menu-whats-new,
+.profile-panel,
+.leaderboard-panel,
+.friend-profile-panel,
+.shop-page .shop-panel {
+    border-radius: 12px;
+    box-shadow: 0 22px 58px #000a, 0 0 0 1px #ffffff08, inset 0 1px #ffffff14;
+}
+
+.menu-whats-new,
+.profile-panel,
+.leaderboard-panel,
+.friend-profile-panel,
+.shop-page .shop-panel,
+.profile-account-panel,
+.profile-identity-card,
+.profile-stat,
+.profile-friend-row,
+.friend-profile-summary,
+.friend-roster-card,
+.leaderboard-table-wrap,
+.shop-page .side-card {
+    background-image: linear-gradient(135deg, #ffffff05, transparent 35%);
+}
+
+/* Header actions become a clear, polished navigation rail. */
+.game-header h1 {
+    color: #fff0d5 !important;
+    text-shadow: 3px 3px 0 #533d43, 0 0 24px #e5b95e2b !important;
+}
+
+.header-nav-button,
+.live-player-count {
+    border-radius: 9px !important;
+    box-shadow: 0 5px 0 #090a0d, 0 12px 24px #0006, inset 0 1px #ffffff16 !important;
+}
+
+.header-nav-button:hover:not(:disabled),
+.live-player-count:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+}
+
+#leaderboardButton,
+#profileButton {
+    border-color: #806346 !important;
+    background: linear-gradient(145deg, #2e2b34, #1c1d24 78%) !important;
+}
+
+#leaderboardButton:hover:not(:disabled),
+#profileButton:hover:not(:disabled) {
+    border-color: var(--safehouse-gold) !important;
+    box-shadow: 0 6px 0 #090a0c, 0 15px 30px #c28d4538, inset 0 1px #ffffff1b !important;
+}
+
+#leaderboardButton .header-nav-mark,
+#profileButton .profile-header-avatar {
+    border-radius: 7px !important;
+    box-shadow: inset 0 1px #ffffff1c, 0 3px 0 #0c0d10 !important;
+}
+
+#leaderboardButton .header-nav-mark {
+    border-color: #c29154 !important;
+    background: linear-gradient(145deg, #4b3829, #2d2928) !important;
+    color: #f2c778 !important;
+}
+
+#profileButton .profile-header-avatar {
+    border-color: #d09a58 !important;
+    background: #1a1a20 !important;
+}
+
+.live-player-count {
+    border-color: #4d7468 !important;
+    background: linear-gradient(145deg, #24312e, #181d20 76%) !important;
+}
+
+/* The homepage is organized around the daily return loop. */
+#mainMenu .menu-whats-new {
+    border-left: 4px solid var(--safehouse-mint) !important;
+    background:
+        radial-gradient(circle at 10% 0%, #8dd4c118 0 2px, transparent 3px) 0 0 / 20px 20px,
+        linear-gradient(105deg, #202e30, #191d23 72%) !important;
+}
+
+#mainMenu .menu-whats-new-badge {
+    border-radius: 999px !important;
+    background: #2c5552 !important;
+    border-color: #6fbbae !important;
+    box-shadow: 0 0 14px #72c9bb35 !important;
+}
+
+#mainMenu .menu-mode-heading {
+    margin-top: 26px;
+    padding: 13px 15px;
+    border: 1px solid #4b4654;
+    border-bottom-color: #74616b;
+    border-radius: 9px 9px 0 0;
+    background: linear-gradient(90deg, #24222a, transparent);
+}
+
+#mainMenu .menu-section-title::before {
+    margin-right: 8px;
+    color: var(--safehouse-mint);
+    content: "✦";
+}
+
+#mainMenu .menu-cards {
+    grid-template-areas:
+        "daily daily"
+        "campaign endless"
+        "sandbox shop" !important;
+}
+
+#mainMenu .menu-card {
+    min-height: 104px;
+    border-radius: 11px !important;
+    box-shadow: 0 7px 0 #0d0e11, 0 15px 28px #0006, inset 0 1px #ffffff14 !important;
+    transition: transform 160ms ease, filter 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+#mainMenu .menu-card:hover {
+    transform: translateY(-3px);
+    filter: brightness(1.06);
+    box-shadow: 0 10px 0 #0d0e11, 0 22px 36px #0008, inset 0 1px #ffffff18 !important;
+}
+
+#mainMenu .menu-card:focus-visible {
+    outline: 3px solid #efc26c99;
+    outline-offset: 3px;
+}
+
+#mainMenu .menu-card-daily {
+    min-height: 138px !important;
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+    border-color: #be8860 !important;
+    background:
+        radial-gradient(circle at 86% 12%, #f3b27f1b 0 2px, transparent 3px) 0 0 / 24px 24px,
+        linear-gradient(120deg, #3c2e2e, #24232b 72%) !important;
+    box-shadow: 0 9px 0 #161013, 0 20px 38px #b66c4233, inset 0 1px #fff4 !important;
+}
+
+#mainMenu .menu-card-daily::before {
+    width: 5px;
+    background: linear-gradient(#f7c675, #df866c) !important;
+}
+
+#mainMenu .menu-card-daily::after {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    padding: 5px 8px;
+    border: 1px solid #c68a62;
+    border-radius: 999px;
+    background: #332326;
+    color: #ffc58c;
+    content: "ROTATES EVERY 24H";
+    font: 800 7px Consolas, "Courier New", monospace;
+    letter-spacing: 1px;
+}
+
+#mainMenu .menu-card-daily .menu-card-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 11px !important;
+    box-shadow: 0 5px 0 #171113, 0 0 22px #f1aa7631, inset 0 1px #fff3 !important;
+}
+
+#mainMenu .menu-card-daily .menu-card-copy strong {
+    color: #ffe1aa;
+    font-size: 16px;
+    letter-spacing: 1.8px;
+}
+
+#mainMenu .menu-card-daily > span.menu-card-cta {
+    align-self: end;
+    padding-bottom: 4px;
+    color: #ffd28b;
+}
+
+/* Profile and friends: readable sections, clearer actions, friend rows that feel clickable. */
+#profileScreen.profile-screen,
+#leaderboardScreen.leaderboard-screen,
+.friend-profile-screen {
+    background:
+        radial-gradient(circle at 50% 0%, #9f7ac41c, transparent 42%),
+        radial-gradient(circle at 100% 100%, #d18c5413, transparent 38%),
+        #09090bd9;
+    backdrop-filter: blur(8px);
+}
+
+.profile-panel,
+.leaderboard-panel,
+.friend-profile-panel {
+    border-top: 3px solid var(--safehouse-gold) !important;
+}
+
+.profile-heading-row,
+.leaderboard-heading-row {
+    padding-bottom: 28px;
+    border-bottom-color: #6b5d69 !important;
+}
+
+.profile-heading-row > .menu-button,
+.leaderboard-heading-row > .menu-button,
+.friend-profile-panel > #friendProfileCloseButton {
+    min-height: 48px;
+    border-radius: 9px !important;
+    background: linear-gradient(145deg, #38323e, #211f27) !important;
+    box-shadow: 0 5px 0 #101015, 0 10px 18px #0006, inset 0 1px #ffffff16 !important;
+}
+
+.profile-heading-row > .menu-button:hover,
+.leaderboard-heading-row > .menu-button:hover,
+.friend-profile-panel > #friendProfileCloseButton:hover {
+    transform: translateY(-2px);
+    border-color: var(--safehouse-gold) !important;
+    filter: brightness(1.08);
+}
+
+.profile-account-panel,
+.profile-identity-card,
+.profile-stat,
+.profile-friend-row,
+.friend-profile-summary,
+.friend-roster-card {
+    border-radius: 10px !important;
+    box-shadow: 0 8px 18px #0005, inset 0 1px #ffffff0e !important;
+}
+
+.profile-friend-row {
+    min-height: 76px;
+    border-left-width: 4px !important;
+    transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.profile-friend-row[data-friend-id]:hover {
+    transform: translateY(-2px);
+    border-color: #d8a15d !important;
+    background: #2b2931 !important;
+    box-shadow: 0 10px 22px #0007, inset 0 1px #ffffff16 !important;
+}
+
+.profile-friend-row[data-friend-id]:focus-visible {
+    outline: 3px solid #91d4c199;
+    outline-offset: 2px;
+}
+
+.profile-friend-avatar,
+.friend-profile-summary img,
+.friend-roster-card img {
+    border-radius: 8px !important;
+    box-shadow: 0 4px 10px #0006, inset 0 1px #ffffff16 !important;
+}
+
+.leaderboard-toolbar {
+    margin-top: 20px;
+    padding: 11px;
+    border: 1px solid #554e5e !important;
+    border-radius: 11px !important;
+    background: linear-gradient(145deg, #292731, #1a1a21) !important;
+    box-shadow: inset 0 1px #ffffff0d, 0 9px 20px #0004 !important;
+}
+
+.leaderboard-scope-tab,
+.leaderboard-map-tab,
+.leaderboard-my-runs,
+.leaderboard-mode-tab {
+    border-radius: 8px !important;
+    transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.leaderboard-scope-tab:hover,
+.leaderboard-map-tab:hover,
+.leaderboard-my-runs:hover,
+.leaderboard-mode-tab:hover {
+    transform: translateY(-2px);
+}
+
+.leaderboard-scope-tab.is-active,
+.leaderboard-map-tab.is-active,
+.leaderboard-my-runs.is-active,
+.leaderboard-mode-tab.is-active {
+    box-shadow: 0 0 0 2px #efc26c2b, 0 7px 15px #0005, inset 0 1px #ffffff16 !important;
+}
+
+.leaderboard-table-wrap {
+    border-radius: 12px !important;
+    background: #17181ed9 !important;
+    box-shadow: 0 12px 28px #0006, inset 0 1px #ffffff0a !important;
+}
+
+.leaderboard-table {
+    border-collapse: separate;
+    border-spacing: 0 5px;
+}
+
+.leaderboard-table td {
+    background: #23222a !important;
+    border-top-color: #46404f !important;
+    border-bottom-color: #46404f !important;
+}
+
+.leaderboard-player-row:hover td {
+    background: #312c38 !important;
+    border-color: #8b6d4d !important;
+}
+
+.leaderboard-score {
+    text-shadow: 0 0 16px #efc26c45;
+}
+
+/* Shop: premium recruitment-bay hierarchy with a focused primary action. */
+.shop-page .shop-panel {
+    border-color: #62586a !important;
+    border-top-width: 3px !important;
+    background:
+        radial-gradient(circle at 100% 0%, #a58dc41d 0 2px, transparent 3px) 0 0 / 20px 20px,
+        radial-gradient(ellipse at 0 0, #d7955c22, transparent 48%),
+        linear-gradient(145deg, #292731, #15161b 74%) !important;
+}
+
+.shop-page .shop-header {
+    padding: 34px 38px;
+    border-bottom-color: #62586a !important;
+}
+
+.shop-page .shop-header a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    gap: 7px;
+    padding: 0 13px;
+    border: 1px solid #806b42;
+    border-radius: 999px;
+    background: #322a28;
+    transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.shop-page .shop-header a:hover {
+    transform: translateY(-2px);
+    border-color: var(--safehouse-gold);
+    background: #493630;
+}
+
+.shop-page .shop-content { gap: 24px; padding: 30px 38px 40px; }
+
+.shop-page .mystery-box {
+    min-height: 440px;
+    border-radius: 15px;
+    border-color: #a17b4b !important;
+    box-shadow: 0 14px 30px #0006, inset 0 1px #ffffff10 !important;
+}
+
+.shop-page .box-icon {
+    border-radius: 12px;
+    box-shadow: 0 6px 0 #161519, 0 0 26px #f0c76535, inset 0 1px #fff4;
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.shop-page .mystery-box:hover .box-icon {
+    transform: translateY(-3px) rotate(-2deg);
+    box-shadow: 0 9px 0 #161519, 0 0 34px #f0c76555, inset 0 1px #fff5;
+}
+
+.shop-page .shop-action {
+    min-height: 52px;
+    border-radius: 8px;
+    box-shadow: 0 5px 0 #805638, 0 10px 20px #0005, inset 0 1px #fff5;
+    transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+
+.shop-page .shop-action:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 0 #805638, 0 15px 26px #0007, inset 0 1px #fff6;
+}
+
+.shop-page .side-card {
+    border-radius: 10px;
+    border-color: #4e4858 !important;
+    box-shadow: 0 8px 18px #0004, inset 0 1px #ffffff0b;
+}
+
+.shop-page .recruit-reveal {
+    border-radius: 12px;
+    box-shadow: 0 20px 42px #000b, inset 0 0 0 1px #ffffff10;
+}
+
+@media (max-width: 900px) {
+    #mainMenu .menu-cards {
+        grid-template-areas: "daily" "campaign" "endless" "sandbox" "shop" !important;
+        grid-template-columns: 1fr !important;
+    }
+
+    #mainMenu .menu-card-daily { min-height: 124px !important; }
+    .shop-page .shop-header { padding: 28px 24px; }
+    .shop-page .shop-content { padding: 24px; }
+}
+
+@media (max-width: 560px) {
+    #mainMenu .menu-card-daily {
+        grid-template-columns: 48px minmax(0, 1fr);
+        gap: 10px;
+        padding: 14px;
+    }
+
+    #mainMenu .menu-card-daily .menu-card-icon { width: 46px; height: 46px; }
+    #mainMenu .menu-card-daily .menu-card-copy strong { font-size: 14px; }
+    #mainMenu .menu-card-daily > span.menu-card-cta { grid-column: 2; justify-self: start; padding: 0; }
+    #mainMenu .menu-card-daily::after { top: 9px; right: 10px; content: "DAILY"; font-size: 6px; }
+    .shop-page .shop-header { padding: 24px 18px; }
+    .shop-page .shop-content { padding: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #mainMenu .menu-card,
+    .header-nav-button,
+    .live-player-count,
+    .shop-page .box-icon,
+    .shop-page .shop-action,
+    .profile-friend-row,
+    .leaderboard-scope-tab,
+    .leaderboard-map-tab,
+    .leaderboard-my-runs,
+    .leaderboard-mode-tab {
+        transition: none !important;
+    }
+}
+
+/* -------------------------------------------------------------------------
+   SAFEHOUSE UI POLISH
+   Shared presentation for the non-gameplay surfaces. Keep the battlefield
+   and command controls independent so this layer can evolve safely.
+--------------------------------------------------------------------------- */
+:root {
+    --ui-ink: #f4edf1;
+    --ui-muted: #aaa3b0;
+    --ui-slate: #202027;
+    --ui-slate-deep: #17181e;
+    --ui-line: #514a59;
+    --ui-gold: #efc26c;
+    --ui-mint: #91d4c1;
+    --ui-violet: #b79cdd;
+    --ui-shadow: 0 18px 42px #0009, 0 3px 0 #090a0d;
+}
+
+/* A consistent glassy edge makes every safehouse surface feel related. */
+.menu-whats-new,
+.profile-panel,
+.leaderboard-panel,
+.friend-profile-panel,
+.shop-panel {
+    position: relative;
+    isolation: isolate;
+}
+
+.menu-whats-new::after,
+.profile-panel::after,
+.leaderboard-panel::after,
+.friend-profile-panel::after,
+.shop-panel::after {
+    position: absolute;
+    z-index: -1;
+    inset: 8px;
+    border: 1px solid #ffffff08;
+    border-radius: inherit;
+    content: "";
+    pointer-events: none;
+}
+
+/* Header actions: clearer hierarchy, stronger affordance, and a crisp focus ring. */
+.game-header {
+    filter: drop-shadow(0 12px 24px #0005);
+}
+
+.game-header h1 {
+    position: relative;
+    color: #fff0d5;
+    font-weight: 900;
+    letter-spacing: clamp(2px, 0.42vw, 6px);
+    text-shadow: 3px 3px 0 #533d43, 0 0 22px #e5b95e22;
+}
+
+.game-header h1::after {
+    position: absolute;
+    right: 0;
+    bottom: -8px;
+    left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #e5b95e99, #a58dc477, transparent);
+    content: "";
+    opacity: 0.7;
+}
+
+.header-nav-button,
+.live-player-count {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 4px 0 #090a0d, 0 10px 22px #0005, inset 0 1px #ffffff12;
+    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.header-nav-button::before,
+.live-player-count::before {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent 20%, #ffffff0b 48%, transparent 72%);
+    content: "";
+    opacity: 0;
+    transform: translateX(-80%);
+    transition: opacity 160ms ease, transform 420ms ease;
+    pointer-events: none;
+}
+
+.header-nav-button:hover::before,
+.header-nav-button:focus-visible::before,
+.live-player-count:hover::before {
+    opacity: 1;
+    transform: translateX(80%);
+}
+
+.header-nav-button:focus-visible,
+.live-player-count:focus-visible {
+    outline: 3px solid #efc26c88;
+    outline-offset: 3px;
+}
+
+.header-nav-button .header-nav-mark {
+    border-radius: 6px;
+    box-shadow: inset 0 1px #ffffff18, 0 2px 0 #0c0d10;
+}
+
+#leaderboardButton {
+    opacity: 1;
+    border-color: #76654f;
+    background: linear-gradient(145deg, #2b292f, #1d1d24 75%);
+}
+
+#leaderboardButton .header-nav-mark {
+    background: linear-gradient(145deg, #4b3829, #2d2928);
+    border-color: #c29154;
+    color: #f2c778;
+}
+
+#leaderboardButton:hover:not(:disabled) {
+    border-color: var(--ui-gold);
+    box-shadow: 0 5px 0 #090a0c, 0 12px 26px #c28d4530, inset 0 1px #ffffff16;
+}
+
+#profileButton {
+    border-color: #806346;
+    background: linear-gradient(145deg, #2b2930, #1d1d24 74%);
+}
+
+#profileButton .profile-header-avatar {
+    border-color: #d09a58;
+    background: #1a1a20;
+    box-shadow: inset 0 0 0 2px #19181e, 0 2px 0 #0c0d10;
+}
+
+#profileButton:hover:not(:disabled) {
+    border-color: #f0c878;
+    box-shadow: 0 5px 0 #090a0c, 0 12px 26px #c28d4530, inset 0 1px #ffffff16;
+}
+
+#profileButton .header-nav-copy small { color: #f0c878; }
+
+.live-player-count {
+    border-color: #4d7468;
+    background: linear-gradient(145deg, #222d2b, #181d20 76%);
+}
+
+.live-player-count[data-status="online"] .live-player-dot {
+    animation: ui-online-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes ui-online-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px #8dc8c133, 0 0 8px #8dc8c155; }
+    50% { box-shadow: 0 0 0 5px #8dc8c10f, 0 0 16px #8dc8c188; }
+}
+
+/* Homepage: the daily run is the front door for a returning player. */
+#mainMenu .menu-whats-new {
+    overflow: hidden;
+    border: 1px solid #4e6970;
+    border-left: 3px solid var(--ui-mint);
+    border-radius: 10px;
+    background:
+        radial-gradient(circle at 10% 0%, #8dd4c118 0 2px, transparent 3px) 0 0 / 20px 20px,
+        linear-gradient(105deg, #1f2b2c, #191d23 72%);
+    box-shadow: 0 12px 28px #0005, inset 0 1px #ffffff0e;
+}
+
+#mainMenu .menu-whats-new-mark {
+    border-radius: 7px;
+    background: #2c4748;
+    box-shadow: 0 0 18px #8dd4c133, inset 0 1px #ffffff18;
+}
+
+#mainMenu .menu-whats-new-badge {
+    border-radius: 999px;
+    background: #2c5552;
+    border-color: #6fbbae;
+    box-shadow: 0 0 12px #72c9bb2b;
+}
+
+#mainMenu .menu-cards {
+    grid-template-areas:
+        "daily daily"
+        "campaign endless"
+        "sandbox shop";
+}
+
+#mainMenu .menu-mode-heading {
+    margin-top: 26px;
+    padding: 12px 14px;
+    border: 1px solid #3f3b48;
+    border-bottom-color: #655a62;
+    border-radius: 8px 8px 0 0;
+    background: linear-gradient(90deg, #201f27, transparent);
+}
+
+#mainMenu .menu-section-title::before {
+    margin-right: 8px;
+    color: var(--ui-mint);
+    content: "✦";
+}
+
+#mainMenu .menu-card {
+    min-height: 104px;
+    border-radius: 10px !important;
+    box-shadow: 0 7px 0 #0d0e11, 0 14px 26px #0005, inset 0 1px #ffffff12;
+}
+
+#mainMenu .menu-card-daily {
+    min-height: 132px;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    border-color: #a1785e !important;
+    background:
+        radial-gradient(circle at 88% 15%, #e9a87b18 0 2px, transparent 3px) 0 0 / 24px 24px,
+        linear-gradient(120deg, #3a2d2d, #24232b 72%) !important;
+    box-shadow: 0 8px 0 #161013, 0 18px 32px #b66c4224, inset 0 1px #fff3;
+}
+
+#mainMenu .menu-card-daily::before { width: 5px; background: linear-gradient(#f7c675, #df866c); }
+
+#mainMenu .menu-card-daily::after {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    padding: 5px 8px;
+    border: 1px solid #b87c5b;
+    border-radius: 999px;
+    background: #332326;
+    color: #ffc58c;
+    content: "ROTATES EVERY 24H";
+    font: 800 7px Consolas, "Courier New", monospace;
+    letter-spacing: 1px;
+}
+
+#mainMenu .menu-card-daily .menu-card-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 10px;
+    box-shadow: 0 5px 0 #171113, 0 0 20px #f1aa7628, inset 0 1px #fff3;
+}
+
+#mainMenu .menu-card-daily .menu-card-icon img { width: 32px; height: 32px; }
+#mainMenu .menu-card-daily .menu-card-copy { gap: 8px; }
+#mainMenu .menu-card-daily .menu-card-copy strong { font-size: 16px; letter-spacing: 1.8px; }
+#mainMenu .menu-card-daily > span.menu-card-cta {
+    align-self: end;
+    padding-bottom: 4px;
+    font-size: 9px;
+}
+#mainMenu .menu-card-daily:hover {
+    border-color: #f0bd79 !important;
+    transform: translateY(-3px);
+    box-shadow: 0 9px 0 #161013, 0 20px 36px #d97c4b3d, inset 0 1px #fff4;
+}
+
+#mainMenu .menu-card:not(.menu-card-daily) { min-height: 98px; }
+#mainMenu .menu-card-icon { border-radius: 8px !important; box-shadow: inset 0 1px #ffffff18, 0 4px 0 #111216; }
+#mainMenu .menu-card-copy strong { font-size: 14px; }
+#mainMenu .menu-card > span.menu-card-cta { font-size: 8px; }
+
+/* Account, friends, and leaderboard surfaces. */
+#profileScreen.profile-screen,
+#leaderboardScreen.leaderboard-screen,
+.friend-profile-screen {
+    background:
+        radial-gradient(circle at 50% 0%, #9f7ac41c, transparent 42%),
+        radial-gradient(circle at 100% 100%, #d18c5413, transparent 38%),
+        #09090bd9;
+    backdrop-filter: blur(8px);
+}
+
+.profile-panel,
+.leaderboard-panel,
+.friend-profile-panel {
+    border-radius: 14px;
+    box-shadow: 0 25px 70px #000b, 0 0 0 1px #ffffff08, inset 0 1px #ffffff12;
+}
+
+.profile-heading-row,
+.leaderboard-heading-row {
+    padding-bottom: 28px;
+    border-bottom-color: #6b5d69;
+}
+
+.profile-heading-row > .menu-button,
+.leaderboard-heading-row > .menu-button,
+.friend-profile-panel > #friendProfileCloseButton {
+    min-height: 48px;
+    border-radius: 8px;
+    background: linear-gradient(145deg, #34303a, #211f27);
+    box-shadow: 0 4px 0 #101015, 0 8px 16px #0005, inset 0 1px #ffffff14;
+}
+
+.profile-heading-row > .menu-button:hover,
+.leaderboard-heading-row > .menu-button:hover,
+.friend-profile-panel > #friendProfileCloseButton:hover,
+.profile-heading-row > .menu-button:focus-visible,
+.leaderboard-heading-row > .menu-button:focus-visible,
+.friend-profile-panel > #friendProfileCloseButton:focus-visible {
+    border-color: var(--ui-gold);
+    box-shadow: 0 5px 0 #101015, 0 12px 24px #d09a5830, inset 0 1px #ffffff18;
+}
+
+.profile-emblem {
+    border-radius: 10px;
+    box-shadow: 0 5px 0 #111116, 0 10px 20px #0005, inset 0 1px #ffffff16;
+}
+
+.profile-account-panel,
+.profile-identity-card,
+.profile-stat,
+.profile-friend-row,
+.friend-profile-summary,
+.friend-roster-card {
+    border-radius: 9px;
+    box-shadow: 0 7px 16px #0004, inset 0 1px #ffffff0b;
+}
+
+.profile-account-panel { border-left-width: 4px; }
+.profile-account-session > span { border-radius: 999px; }
+.profile-account-actions button,
+.profile-account-session button,
+.profile-friend-form button,
+.profile-friend-action {
+    border-radius: 7px;
+    box-shadow: 0 3px 0 #101015, inset 0 1px #ffffff12;
+    transition: transform 140ms ease, filter 140ms ease, border-color 140ms ease;
+}
+
+.profile-account-actions button:hover,
+.profile-account-session button:hover,
+.profile-friend-form button:hover,
+.profile-friend-action:hover { transform: translateY(-2px); filter: brightness(1.08); }
+
+.profile-friend-row {
+    min-height: 72px;
+    border-left-width: 4px;
+    transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+.profile-friend-row[data-friend-id]:hover {
+    transform: translateY(-2px);
+    border-color: #d8a15d;
+    box-shadow: 0 9px 20px #0006, inset 0 1px #ffffff12;
+}
+
+.profile-friend-avatar { width: 50px; height: 50px; flex-basis: 50px; border-radius: 7px; border-width: 2px; }
+.profile-friend-status-dot { width: 8px; height: 8px; flex-basis: 8px; }
+
+.leaderboard-toolbar {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #4f4858;
+    border-radius: 10px;
+    background: linear-gradient(145deg, #24232c, #1a1a21);
+    box-shadow: inset 0 1px #ffffff0b, 0 8px 18px #0003;
+}
+
+.leaderboard-scope-tab,
+.leaderboard-map-tab,
+.leaderboard-my-runs {
+    border-radius: 999px;
+    transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.leaderboard-scope-tab:hover,
+.leaderboard-map-tab:hover,
+.leaderboard-my-runs:hover { transform: translateY(-2px); }
+
+.leaderboard-scope-tab.is-active,
+.leaderboard-map-tab.is-active,
+.leaderboard-my-runs.is-active {
+    box-shadow: 0 0 0 2px #efc26c22, 0 6px 14px #0004, inset 0 1px #ffffff14;
+}
+
+.leaderboard-table-wrap {
+    border: 1px solid #5a5263;
+    border-radius: 11px;
+    background: #17181eaa;
+    box-shadow: 0 10px 24px #0005, inset 0 1px #ffffff08;
+}
+
+.leaderboard-table { border-collapse: separate; border-spacing: 0 4px; }
+.leaderboard-table th { color: #d9c8ae; letter-spacing: 1.2px; }
+.leaderboard-table td { background: #222128; border-top: 1px solid #3f3a46; border-bottom: 1px solid #3f3a46; }
+.leaderboard-table td:first-child { border-left: 1px solid #3f3a46; border-radius: 7px 0 0 7px; }
+.leaderboard-table td:last-child { border-right: 1px solid #3f3a46; border-radius: 0 7px 7px 0; }
+.leaderboard-player-row:hover td { background: #302b35; border-color: #8b6d4d; }
+.leaderboard-rank { border-radius: 7px; box-shadow: inset 0 1px #ffffff1a; }
+.leaderboard-player-avatar { border-radius: 7px; box-shadow: 0 3px 0 #101015, inset 0 1px #ffffff13; }
+.leaderboard-score { text-shadow: 0 0 14px #efc26c38; }
+
+.friend-profile-panel { padding: clamp(20px, 3vw, 34px); }
+.friend-profile-summary { padding: 16px; border-left: 4px solid var(--ui-mint); }
+.friend-profile-summary img { width: 76px; height: 76px; border-radius: 9px; box-shadow: 0 4px 10px #0005; }
+.friend-roster-card { padding: 12px 9px; transition: transform 140ms ease, border-color 140ms ease; }
+.friend-roster-card:hover { transform: translateY(-2px); border-color: #e5b95e; }
+.friend-roster-card img { width: 64px; height: 64px; border-radius: 7px; }
+
+/* Shop / recruit: make the purchase surface feel like a premium terminal. */
+.shop-page .shop-panel {
+    border-radius: 16px;
+    border-color: #5a5360;
+    border-top-width: 3px;
+    background:
+        radial-gradient(circle at 100% 0%, #a58dc41d 0 2px, transparent 3px) 0 0 / 20px 20px,
+        radial-gradient(ellipse at 0 0, #d7955c22, transparent 48%),
+        linear-gradient(145deg, #25242c, #15161b 74%);
+    box-shadow: 0 26px 70px #000b, inset 0 1px #ffffff13;
+}
+
+.shop-page .shop-header { padding: 34px 38px; border-bottom-color: #5b5361; }
+.shop-page .shop-header a { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 12px; border: 1px solid #806b42; border-radius: 999px; background: #322a28; transition: transform 140ms ease, border-color 140ms ease, background 140ms ease; }
+.shop-page .shop-header a:hover { transform: translateY(-2px); border-color: var(--ui-gold); background: #493630; }
+.shop-page .shop-eyebrow { color: #f0c765; text-shadow: 0 0 12px #f0c7652f; }
+.shop-page .account-pill { border-radius: 999px; box-shadow: inset 0 1px #ffffff12; }
+.shop-page .shop-content { gap: 22px; padding: 28px 38px 38px; }
+.shop-page .mystery-box {
+    min-height: 430px;
+    border-radius: 14px;
+    border-color: #947044;
+    background:
+        radial-gradient(circle at 50% 14%, #f0c76525 0 2px, transparent 3px) 0 0 / 25px 25px,
+        radial-gradient(circle at 50% 0, #76512d, #2d272c 60%, #1b1b21);
+    box-shadow: inset 0 1px #ffffff12, 0 14px 28px #0005;
+}
+.shop-page .box-icon {
+    width: 104px; height: 104px; border-radius: 16px; border-width: 2px;
+    background: linear-gradient(145deg, #4a392a, #2d2526);
+    box-shadow: 0 7px 0 #151217, 0 0 32px #efc26c35, inset 0 1px #fff3;
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.shop-page .mystery-box:hover .box-icon { transform: translateY(-4px) rotate(-2deg); box-shadow: 0 11px 0 #151217, 0 0 42px #efc26c55, inset 0 1px #fff4; }
+.shop-page .box-copy h2 { font-size: clamp(22px, 3vw, 28px); text-shadow: 2px 2px 0 #49353b; }
+.shop-page .price { border-radius: 999px; background: #2c2523; box-shadow: inset 0 1px #ffffff13; }
+.shop-page .shop-action { border-radius: 8px; box-shadow: 0 4px 0 #6b472d, 0 10px 18px #0004, inset 0 1px #fff4; transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease; }
+.shop-page .shop-action:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 6px 0 #6b472d, 0 14px 24px #0006, inset 0 1px #fff5; }
+.shop-page .shop-action:not(:disabled):active { transform: translateY(2px); box-shadow: 0 2px 0 #6b472d, 0 5px 10px #0004; }
+.shop-page .side-card { border-radius: 11px; border-color: #504a58; background: linear-gradient(145deg, #24232b, #1c1c22); box-shadow: inset 0 1px #ffffff0c, 0 7px 16px #0004; }
+.shop-page .side-card h3 { color: #f0c765; }
+.shop-page .rarity-row { padding: 5px 6px; border-radius: 6px; background: #191a20aa; }
+.shop-page .rarity-row i { width: 9px; height: 9px; }
+.shop-page .shop-note { border-radius: 7px; box-shadow: inset 0 1px #ffffff0a; }
+.shop-page .recruit-reveal { border-radius: 13px; backdrop-filter: blur(7px); box-shadow: 0 22px 44px #000b, inset 0 1px #ffffff13; }
+.shop-page .reveal-portrait-frame { border-radius: 12px; box-shadow: 0 0 0 6px #15151a, 0 0 34px color-mix(in srgb,var(--reveal-color,#e5b95e),transparent 45%); }
+.shop-page .reveal-close { border-radius: 999px; box-shadow: 0 4px 0 #161319, inset 0 1px #fff2; transition: transform 140ms ease, filter 140ms ease; }
+.shop-page .reveal-close:hover { transform: translateY(-2px); filter: brightness(1.1); }
+
+@media (max-width: 760px) {
+    #mainMenu .menu-cards { grid-template-areas: "daily" "campaign" "endless" "sandbox" "shop"; grid-template-columns: 1fr; }
+    #mainMenu .menu-card-daily { min-height: 124px; }
+    #mainMenu .menu-card-daily::after { top: 9px; right: 10px; font-size: 6px; }
+    #mainMenu .menu-card-daily .menu-card-copy strong { font-size: 14px; }
+    .profile-panel, .leaderboard-panel { border-radius: 10px; }
+    .profile-account-panel { grid-template-columns: 1fr; }
+    .profile-account-session { justify-content: flex-start; }
+    .friend-profile-screen { padding: 9px; }
+    .friend-profile-panel { max-height: calc(100vh - 18px); border-radius: 11px; }
+    .shop-page .shop-header { padding: 24px 20px; }
+    .shop-page .shop-content { padding: 20px; }
+}
+
+@media (max-width: 440px) {
+    #mainMenu .menu-card-daily { grid-template-columns: 46px minmax(0, 1fr); gap: 10px; padding: 13px; }
+    #mainMenu .menu-card-daily .menu-card-icon { width: 44px; height: 44px; }
+    #mainMenu .menu-card-daily > span.menu-card-cta { grid-column: 2; justify-self: start; padding: 0; }
+    #mainMenu .menu-card-daily::after { content: "DAILY"; }
+    .shop-page .mystery-box { min-height: 340px; padding: 20px 15px; }
+    .shop-page .box-icon { width: 82px; height: 82px; }
+    .shop-page .shop-header h1 { letter-spacing: 1px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .header-nav-button,
+    .live-player-count,
+    #mainMenu .menu-card,
+    .profile-friend-row,
+    .profile-account-actions button,
+    .profile-account-session button,
+    .profile-friend-form button,
+    .profile-friend-action,
+    .shop-page .box-icon,
+    .shop-page .shop-action,
+    .shop-page .reveal-close {
+        transition: none;
+    }
+    .live-player-count[data-status="online"] .live-player-dot { animation: none; }
+}
+
+/* Keep the upgrade treatment last so the dossier's later stat rules cannot
+   flatten its depth or undo the action-state polish. */
+.control-panel .survivor-detail-stats #upgradeSurvivorButton {
+    box-shadow:
+        0 4px 0 #171318,
+        0 7px 13px #0008,
+        inset 0 1px #fff2c533,
+        inset 0 -1px #0008;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton:hover:not(:disabled) {
+    box-shadow:
+        0 4px 0 #171318,
+        0 9px 18px #000a,
+        0 0 0 1px #f5cd7b33,
+        0 0 14px #eab9682b,
+        inset 0 1px #fff4d044;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow:
+        0 2px 0 #171318,
+        0 4px 9px #0008,
+        inset 0 1px #fff2c522;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton.level-three-upgrade {
+    box-shadow:
+        0 4px 0 #171318,
+        0 7px 15px #0008,
+        0 0 11px #b98be84a,
+        inset 0 1px #f4eaff38,
+        inset 0 -1px #0008;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton.level-three-upgrade:hover:not(:disabled) {
+    box-shadow:
+        0 4px 0 #171318,
+        0 9px 18px #000a,
+        0 0 15px #c196ef66,
+        inset 0 1px #fff3ff4a;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton:disabled {
+    box-shadow: 0 3px 0 #171318, inset 0 1px #ffffff0d;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton.level-three-upgrade:disabled {
+    box-shadow: 0 3px 0 #171318, inset 0 1px #f2e9ff12;
+}
+
+/* Finish the rest of the dossier tiles with the same crisp, layered finish. */
+.control-panel .survivor-detail-stats > div:not(#survivorUpgradeControl) {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 100% 0%, #ffffff0b 0 1px, transparent 2px) 0 0 / 12px 12px,
+        linear-gradient(145deg, #302e37, #222127 72%);
+    border-color: #514c5a;
+    border-top-color: #7c7180;
+    box-shadow:
+        0 4px 10px #0006,
+        inset 0 1px #ffffff12,
+        inset 0 -1px #0008;
+    transition:
+        border-color 120ms ease,
+        filter 120ms ease,
+        transform 120ms ease;
+}
+
+.control-panel .survivor-detail-stats > div:not(#survivorUpgradeControl)::before {
+    position: absolute;
+    top: 0;
+    right: 18%;
+    left: 18%;
+    height: 1px;
+    content: "";
+    background: linear-gradient(90deg, transparent, var(--detail-accent, #e5b95e), transparent);
+    opacity: 0.55;
+}
+
+.control-panel .survivor-detail-stats > div:not(#survivorUpgradeControl):hover {
+    border-color: #726a7d;
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+}
+
+.control-panel .survivor-detail-stats > div:not(#survivorUpgradeControl) span {
+    position: relative;
+    z-index: 1;
+    color: #cbc3cf;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-shadow: 0 1px 0 #000;
+}
+
+.control-panel .survivor-detail-stats > div:not(#survivorUpgradeControl) strong {
+    position: relative;
+    z-index: 1;
+    color: #ffd27d;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.25px;
+    text-shadow: 0 1px 0 #000, 0 0 8px #efbd6226;
+}
+
+.control-panel .survivor-targeting-control {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 100% 0%, #ffffff0b 0 1px, transparent 2px) 0 0 / 12px 12px,
+        linear-gradient(110deg, #263c3c, #20252b 62%, #1c1e24);
+    border-color: #4f7776;
+    border-left-width: 3px;
+    box-shadow:
+        0 5px 12px #0006,
+        inset 0 1px #e0fff61a,
+        inset 0 -1px #0008;
+}
+
+.control-panel .survivor-targeting-control::before {
+    position: absolute;
+    top: 0;
+    right: 14%;
+    left: 14%;
+    height: 1px;
+    content: "";
+    background: linear-gradient(90deg, transparent, #9bd8c4, transparent);
+    opacity: 0.7;
+}
+
+.control-panel .survivor-targeting-copy span {
+    color: #a9efdc;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    text-shadow: 0 1px 0 #000, 0 0 7px #72d6bb26;
+}
+
+.control-panel .survivor-targeting-copy small {
+    color: #d0cbd2;
+}
+
+.control-panel .survivor-targeting-control select {
+    background: linear-gradient(180deg, #27262e, #1b1b21);
+    border-color: #c99b55;
+    box-shadow: inset 0 1px #ffffff12, 0 3px 7px #0006;
+    transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.control-panel .survivor-targeting-control select:hover {
+    background: linear-gradient(180deg, #35313a, #24232b);
+    border-color: #f0c777;
+    box-shadow: inset 0 1px #ffffff18, 0 4px 10px #0008;
+}
+
+.control-panel .survivor-action-buttons button {
+    position: relative;
+    overflow: hidden;
+    border-radius: 5px;
+    box-shadow:
+        0 4px 0 #0b0c0e,
+        0 7px 13px #0007,
+        inset 0 1px #ffffff16;
+    transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.control-panel .survivor-action-buttons button:hover:not(:disabled) {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow:
+        0 4px 0 #0b0c0e,
+        0 9px 17px #0009,
+        inset 0 1px #ffffff22;
+}
+
+.control-panel .survivor-action-buttons button:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #0b0c0e, 0 4px 9px #0007, inset 0 1px #ffffff10;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .control-panel .survivor-detail-stats > div:not(#survivorUpgradeControl),
+    .control-panel .survivor-targeting-control select,
+    .control-panel .survivor-action-buttons button {
+        transition: none;
+    }
+}
+
+/* Upgrade action polish: make the first stat tile read as a deliberate,
+   high-value action while preserving the compact dossier grid footprint. */
+.control-panel .survivor-detail-stats #survivorUpgradeControl {
+    position: relative;
+    overflow: visible;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-height: 42px;
+    padding: 6px 5px 7px;
+    background:
+        linear-gradient(135deg, #4c3a22 0%, #352b22 55%, #2a2525 100%);
+    border: 1px solid #b8894a;
+    border-bottom: 2px solid #704b25;
+    border-radius: 5px;
+    box-shadow:
+        0 4px 0 #171318,
+        0 7px 13px #0008,
+        inset 0 1px #fff2c533,
+        inset 0 -1px #0008;
+    color: #fff1cf;
+    transition:
+        transform 120ms ease,
+        border-color 120ms ease,
+        box-shadow 120ms ease,
+        filter 120ms ease;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton::before {
+    position: absolute;
+    z-index: -1;
+    top: -35%;
+    left: -35%;
+    width: 45%;
+    height: 170%;
+    content: "";
+    background: linear-gradient(100deg, transparent, #fff4c522, transparent);
+    transform: translateX(-180%) skewX(-18deg);
+    transition: transform 260ms ease;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton:hover:not(:disabled) {
+    background:
+        linear-gradient(135deg, #624923 0%, #493623 55%, #362a26 100%);
+    border-color: #f0c673;
+    box-shadow:
+        0 4px 0 #171318,
+        0 9px 18px #000a,
+        0 0 0 1px #f5cd7b33,
+        0 0 14px #eab9682b,
+        inset 0 1px #fff4d044;
+    filter: brightness(1.07);
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton:hover:not(:disabled)::before {
+    transform: translateX(430%) skewX(-18deg);
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow:
+        0 2px 0 #171318,
+        0 4px 9px #0008,
+        inset 0 1px #fff2c522;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton:focus-visible {
+    outline: 2px solid #ffe0a0;
+    outline-offset: 2px;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton .survivor-upgrade-copy {
+    position: relative;
+    z-index: 1;
+    gap: 3px;
+    align-items: center;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton .survivor-upgrade-copy strong {
+    color: #fff3d1;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.7px;
+    line-height: 1.05;
+    text-shadow: 0 1px 0 #000, 0 0 7px #f3c66b33;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton .survivor-upgrade-copy small {
+    color: #ffd078;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.35px;
+    line-height: 1;
+    text-shadow: 0 1px 0 #000;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton.level-three-upgrade {
+    background:
+        linear-gradient(135deg, #553b68 0%, #382b48 55%, #2b2538 100%);
+    border-color: #c09be8;
+    border-bottom-color: #704a91;
+    box-shadow:
+        0 4px 0 #171318,
+        0 7px 15px #0008,
+        0 0 11px #b98be84a,
+        inset 0 1px #f4eaff38,
+        inset 0 -1px #0008;
+    color: #f4e6ff;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton.level-three-upgrade:hover:not(:disabled) {
+    background:
+        linear-gradient(135deg, #6b4b83 0%, #49345f 55%, #352846 100%);
+    border-color: #e2c6ff;
+    box-shadow:
+        0 4px 0 #171318,
+        0 9px 18px #000a,
+        0 0 15px #c196ef66,
+        inset 0 1px #fff3ff4a;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton:disabled {
+    background: linear-gradient(135deg, #302c2d, #25242a);
+    border-color: #625a61;
+    border-bottom-color: #403a40;
+    box-shadow: 0 3px 0 #171318, inset 0 1px #ffffff0d;
+    color: #a9a2a8;
+    filter: saturate(0.7);
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton:disabled .survivor-upgrade-copy strong,
+.control-panel .survivor-detail-stats #upgradeSurvivorButton:disabled .survivor-upgrade-copy small {
+    color: #aaa4aa;
+    text-shadow: 0 1px 0 #000;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton.level-three-upgrade:disabled {
+    background: linear-gradient(135deg, #372d3e, #29232f);
+    border-color: #78638a;
+    border-bottom-color: #4d3b5e;
+    box-shadow: 0 3px 0 #171318, inset 0 1px #f2e9ff12;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .control-panel .survivor-detail-stats #upgradeSurvivorButton,
+    .control-panel .survivor-detail-stats #upgradeSurvivorButton::before {
+        transition: none;
+    }
+}
+
+/* Last-resort mobile dossier guard.  The command panel is deliberately
+   scrollable on desktop, but on a phone the selected survivor card must be a
+   normal, full-height block instead of collapsing to its accent border. */
+@media (max-width: 900px) {
+    main.game-layout > .control-panel {
+        display: block !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        overflow-y: visible !important;
+        overflow-x: visible !important;
+    }
+
+    main.game-layout > .control-panel > #survivorDetailsPanel.is-visible {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        z-index: 50 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 250px !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        contain: none !important;
+        clip: auto !important;
+        clip-path: none !important;
+        margin: 8px 0 10px !important;
+    }
+
+    main.game-layout > .control-panel > #survivorDetailsPanel.is-visible > * {
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    main.game-layout > .control-panel > .survivor-list {
+        margin-top: 0 !important;
+    }
+}
+
+/* Last-resort mobile dossier guard.  The command panel is deliberately
+   scrollable on desktop, but on a phone the selected survivor card must be a
+   normal, full-height block instead of collapsing to its accent border. */
+@media (max-width: 900px) {
+    main.game-layout > .control-panel {
+        display: block !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        overflow-y: visible !important;
+        overflow-x: visible !important;
+    }
+
+    main.game-layout > .control-panel > #survivorDetailsPanel.is-visible {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        z-index: 50 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 250px !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        contain: none !important;
+        clip: auto !important;
+        clip-path: none !important;
+        margin: 8px 0 10px !important;
+    }
+
+    main.game-layout > .control-panel > #survivorDetailsPanel.is-visible > * {
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    main.game-layout > .control-panel > .survivor-list {
+        margin-top: 0 !important;
+    }
+}
+
+/* Final mobile guard: keep a selected survivor dossier visible and full
+   height above the roster. This comes last so the panel cannot be collapsed
+   or clipped by an earlier responsive rule. */
+@media (max-width: 900px) {
+    main.game-layout > .control-panel {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    #survivorDetailsPanel.is-visible {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative;
+        z-index: 20;
+        order: 3;
+        flex: 0 0 auto !important;
+        align-self: stretch;
+        width: 100%;
+        min-width: 0;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        margin: 8px 0 10px;
+        scroll-margin-block: 12px;
+    }
+
+    main.game-layout > .control-panel > .survivor-list {
+        order: 4;
+    }
+}
+
+/* Mobile selected-survivor layout. The command panel has several older
+   responsive rules, so keep this final guard at the end of the stylesheet:
+   the dossier must remain a real, full-height block above the roster rather
+   than collapsing to its accent line or being clipped by the panel scroll. */
+@media (max-width: 900px) {
+    main.game-layout > .control-panel {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    #survivorDetailsPanel.is-visible {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative;
+        z-index: 20;
+        order: 3;
+        flex: 0 0 auto !important;
+        align-self: stretch;
+        width: 100%;
+        min-width: 0;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        margin: 8px 0 10px;
+        scroll-margin-block: 12px;
+    }
+
+    main.game-layout > .control-panel > .survivor-list {
+        order: 4;
+    }
+}
+
+/* Keep the selected survivor dossier visible on phones. The roster still
+   starts directly under its heading while the dossier is hidden; once a
+   card is selected, it is inserted above the roster instead of being pushed
+   below a long list of cards. */
+@media (max-width: 900px) {
+    main.game-layout > .control-panel > .survivor-details {
+        order: 3;
+        flex: 0 0 auto;
+        width: 100%;
+        min-width: 0;
+        max-height: none;
+        overflow: visible;
+        scroll-margin-block: 12px;
+    }
+
+    main.game-layout > .control-panel > .survivor-list {
+        order: 4;
+    }
+
+    main.game-layout > .control-panel > .wave-controls {
+        order: 5;
+    }
+
+    main.game-layout > .control-panel > .wave-preview {
+        order: 6;
+    }
+
+    main.game-layout > .control-panel > .deployment-note {
+        order: 7;
+    }
+}
+
+/* -------------------------------------------------------------------------
+   Gameplay visual polish
+   ------------------------------------------------------------------------- */
+.battlefield {
+    border-radius: 7px;
+    border-color: #747a63;
+    box-shadow:
+        0 24px 52px #000b,
+        0 0 0 1px #f1d49a18,
+        inset 0 0 0 1px #ffffff12,
+        inset 0 0 30px #07090880;
+}
+
+.control-panel {
+    box-shadow:
+        0 24px 52px #000a,
+        0 0 0 1px #f5d79112,
+        inset 0 1px #ffffff0b;
+}
+
+.control-panel .stat-grid .stat-box,
+.control-panel .wave-preview,
+.control-panel .survivor-details {
+    box-shadow:
+        0 6px 14px #0005,
+        inset 0 1px #ffffff0a;
+}
+
+.control-panel .survivor-list .survivor-card {
+    transition:
+        transform 120ms ease,
+        box-shadow 120ms ease,
+        border-color 120ms ease,
+        filter 120ms ease;
+    box-shadow:
+        0 4px 9px #0005,
+        inset 0 1px #ffffff08;
+}
+
+.control-panel .survivor-list .survivor-card:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+    box-shadow:
+        0 8px 16px #0008,
+        inset 0 1px #ffffff12;
+}
+
+.control-panel .wave-controls button:not(:disabled),
+.control-panel .survivor-action-buttons button:not(:disabled) {
+    transition:
+        transform 120ms ease,
+        box-shadow 120ms ease,
+        filter 120ms ease;
+    box-shadow:
+        0 4px 0 #0b0c0e,
+        0 8px 16px #0006;
+}
+
+.control-panel .wave-controls button:not(:disabled):hover,
+.control-panel .survivor-action-buttons button:not(:disabled):hover {
+    filter: brightness(1.07);
+}
+
+.control-panel .wave-controls button:not(:disabled):active,
+.control-panel .survivor-action-buttons button:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow:
+        0 2px 0 #0b0c0e,
+        0 4px 9px #0006;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .control-panel .survivor-list .survivor-card,
+    .control-panel .wave-controls button:not(:disabled),
+    .control-panel .survivor-action-buttons button:not(:disabled) {
+        transition: none;
+    }
+}
+
+/* Treat upgrading as the first stat tile so the selected survivor header
+   stays clean and the action is always beside the combat numbers. */
+.control-panel .survivor-detail-stats.survivor-primary-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.control-panel .survivor-detail-stats #survivorUpgradeControl {
+    display: block;
+    height: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton {
+    box-sizing: border-box;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 5px 3px;
+    text-align: center;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton .survivor-upgrade-copy {
+    min-width: 0;
+    align-items: center;
+    gap: 1px;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton .survivor-upgrade-copy strong {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 8px;
+    letter-spacing: 0.35px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton .survivor-upgrade-copy small {
+    font-size: 8px;
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton .survivor-upgrade-level {
+    display: none;
 }
 
 /* The wave intel starts as one compact row. The small action stays in the
@@ -9052,8 +11795,19 @@ main.game-layout > .control-panel {
 
     main.game-layout > .control-panel > .stat-grid { order: 1; }
     main.game-layout > .control-panel > .roster-heading { order: 2; }
-    main.game-layout > .control-panel > .survivor-list { order: 3; }
-    main.game-layout > .control-panel > .survivor-details { order: 4; }
+    /* Keep the roster heading at the top. When a card is selected its
+       dossier moves directly under that heading so it remains visible on
+       narrow screens instead of being pushed below the full roster. */
+    main.game-layout > .control-panel > .survivor-details {
+        order: 3;
+        flex: 0 0 auto;
+        width: 100%;
+        min-width: 0;
+        max-height: none;
+        overflow: visible;
+        scroll-margin-block: 12px;
+    }
+    main.game-layout > .control-panel > .survivor-list { order: 4; }
     main.game-layout > .control-panel > .wave-controls { order: 5; }
     main.game-layout > .control-panel > .wave-preview { order: 6; }
     main.game-layout > .control-panel > .deployment-note { order: 7; }
@@ -9920,6 +12674,23 @@ img.survivor-portrait-placeholder,
     line-height: 1.6;
 }
 
+.daily-challenge-modifiers {
+    max-width: 860px;
+    margin: 6px auto 0;
+    padding: 6px 10px;
+    border: 1px solid #675b72;
+    border-left: 3px solid #c99be8;
+    background: linear-gradient(90deg, #26232e, #1c1c23);
+    color: #d7c9de;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    line-height: 1.55;
+    text-align: left;
+}
+
+#dailyChallengeModifiers[hidden] { display: none !important; }
+
 #deploymentScreen .daily-challenge-map-preview {
     display: grid;
     width: min(100%, 720px);
@@ -9988,6 +12759,7 @@ img.survivor-portrait-placeholder,
     .daily-leaderboard-date-control { align-items: flex-start; flex-direction: column; padding-bottom: 10px; }
     .daily-leaderboard-date-control input { width: 100%; }
     .daily-challenge-details { font-size: 8px; }
+    .daily-challenge-modifiers { font-size: 7px; padding: 6px 8px; }
     #deploymentScreen .daily-challenge-map-preview { grid-template-columns: minmax(0, 1fr); gap: 8px; }
     #deploymentScreen .daily-challenge-map-preview img { height: 150px; }
     #deploymentScreen .daily-challenge-map-preview figcaption { padding: 3px 5px 5px; }
@@ -10303,4 +13075,592 @@ img.survivor-portrait-placeholder,
 
 .wave-preview .preview-enemy-detail-panel span:last-child {
     color: #8fd6d0;
+}
+
+/* Final gameplay polish overrides.  This block intentionally lives after
+   the responsive wave-preview rules so the visual treatment remains stable
+   at desktop and mobile sizes. */
+
+/* Final safehouse UI layer. Gameplay controls intentionally remain outside
+   this pass; these rules only refine navigation and non-gameplay screens. */
+.game-header h1 {
+    color: #fff0d5 !important;
+    text-shadow: 3px 3px 0 #533d43, 0 0 24px #e5b95e2b !important;
+}
+
+.header-nav-button,
+.live-player-count {
+    border-radius: 9px !important;
+    box-shadow: 0 5px 0 #090a0d, 0 12px 24px #0006, inset 0 1px #ffffff16 !important;
+}
+
+.header-nav-button:hover:not(:disabled),
+.live-player-count:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+}
+
+#leaderboardButton,
+#profileButton {
+    border-color: #806346 !important;
+    background: linear-gradient(145deg, #2e2b34, #1c1d24 78%) !important;
+}
+
+#leaderboardButton:hover:not(:disabled),
+#profileButton:hover:not(:disabled) {
+    border-color: #efc26c !important;
+    box-shadow: 0 6px 0 #090a0c, 0 15px 30px #c28d4538, inset 0 1px #ffffff1b !important;
+}
+
+#leaderboardButton .header-nav-mark,
+#profileButton .profile-header-avatar {
+    border-radius: 7px !important;
+    box-shadow: inset 0 1px #ffffff1c, 0 3px 0 #0c0d10 !important;
+}
+
+#mainMenu .menu-whats-new {
+    border-left: 4px solid #91d4c1 !important;
+    background:
+        radial-gradient(circle at 10% 0%, #8dd4c118 0 2px, transparent 3px) 0 0 / 20px 20px,
+        linear-gradient(105deg, #202e30, #191d23 72%) !important;
+}
+
+#mainMenu .menu-mode-heading {
+    padding: 13px 15px;
+    border: 1px solid #4b4654;
+    border-bottom-color: #74616b;
+    border-radius: 9px 9px 0 0;
+    background: linear-gradient(90deg, #24222a, transparent);
+}
+
+#mainMenu .menu-section-title::before {
+    margin-right: 8px;
+    color: #91d4c1;
+    content: "✦";
+}
+
+#mainMenu .menu-cards {
+    grid-template-areas:
+        "daily daily"
+        "campaign endless"
+        "sandbox shop" !important;
+}
+
+#mainMenu .menu-card {
+    min-height: 104px;
+    border-radius: 11px !important;
+    box-shadow: 0 7px 0 #0d0e11, 0 15px 28px #0006, inset 0 1px #ffffff14 !important;
+    transition: transform 160ms ease, filter 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+#mainMenu .menu-card:hover {
+    transform: translateY(-3px);
+    filter: brightness(1.06);
+    box-shadow: 0 10px 0 #0d0e11, 0 22px 36px #0008, inset 0 1px #ffffff18 !important;
+}
+
+#mainMenu .menu-card-daily {
+    min-height: 138px !important;
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+    border-color: #be8860 !important;
+    background:
+        radial-gradient(circle at 86% 12%, #f3b27f1b 0 2px, transparent 3px) 0 0 / 24px 24px,
+        linear-gradient(120deg, #3c2e2e, #24232b 72%) !important;
+    box-shadow: 0 9px 0 #161013, 0 20px 38px #b66c4233, inset 0 1px #fff4 !important;
+}
+
+#mainMenu .menu-card-daily::after {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    padding: 5px 8px;
+    border: 1px solid #c68a62;
+    border-radius: 999px;
+    background: #332326;
+    color: #ffc58c;
+    content: "ROTATES EVERY 24H";
+    font: 800 7px Consolas, "Courier New", monospace;
+    letter-spacing: 1px;
+}
+
+#mainMenu .menu-card-daily .menu-card-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 11px !important;
+    box-shadow: 0 5px 0 #171113, 0 0 22px #f1aa7631, inset 0 1px #fff3 !important;
+}
+
+#mainMenu .menu-card-daily .menu-card-copy strong {
+    color: #ffe1aa;
+    font-size: 16px;
+    letter-spacing: 1.8px;
+}
+
+#profileScreen.profile-screen,
+#leaderboardScreen.leaderboard-screen,
+.friend-profile-screen {
+    background:
+        radial-gradient(circle at 50% 0%, #9f7ac41c, transparent 42%),
+        radial-gradient(circle at 100% 100%, #d18c5413, transparent 38%),
+        #09090bd9;
+    backdrop-filter: blur(8px);
+}
+
+.profile-panel,
+.leaderboard-panel,
+.friend-profile-panel {
+    border-top: 3px solid #efc26c !important;
+    border-radius: 14px !important;
+    box-shadow: 0 25px 70px #000b, 0 0 0 1px #ffffff08, inset 0 1px #ffffff12 !important;
+}
+
+.profile-heading-row > .menu-button,
+.leaderboard-heading-row > .menu-button,
+.friend-profile-panel > #friendProfileCloseButton {
+    min-height: 48px;
+    border-radius: 9px !important;
+    background: linear-gradient(145deg, #38323e, #211f27) !important;
+    box-shadow: 0 5px 0 #101015, 0 10px 18px #0006, inset 0 1px #ffffff16 !important;
+}
+
+.profile-heading-row > .menu-button:hover,
+.leaderboard-heading-row > .menu-button:hover,
+.friend-profile-panel > #friendProfileCloseButton:hover {
+    transform: translateY(-2px);
+    border-color: #efc26c !important;
+    filter: brightness(1.08);
+}
+
+.profile-account-panel,
+.profile-identity-card,
+.profile-stat,
+.profile-friend-row,
+.friend-profile-summary,
+.friend-roster-card,
+.leaderboard-table-wrap,
+.shop-page .side-card {
+    border-radius: 10px !important;
+    box-shadow: 0 8px 18px #0005, inset 0 1px #ffffff0e !important;
+}
+
+.profile-friend-row[data-friend-id]:hover {
+    transform: translateY(-2px);
+    border-color: #d8a15d !important;
+    background: #2b2931 !important;
+    box-shadow: 0 10px 22px #0007, inset 0 1px #ffffff16 !important;
+}
+
+.leaderboard-toolbar {
+    margin-top: 20px;
+    padding: 11px;
+    border: 1px solid #554e5e !important;
+    border-radius: 11px !important;
+    background: linear-gradient(145deg, #292731, #1a1a21) !important;
+    box-shadow: inset 0 1px #ffffff0d, 0 9px 20px #0004 !important;
+}
+
+.leaderboard-scope-tab,
+.leaderboard-map-tab,
+.leaderboard-my-runs,
+.leaderboard-mode-tab {
+    border-radius: 8px !important;
+    transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.leaderboard-scope-tab:hover,
+.leaderboard-map-tab:hover,
+.leaderboard-my-runs:hover,
+.leaderboard-mode-tab:hover {
+    transform: translateY(-2px);
+}
+
+.leaderboard-table-wrap {
+    background: #17181ed9 !important;
+    box-shadow: 0 12px 28px #0006, inset 0 1px #ffffff0a !important;
+}
+
+.leaderboard-table {
+    border-collapse: separate;
+    border-spacing: 0 5px;
+}
+
+.leaderboard-table td {
+    background: #23222a !important;
+    border-top-color: #46404f !important;
+    border-bottom-color: #46404f !important;
+}
+
+.leaderboard-player-row:hover td {
+    background: #312c38 !important;
+    border-color: #8b6d4d !important;
+}
+
+.shop-page .shop-panel {
+    border-color: #62586a !important;
+    border-radius: 16px !important;
+    background:
+        radial-gradient(circle at 100% 0%, #a58dc41d 0 2px, transparent 3px) 0 0 / 20px 20px,
+        radial-gradient(ellipse at 0 0, #d7955c22, transparent 48%),
+        linear-gradient(145deg, #292731, #15161b 74%) !important;
+}
+
+.shop-page .shop-header { padding: 34px 38px; border-bottom-color: #62586a !important; }
+.shop-page .shop-content { gap: 24px; padding: 30px 38px 40px; }
+
+.shop-page .mystery-box {
+    min-height: 440px;
+    border-radius: 15px;
+    border-color: #a17b4b !important;
+    box-shadow: 0 14px 30px #0006, inset 0 1px #ffffff10 !important;
+}
+
+.shop-page .box-icon {
+    border-radius: 12px;
+    box-shadow: 0 6px 0 #161519, 0 0 26px #f0c76535, inset 0 1px #fff4;
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.shop-page .mystery-box:hover .box-icon {
+    transform: translateY(-3px) rotate(-2deg);
+    box-shadow: 0 9px 0 #161519, 0 0 34px #f0c76555, inset 0 1px #fff5;
+}
+
+.shop-page .shop-action {
+    min-height: 52px;
+    border-radius: 8px;
+    box-shadow: 0 5px 0 #805638, 0 10px 20px #0005, inset 0 1px #fff5;
+    transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+
+.shop-page .shop-action:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 0 #805638, 0 15px 26px #0007, inset 0 1px #fff6;
+}
+
+@media (max-width: 900px) {
+    #mainMenu .menu-cards {
+        grid-template-areas: "daily" "campaign" "endless" "sandbox" "shop" !important;
+        grid-template-columns: 1fr !important;
+    }
+
+    #mainMenu .menu-card-daily { min-height: 124px !important; }
+    .shop-page .shop-header { padding: 28px 24px; }
+    .shop-page .shop-content { padding: 24px; }
+}
+
+@media (max-width: 560px) {
+    #mainMenu .menu-card-daily {
+        grid-template-columns: 48px minmax(0, 1fr);
+        gap: 10px;
+        padding: 14px;
+    }
+
+    #mainMenu .menu-card-daily .menu-card-icon { width: 46px; height: 46px; }
+    #mainMenu .menu-card-daily .menu-card-copy strong { font-size: 14px; }
+    #mainMenu .menu-card-daily > span.menu-card-cta { grid-column: 2; justify-self: start; padding: 0; }
+    #mainMenu .menu-card-daily::after { top: 9px; right: 10px; content: "DAILY"; font-size: 6px; }
+    .shop-page .shop-header { padding: 24px 18px; }
+    .shop-page .shop-content { padding: 18px; }
+}
+
+/* Final mobile dossier guard: keep the selected survivor card measurable and
+   visible after every older responsive rule in this long stylesheet. */
+@media (max-width: 900px) {
+    main.game-layout > .control-panel {
+        display: block !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        overflow-y: visible !important;
+        overflow-x: visible !important;
+    }
+
+    main.game-layout > .control-panel > #survivorDetailsPanel.is-visible {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        z-index: 50 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 250px !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        contain: none !important;
+        clip: auto !important;
+        clip-path: none !important;
+        margin: 8px 0 10px !important;
+    }
+
+    main.game-layout > .control-panel > #survivorDetailsPanel.is-visible > * {
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+}
+
+/* Selected survivor detail card: a compact tactical dossier with a rarity
+   accent, clearer stat hierarchy, and deliberate action grouping. */
+.control-panel .survivor-details {
+    position: relative;
+    isolation: isolate;
+    margin: 9px 0;
+    padding: 9px;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 100% 0%, #ffffff08 0 1px, transparent 2px) 0 0 / 14px 14px,
+        linear-gradient(145deg, #29282f, #1c1d22 78%);
+    border-color: #5e5965;
+    border-top: 2px solid var(--detail-accent, #e5b95e);
+    border-radius: 5px;
+    box-shadow:
+        0 10px 22px #0008,
+        inset 0 1px #ffffff12,
+        inset 0 -1px #0008;
+}
+
+.control-panel .survivor-details::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--detail-accent, #e5b95e);
+    box-shadow: 0 0 14px var(--detail-accent, #e5b95e);
+    content: "";
+    opacity: 0.85;
+}
+
+.control-panel .survivor-details.rarity-common { --detail-accent: #79d890; }
+.control-panel .survivor-details.rarity-uncommon { --detail-accent: #82d9db; }
+.control-panel .survivor-details.rarity-rare { --detail-accent: #b49be8; }
+.control-panel .survivor-details.rarity-legendary { --detail-accent: #f2c966; }
+
+.control-panel .survivor-details-header {
+    position: relative;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid #ffffff12;
+}
+
+.control-panel .survivor-portrait {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    object-fit: cover;
+    background: #101217;
+    border: 2px solid var(--detail-accent, #766653);
+    border-radius: 3px;
+    box-shadow: 0 4px 10px #0009, inset 0 0 0 1px #ffffff16;
+}
+
+.control-panel .survivor-details-title {
+    gap: 2px;
+}
+
+.control-panel .survivor-details-title h3 {
+    color: #fff4df;
+    font-size: 13px;
+    letter-spacing: 0.45px;
+    text-shadow: 0 1px 0 #000, 0 0 10px #ffffff14;
+}
+
+.control-panel .survivor-details-title span {
+    color: #c5bec9;
+    font-size: 8px;
+    letter-spacing: 0.25px;
+}
+
+.control-panel .survivor-details-title strong {
+    color: var(--detail-accent, #edbd7a);
+    font-size: 10px;
+}
+
+.control-panel #cancelPlacementButton {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 5px 8px;
+    background: #27252c;
+    border: 1px solid #746474;
+    border-bottom: 2px solid #423b47;
+    border-radius: 4px;
+    color: #f0c778;
+    font-size: 15px;
+    font-weight: 800;
+    box-shadow: 0 4px 8px #0006;
+}
+
+.control-panel #cancelPlacementButton:hover {
+    background: #3a3034;
+    border-color: #e5b95e;
+    color: #fff2cf;
+}
+
+.control-panel .survivor-detail-stats {
+    gap: 5px;
+    margin-top: 7px;
+}
+
+.control-panel .survivor-detail-stats div {
+    min-height: 42px;
+    box-sizing: border-box;
+    padding: 6px 3px;
+    background: linear-gradient(180deg, #2d2b33, #222128);
+    border: 1px solid #4a4550;
+    border-radius: 4px;
+    box-shadow: inset 0 1px #ffffff0a, 0 3px 7px #0004;
+}
+
+.control-panel .survivor-detail-stats span {
+    color: #bdb5c2;
+    font-size: 8px;
+    letter-spacing: 0.45px;
+}
+
+.control-panel .survivor-detail-stats strong {
+    color: #f2c978;
+    font-size: 12px;
+    text-shadow: 0 1px 0 #000;
+}
+
+.control-panel .survivor-detail-stats #survivorUpgradeControl {
+    border: 0;
+    box-shadow: none;
+}
+
+.control-panel .survivor-detail-stats #upgradeSurvivorButton {
+    min-height: 42px;
+    padding: 5px 4px;
+    border-radius: 4px;
+    box-shadow: 0 3px 8px #0006, inset 0 1px #ffffff18;
+}
+
+.control-panel #survivorDetailDescription {
+    margin: 7px 0 0;
+    padding: 7px 8px;
+    background: #15171b80;
+    border-left: 2px solid var(--detail-accent, #e5b95e);
+    border-radius: 2px;
+    color: #ded6cd;
+    font-size: 10px;
+    line-height: 1.35;
+}
+
+.control-panel .survivor-action-buttons {
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.control-panel .survivor-action-buttons button {
+    min-height: 34px;
+    border-radius: 4px;
+    font-size: 9px;
+    letter-spacing: 0.55px;
+    text-shadow: 0 1px 0 #0008;
+}
+
+.control-panel #moveSurvivorButton {
+    color: #d9f0b7;
+    background: linear-gradient(180deg, #33452e, #202c20);
+    border-color: #6e985a;
+    border-bottom-color: #354c2d;
+}
+
+.control-panel #moveSurvivorButton:hover {
+    background: linear-gradient(180deg, #47623e, #2c422b);
+}
+
+.control-panel #sellSurvivorButton {
+    color: #ffd0c7;
+    background: linear-gradient(180deg, #552e2b, #321f21);
+    border-color: #a55a4c;
+    border-bottom-color: #60342f;
+}
+
+.control-panel #sellSurvivorButton:hover {
+    background: linear-gradient(180deg, #704039, #452729);
+}
+
+.control-panel .placement-hint {
+    margin: 6px 2px 0;
+    color: var(--detail-accent, #edbd7a);
+    font-size: 8px;
+    letter-spacing: 0.55px;
+}
+
+.battlefield {
+    border-radius: 7px;
+    border-color: #747a63;
+    box-shadow:
+        0 24px 52px #000b,
+        0 0 0 1px #f1d49a18,
+        inset 0 0 0 1px #ffffff12,
+        inset 0 0 30px #07090880;
+}
+
+.control-panel {
+    box-shadow:
+        0 24px 52px #000a,
+        0 0 0 1px #f5d79112,
+        inset 0 1px #ffffff0b;
+}
+
+.control-panel .stat-grid .stat-box,
+.control-panel .wave-preview,
+.control-panel .survivor-details {
+    box-shadow:
+        0 6px 14px #0005,
+        inset 0 1px #ffffff0a;
+}
+
+.control-panel .survivor-list .survivor-card {
+    transition:
+        transform 120ms ease,
+        box-shadow 120ms ease,
+        border-color 120ms ease,
+        filter 120ms ease;
+    box-shadow:
+        0 4px 9px #0005,
+        inset 0 1px #ffffff08;
+}
+
+.control-panel .survivor-list .survivor-card:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+    box-shadow:
+        0 8px 16px #0008,
+        inset 0 1px #ffffff12;
+}
+
+.control-panel .wave-controls button:not(:disabled),
+.control-panel .survivor-action-buttons button:not(:disabled) {
+    transition:
+        transform 120ms ease,
+        box-shadow 120ms ease,
+        filter 120ms ease;
+    box-shadow:
+        0 4px 0 #0b0c0e,
+        0 8px 16px #0006;
+}
+
+.control-panel .wave-controls button:not(:disabled):hover,
+.control-panel .survivor-action-buttons button:not(:disabled):hover {
+    filter: brightness(1.07);
+}
+
+.control-panel .wave-controls button:not(:disabled):active,
+.control-panel .survivor-action-buttons button:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow:
+        0 2px 0 #0b0c0e,
+        0 4px 9px #0006;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .control-panel .survivor-list .survivor-card,
+    .control-panel .wave-controls button:not(:disabled),
+    .control-panel .survivor-action-buttons button:not(:disabled) {
+        transition: none;
+    }
 }

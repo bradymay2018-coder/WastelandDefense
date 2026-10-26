@@ -6,7 +6,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wasteland Defense</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg?v=1">
-    <link rel="stylesheet" href="style.css?v=20261025-01">
+    <link rel="stylesheet" href="style.css?v=20261026-08">
+    <style id="mobile-survivor-details-fix">
+        @media (max-width: 900px) {
+            main.game-layout > .control-panel {
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+            }
+
+            #survivorDetailsPanel.is-visible {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                position: relative;
+                z-index: 20;
+                order: 3;
+                flex: 0 0 auto !important;
+                align-self: stretch;
+                width: 100%;
+                min-width: 0;
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+                margin: 8px 0 10px;
+                scroll-margin-block: 12px;
+            }
+
+            main.game-layout > .control-panel > .survivor-list {
+                order: 4;
+            }
+        }
+    </style>
 </head>
 <body>
 
@@ -89,7 +120,7 @@
                 <span class="menu-signal-bars" aria-hidden="true"><i>✦</i></span>
                 <span>
                     <strong>NO TWO RUNS HAVE TO END THE SAME</strong>
-                    <small>Try the campaign, or chase a new best in Endless.</small>
+                    <small>Start with today's challenge, then build a run worth remembering.</small>
                 </span>
             </div>
         </div>
@@ -124,12 +155,20 @@
                 <span class="menu-crew-next">MORE UNLOCKS AHEAD <b aria-hidden="true">+</b></span>
             </div>
 
+            <button id="openLoadoutButton" class="menu-crew-loadout-button" type="button">
+                <span>
+                    <strong>CREATE A LOADOUT</strong>
+                    <small>Save a six-survivor squad for quick deployment.</small>
+                </span>
+                <b aria-hidden="true">→</b>
+            </button>
+
         </aside>
     </div>
 
     <div class="menu-mode-heading">
         <h3 class="menu-section-title">GAME MODES // PICK YOUR RUN</h3>
-        <span>Campaign, Endless, Daily Challenge, or Sandbox.</span>
+        <span>Start with today's Daily Challenge, then chase the long run.</span>
     </div>
 
     <div class="menu-cards">
@@ -146,7 +185,7 @@
             <span class="menu-card-icon" aria-hidden="true"><img src="Images/spider.png" alt=""></span>
             <span class="menu-card-copy">
                 <strong>DAILY CHALLENGE</strong>
-                <span>One shared map, three survivors, and fifteen waves.</span>
+                <span id="dailyChallengeMenuSummary">One shared map, three survivors, and fifteen waves.</span>
             </span>
             <span class="menu-card-cta">PLAY TODAY'S CHALLENGE <b aria-hidden="true">→</b></span>
         </button>
@@ -182,6 +221,75 @@
     <div class="menu-footer">
         <span>WASTELAND DEFENSE // v0.90</span>
         <span>BE NICE TO YOUR SQUAD. THEY HAVE GUNS.</span>
+    </div>
+</section>
+
+<section id="loadoutScreen" class="loadout-screen" style="display: none;" aria-labelledby="loadoutTitle">
+    <div class="loadout-panel">
+        <div class="loadout-heading-row">
+            <button id="loadoutBackButton" class="menu-button" type="button">&lt; MAIN MENU</button>
+            <div class="loadout-heading-copy">
+                <p class="menu-eyebrow">SAFEHOUSE // LOADOUTS</p>
+                <h2 id="loadoutTitle">BUILD YOUR LOADOUT</h2>
+                <p class="menu-description">Set up a squad once, then take it straight into your next run.</p>
+            </div>
+            <div id="loadoutUnlockCount" class="loadout-unlock-count" aria-live="polite">
+                <strong>0/0</strong>
+                <span>UNLOCKED</span>
+            </div>
+        </div>
+
+        <div class="loadout-builder">
+            <section class="loadout-roster-shell" aria-labelledby="loadoutRosterTitle">
+                <div class="loadout-section-heading">
+                    <div>
+                        <p class="menu-eyebrow">ACCOUNT ROSTER</p>
+                        <h3 id="loadoutRosterTitle">CHOOSE SIX OPERATORS</h3>
+                    </div>
+                    <strong id="loadoutSelectionCount" class="loadout-selection-count">0 / 6</strong>
+                </div>
+                <div class="roster-sortbar loadout-sortbar">
+                    <label for="loadoutRosterSort">SORT ROSTER</label>
+                    <select id="loadoutRosterSort">
+                        <option value="rarity-asc">COMMON → LEGENDARY</option>
+                        <option value="rarity-desc">LEGENDARY → COMMON</option>
+                        <option value="recent">RECENTLY OBTAINED</option>
+                    </select>
+                </div>
+                <div id="loadoutRosterGrid" class="loadout-roster-grid" role="group" aria-label="Unlocked survivors"></div>
+            </section>
+
+            <aside class="loadout-sidebar">
+                <section class="loadout-side-card loadout-active-card" aria-labelledby="loadoutPreviewTitle">
+                    <div class="loadout-side-heading">
+                        <div>
+                            <p class="menu-eyebrow">ACTIVE SQUAD</p>
+                            <h3 id="loadoutPreviewTitle">UNNAMED LOADOUT</h3>
+                        </div>
+                        <span id="loadoutPreviewStatus">0 / 6 SELECTED</span>
+                    </div>
+                    <div id="loadoutSlots" class="loadout-slot-grid" aria-label="Selected loadout survivors"></div>
+                </section>
+
+                <form id="loadoutForm" class="loadout-side-card loadout-save-card">
+                    <label for="loadoutNameInput">LOADOUT NAME</label>
+                    <input id="loadoutNameInput" type="text" maxlength="24" autocomplete="off" placeholder="e.g. NIGHT SHIFT">
+                    <button id="loadoutSaveButton" type="submit" disabled>SAVE LOADOUT</button>
+                    <output id="loadoutNotice" role="status" aria-live="polite"></output>
+                </form>
+
+                <section class="loadout-side-card loadout-saved-card" aria-labelledby="savedLoadoutsTitle">
+                    <div class="loadout-side-heading">
+                        <div>
+                            <p class="menu-eyebrow">YOUR PRESETS</p>
+                            <h3 id="savedLoadoutsTitle">SAVED LOADOUTS</h3>
+                        </div>
+                        <strong id="savedLoadoutCount">0</strong>
+                    </div>
+                    <div id="savedLoadoutsList" class="saved-loadouts-list"></div>
+                </section>
+            </aside>
+        </div>
     </div>
 </section>
 
@@ -247,6 +355,14 @@
                     <div class="profile-portrait-heading">
                         <strong>PROFILE PORTRAIT</strong>
                         <span>CHOOSE AN UNLOCKED SURVIVOR</span>
+                    </div>
+                    <div class="roster-sortbar profile-portrait-sortbar">
+                        <label for="profilePortraitSort">SORT ROSTER</label>
+                        <select id="profilePortraitSort">
+                            <option value="rarity-asc">COMMON → LEGENDARY</option>
+                            <option value="rarity-desc">LEGENDARY → COMMON</option>
+                            <option value="recent">RECENTLY OBTAINED</option>
+                        </select>
                     </div>
                     <div id="profilePortraitOptions" class="profile-portrait-options" role="group" aria-label="Choose a profile portrait"></div>
                 </div>
@@ -531,10 +647,19 @@
             <p class="deployment-location" id="deploymentLocation">CHOOSE YOUR OPERATION</p>
             <p class="deployment-subtitle">Pick the survivors you want to bring. Tap a card again to swap them out.</p>
             <p id="dailyChallengeDetails" class="daily-challenge-details" hidden></p>
+            <p id="dailyChallengeModifiers" class="daily-challenge-modifiers" hidden></p>
         </div>
 
+    </div>
 
-</div>
+    <div id="deploymentLoadoutBar" class="deployment-loadout-bar" hidden>
+            <div class="deployment-loadout-heading">
+                <p class="menu-eyebrow">SAVED LOADOUTS</p>
+                <span id="deploymentLoadoutStatus">Choose a saved squad for this run.</span>
+            </div>
+            <div id="deploymentLoadoutList" class="deployment-loadout-list" role="list"></div>
+            <button id="deploymentManageLoadoutsButton" class="menu-button" type="button">MANAGE LOADOUTS →</button>
+    </div>
 
     <figure id="dailyChallengeMapPanel" class="daily-challenge-map-preview" hidden>
         <img id="dailyChallengeMapPreview" alt="Map layout for today's Daily Challenge">
@@ -551,6 +676,15 @@
             <small>Choose who rides with you.</small>
             <strong id="rosterCount" role="status" aria-live="polite">0/4</strong>
         </div>
+</div>
+
+<div class="roster-sortbar deployment-sortbar">
+    <label for="deploymentRosterSort">SORT ROSTER</label>
+    <select id="deploymentRosterSort">
+        <option value="rarity-asc">COMMON → LEGENDARY</option>
+        <option value="rarity-desc">LEGENDARY → COMMON</option>
+        <option value="recent">RECENTLY OBTAINED</option>
+    </select>
 </div>
 
 <div class="deployment-roster" id="deploymentRoster">
@@ -571,7 +705,7 @@
 
 
 
-        <button class="deploy-card rarity-common" data-survivor="james" type="button" aria-pressed="false">
+        <button class="deploy-card rarity-rare" data-survivor="james" type="button" aria-pressed="false">
                 
 <img
     class="survivor-portrait-placeholder"
@@ -584,10 +718,10 @@
             <span>FLAMETHROWER</span>
             <small>Close-range fire</small>
             </div>
-            <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
+            <span class="survivor-rarity rarity-rare" aria-label="Rare rarity">RARE</span>
         </button>
 
-        <button class="deploy-card rarity-common" data-survivor="cody" type="button" aria-pressed="false">
+        <button class="deploy-card rarity-uncommon" data-survivor="cody" type="button" aria-pressed="false">
                 
 <img
     class="survivor-portrait-placeholder"
@@ -600,10 +734,10 @@
             <span>GRENADE LAUNCHER</span>
             <small>Heavy direct hits</small>
             </div>
-            <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
+            <span class="survivor-rarity rarity-uncommon" aria-label="Uncommon rarity">UNCOMMON</span>
         </button>
 
-        <button class="deploy-card rarity-common" data-survivor="britney" type="button" aria-pressed="false">
+        <button class="deploy-card rarity-rare" data-survivor="britney" type="button" aria-pressed="false">
                 
 <img
     class="survivor-portrait-placeholder"
@@ -616,7 +750,7 @@
             <span>SNIPER RIFLE</span>
             <small>Long-range precision</small>
             </div>
-            <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
+            <span class="survivor-rarity rarity-rare" aria-label="Rare rarity">RARE</span>
         </button>
 
         <button class="deploy-card rarity-common" data-survivor="zach" type="button" aria-pressed="false">
@@ -635,7 +769,7 @@
             <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
         </button>
 
-        <button class="deploy-card rarity-common" data-survivor="brady" type="button" aria-pressed="false">
+        <button class="deploy-card rarity-uncommon" data-survivor="brady" type="button" aria-pressed="false">
                 
 <img
     class="survivor-portrait-placeholder"
@@ -648,7 +782,7 @@
             <span>SHOTGUN</span>
             <small>Tight spread, one target</small>
             </div>
-            <span class="survivor-rarity rarity-common" aria-label="Common rarity">COMMON</span>
+            <span class="survivor-rarity rarity-uncommon" aria-label="Uncommon rarity">UNCOMMON</span>
         </button>
     </div>
 
@@ -914,7 +1048,7 @@
             <span id="inGameRosterCount">0 UNITS</span>
         </div>
 
-        <div class="survivor-details" id="survivorDetailsPanel" style="display: none;">
+        <div class="survivor-details" id="survivorDetailsPanel" hidden aria-hidden="true" style="display: none;">
             <div class="survivor-details-header">
                 <img
     class="survivor-portrait"
@@ -932,7 +1066,16 @@
                 <button id="cancelPlacementButton" type="button" title="Cancel placement" aria-label="Cancel placement">X</button>
             </div>
 
-            <div class="survivor-detail-stats">
+            <div class="survivor-detail-stats survivor-primary-stats">
+                <div id="survivorUpgradeControl" class="survivor-upgrade-control" style="display: none;">
+                    <button id="upgradeSurvivorButton" type="button">
+                        <span class="survivor-upgrade-copy">
+                            <strong id="survivorUpgradeLabel">UPGRADE</strong>
+                            <small id="survivorUpgradeCost">0 SCRAP</small>
+                        </span>
+                        <span id="survivorUpgradeLevel" class="survivor-upgrade-level">LEVEL 0 / 3</span>
+                    </button>
+                </div>
                 <div>
                     <span>DAMAGE</span>
                     <strong id="survivorDetailDamage">0</strong>
@@ -941,13 +1084,13 @@
                     <span>RANGE</span>
                     <strong id="survivorDetailRange">0</strong>
                 </div>
+            </div>
+
+            <div class="survivor-detail-stats">
                 <div>
                     <span title="Estimated combat DPS including a nearby secondary target or active burn">EST. DPS</span>
                     <strong id="survivorDetailDps">0</strong>
                 </div>
-            </div>
-
-            <div class="survivor-detail-stats">
                 <div>
                     <span>DAMAGE DEALT</span>
                     <strong id="survivorDamageDealt">0</strong>
@@ -978,16 +1121,6 @@
 
             <p id="survivorDetailDescription">Select a survivor to view their details.</p>
             <p class="placement-hint">CLICK THE BATTLEFIELD TO DEPLOY</p>
-
-            <div id="survivorUpgradeControl" class="survivor-upgrade-control" style="display: none;">
-                <button id="upgradeSurvivorButton" type="button">
-                    <span class="survivor-upgrade-copy">
-                        <strong id="survivorUpgradeLabel">UPGRADE TO LEVEL 1</strong>
-                        <small id="survivorUpgradeCost">0 SCRAP</small>
-                    </span>
-                    <span id="survivorUpgradeLevel" class="survivor-upgrade-level">LEVEL 0 / 3</span>
-                </button>
-            </div>
 
         </div>
 
