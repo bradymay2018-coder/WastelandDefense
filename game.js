@@ -2240,6 +2240,7 @@ canvas.addEventListener("click", function(event) {
             updateDeploymentMessage(
                 inspectedSurvivor.name + " repositioned!"
             );
+            syncMobileSelectionRangeOverlay();
             renderGame();
             return;
         }
@@ -2519,6 +2520,7 @@ function getSurvivorUpgradePulse(survivor, now = performance.now()) {
 }
 
 function drawSurvivors(onlySurvivor = null) {
+    const mobileViewport = isMobileGameplayViewport();
     const survivorImages = {
         mason: masonImage,
         james: jamesImage,
@@ -2566,21 +2568,30 @@ survivor.recoilY *= 1 - recoilReturn;
         const shadowY = survivor.y + survivor.recoilY + 35
             + bounce - selectionNudge * 0.35 - placementNudge * 0.22 - upgradeNudge * 0.28;
         const shadowSquash = 1 - placementPulse * 0.18 - upgradePulse * 0.12;
-        const shadow = ctx.createRadialGradient(
-            shadowX,
-            shadowY,
-            1,
-            shadowX,
-            shadowY,
-            20
-        );
-        shadow.addColorStop(0, "rgba(0, 0, 0, 0.42)");
-        shadow.addColorStop(0.55, "rgba(0, 0, 0, 0.24)");
-        shadow.addColorStop(1, "rgba(0, 0, 0, 0)");
-        ctx.fillStyle = shadow;
-        ctx.beginPath();
-        ctx.ellipse(shadowX, shadowY, 20 * shadowSquash, 7 * shadowSquash, 0, 0, Math.PI * 2);
-        ctx.fill();
+        if (mobileViewport) {
+            // A crisp two-pass ellipse is considerably cheaper than creating
+            // a radial gradient for every survivor on every mobile frame.
+            ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+            ctx.beginPath();
+            ctx.ellipse(shadowX, shadowY, 15 * shadowSquash, 5 * shadowSquash, 0, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            const shadow = ctx.createRadialGradient(
+                shadowX,
+                shadowY,
+                1,
+                shadowX,
+                shadowY,
+                20
+            );
+            shadow.addColorStop(0, "rgba(0, 0, 0, 0.42)");
+            shadow.addColorStop(0.55, "rgba(0, 0, 0, 0.24)");
+            shadow.addColorStop(1, "rgba(0, 0, 0, 0)");
+            ctx.fillStyle = shadow;
+            ctx.beginPath();
+            ctx.ellipse(shadowX, shadowY, 20 * shadowSquash, 7 * shadowSquash, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
         ctx.beginPath();
@@ -3113,9 +3124,82 @@ customSurvivors.forEach(survivor => {
     survivorDescriptions[survivor.id] = survivor.description;
 });
 
+// On touch devices the canvas is already doing a lot of work to animate the
+// battlefield. Drawing an animated range arc into that canvas makes every
+// frame pay the cost of the full scene. A small compositor-owned ring keeps
+// the selection feedback smooth without changing the desktop presentation.
+let mobileSelectionRangeRing = null;
+
+function isMobileGameplayViewport() {
+    return Boolean(window.matchMedia?.("(max-width: 900px)").matches);
+}
+
+function getMobileSelectionRangeRing() {
+    if (mobileSelectionRangeRing) return mobileSelectionRangeRing;
+
+    const battlefield = canvas?.closest(".battlefield");
+    if (!battlefield) return null;
+
+    mobileSelectionRangeRing = document.createElement("div");
+    mobileSelectionRangeRing.className = "mobile-selection-range-ring";
+    mobileSelectionRangeRing.setAttribute("aria-hidden", "true");
+    battlefield.appendChild(mobileSelectionRangeRing);
+    return mobileSelectionRangeRing;
+}
+
+function hideMobileSelectionRangeOverlay() {
+    if (mobileSelectionRangeRing) {
+        mobileSelectionRangeRing.hidden = true;
+    }
+}
+
+function syncMobileSelectionRangeOverlay() {
+    const ring = getMobileSelectionRangeRing();
+    if (!ring || !isMobileGameplayViewport() || !inspectedSurvivor) {
+        hideMobileSelectionRangeOverlay();
+        return;
+    }
+
+    const range = Number(getSurvivorStats(inspectedSurvivor)?.range) || 0;
+    if (range <= 0) {
+        hideMobileSelectionRangeOverlay();
+        return;
+    }
+
+    const battlefield = canvas.closest(".battlefield");
+    const canvasRect = canvas.getBoundingClientRect();
+    const battlefieldRect = battlefield.getBoundingClientRect();
+    const scaleX = canvasRect.width / canvas.width;
+    const scaleY = canvasRect.height / canvas.height;
+    const diameterX = range * 2 * scaleX;
+    const diameterY = range * 2 * scaleY;
+    const centerX = canvasRect.left - battlefieldRect.left + inspectedSurvivor.x * scaleX;
+    const centerY = canvasRect.top - battlefieldRect.top + inspectedSurvivor.y * scaleY;
+
+    ring.style.width = `${diameterX}px`;
+    ring.style.height = `${diameterY}px`;
+    ring.style.left = `${centerX - diameterX / 2}px`;
+    ring.style.top = `${centerY - diameterY / 2}px`;
+    ring.hidden = false;
+}
+
+window.addEventListener("resize", () => {
+    if (!mobileSelectionRangeRing?.hidden) {
+        window.requestAnimationFrame(syncMobileSelectionRangeOverlay);
+    }
+}, { passive: true });
+window.addEventListener("orientationchange", () => {
+    window.requestAnimationFrame(syncMobileSelectionRangeOverlay);
+}, { passive: true });
+
 function hideSurvivorDetails() {
     const detailsPanel = document.getElementById("survivorDetailsPanel");
     if (!detailsPanel) return;
+
+    // The mobile range ring lives outside the canvas so its animation can be
+    // handled by the browser compositor instead of forcing a full battlefield
+    // repaint every frame. Keep it in lockstep with the selected dossier.
+    hideMobileSelectionRangeOverlay();
 
     detailsPanel.classList.remove(
         "is-visible",
@@ -3165,6 +3249,8 @@ function showSurvivorDetails(id) {
     detailsPanel.style.removeProperty("overflow");
     detailsPanel.setAttribute("aria-expanded", "true");
     detailsPanel.setAttribute("aria-hidden", "false");
+
+    syncMobileSelectionRangeOverlay();
 
     const commandPanel = detailsPanel.closest(".control-panel");
     const isMobileLayout = window.matchMedia?.("(max-width: 900px)").matches;
@@ -4707,11 +4793,14 @@ function renderGame() {
 }
 }
 
+let battlefieldAtmosphereGradientCache = null;
+
 // A restrained animated pass over the static map gives the battlefield some
 // depth without softening the pixel art. The moving road glint makes the lane
 // readable during busy waves, while the vignette keeps attention on combat.
 function drawBattlefieldAtmosphere() {
     const time = performance.now();
+    const mobileViewport = isMobileGameplayViewport();
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
@@ -4729,23 +4818,37 @@ function drawBattlefieldAtmosphere() {
         ctx.restore();
     }
 
-    const topGlow = ctx.createLinearGradient(0, 0, 0, 190);
-    topGlow.addColorStop(0, "rgba(255, 255, 255, 0.045)");
-    topGlow.addColorStop(1, "rgba(255, 255, 255, 0)");
+    if (!battlefieldAtmosphereGradientCache ||
+        battlefieldAtmosphereGradientCache.width !== canvas.width ||
+        battlefieldAtmosphereGradientCache.height !== canvas.height) {
+        const topGlow = ctx.createLinearGradient(0, 0, 0, 190);
+        topGlow.addColorStop(0, "rgba(255, 255, 255, 0.045)");
+        topGlow.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+        const vignette = ctx.createRadialGradient(
+            canvas.width / 2,
+            canvas.height / 2,
+            170,
+            canvas.width / 2,
+            canvas.height / 2,
+            600
+        );
+        vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+        vignette.addColorStop(0.72, "rgba(0, 0, 0, 0.025)");
+        vignette.addColorStop(1, "rgba(3, 5, 7, 0.24)");
+        battlefieldAtmosphereGradientCache = {
+            width: canvas.width,
+            height: canvas.height,
+            topGlow,
+            vignette
+        };
+    }
+
+    const topGlow = battlefieldAtmosphereGradientCache.topGlow;
     ctx.fillStyle = topGlow;
     ctx.fillRect(0, 0, canvas.width, 190);
 
-    const vignette = ctx.createRadialGradient(
-        canvas.width / 2,
-        canvas.height / 2,
-        170,
-        canvas.width / 2,
-        canvas.height / 2,
-        600
-    );
-    vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
-    vignette.addColorStop(0.72, "rgba(0, 0, 0, 0.025)");
-    vignette.addColorStop(1, "rgba(3, 5, 7, 0.24)");
+    const vignette = battlefieldAtmosphereGradientCache.vignette;
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -4755,7 +4858,8 @@ function drawBattlefieldAtmosphere() {
     // the atmosphere feels consistent whenever a map is revisited.
     const particleSpanX = canvas.width + 48;
     const particleSpanY = canvas.height + 48;
-    for (let i = 0; i < 28; i++) {
+    const particleCount = mobileViewport ? 14 : 28;
+    for (let i = 0; i < particleCount; i++) {
         const speedX = 0.0048 + (i % 5) * 0.00105;
         const speedY = 0.00055 + (i % 4) * 0.00016;
         const rawX = (i * 151 + currentLevel * 37 + time * speedX) % particleSpanX;
@@ -4777,11 +4881,15 @@ function drawBattlefieldAtmosphere() {
 }
 
 function drawSelectedSurvivorRange() {
-    if (!inspectedSurvivor) return;
+    // Mobile uses a compositor-animated DOM ring. Skipping the canvas arc is
+    // important: otherwise selecting a survivor triggers a second animated
+    // layer and the entire 960x540 scene is repainted on every tick.
+    if (!inspectedSurvivor || isMobileGameplayViewport()) return;
     const range = getSurvivorStats(inspectedSurvivor)?.range;
     if (!range) return;
 
     ctx.save();
+    const now = performance.now();
 
     ctx.beginPath();
     ctx.arc(
@@ -4795,11 +4903,11 @@ function drawSelectedSurvivorRange() {
     ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
     ctx.fill();
 
-    const pulse = 0.72 + Math.sin(performance.now() / 180) * 0.16;
+    const pulse = 0.72 + Math.sin(now / 180) * 0.16;
     ctx.strokeStyle = `rgba(255, 255, 255, ${pulse})`;
     ctx.lineWidth = 2;
     ctx.setLineDash([8, 10]);
-    ctx.lineDashOffset = -(performance.now() / 90);
+    ctx.lineDashOffset = -(now / 90);
     ctx.stroke();
 
     // A small reticle makes the selected unit obvious even when several
@@ -9321,6 +9429,7 @@ const inGameSurvivorList = document.getElementById("inGameSurvivorList");
 let touchSurvivorDrag = null;
 let touchSurvivorDragTimer = null;
 let suppressRosterClickUntil = 0;
+let touchDragRenderQueued = false;
 
 function clearTouchSurvivorDrag() {
     if (touchSurvivorDragTimer !== null) {
@@ -9417,7 +9526,16 @@ document.addEventListener("touchmove", event => {
     if (overCanvas) {
         mouseX = (touch.clientX - rect.left) * canvas.width / rect.width;
         mouseY = (touch.clientY - rect.top) * canvas.height / rect.height;
-        renderGame();
+        // A finger can generate dozens of touchmove events per frame. Queue
+        // at most one preview render so mobile drag feedback cannot starve
+        // the browser's animation budget.
+        if (!touchDragRenderQueued) {
+            touchDragRenderQueued = true;
+            window.requestAnimationFrame(() => {
+                touchDragRenderQueued = false;
+                if (touchSurvivorDrag?.active) renderGame();
+            });
+        }
     }
 }, { passive: false });
 

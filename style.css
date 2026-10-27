@@ -2270,6 +2270,48 @@ main.game-layout > .control-panel {
         inset 0 1px 0 rgba(255, 237, 177, 0.05);
 }
 
+/* The mobile selection ring is a compositor animation rather than a second
+   canvas repaint. It keeps range feedback alive while the battlefield remains
+   responsive to touch. The ring is created by game.js only when a unit is
+   inspected on a phone-sized viewport. */
+.mobile-selection-range-ring {
+    position: absolute;
+    z-index: 3;
+    box-sizing: border-box;
+    border: 2px dashed rgba(255, 255, 255, 0.78);
+    border-radius: 50%;
+    pointer-events: none;
+    transform-origin: center;
+    animation: mobile-selection-range-pulse 1.35s ease-in-out infinite;
+    will-change: transform, opacity;
+    filter: drop-shadow(0 0 3px rgba(255, 239, 184, 0.3));
+}
+
+.mobile-selection-range-ring::after {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border: 1px solid rgba(243, 200, 110, 0.26);
+    border-radius: 50%;
+}
+
+@keyframes mobile-selection-range-pulse {
+    0%, 100% {
+        opacity: 0.6;
+        transform: scale(0.985) rotate(0deg);
+    }
+    50% {
+        opacity: 0.95;
+        transform: scale(1.012) rotate(3deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mobile-selection-range-ring {
+        animation: none;
+    }
+}
+
 /* Homepage update callout for the newly available account features. */
 #mainMenu .menu-whats-new {
     display: grid;
