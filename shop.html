@@ -242,7 +242,13 @@
         }
         const result = response.data?.[0] || response.data;
         if (!result?.success) {
-          setStatus(result?.result === 'insufficient_coins' ? 'NOT ENOUGH COINS FOR THIS CASE.' : 'PURCHASE COULD NOT BE COMPLETED.', true);
+          const failureMessages = {
+            sign_in_required: 'SIGN IN TO OPEN A RECRUITMENT CASE.',
+            invalid_recruit: 'THIS RECRUIT IS NOT IN THE DATABASE POOL. RUN THE UPDATED SHOP SQL.',
+            save_missing: 'ACCOUNT SAVE NOT FOUND. RETURN TO THE MAIN MENU AND SIGN IN AGAIN.',
+            insufficient_coins: 'NOT ENOUGH COINS FOR THIS CASE.',
+          };
+          setStatus(failureMessages[result?.result] || 'PURCHASE COULD NOT BE COMPLETED.', true);
           coins = Number(result?.coins) || coins;
           renderWallet();
           return;
