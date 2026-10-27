@@ -52,7 +52,7 @@ const survivorCostOverrides = {
     // targets relative to Mason's dependable common baseline.
     selena: 190,
     radhesh: 150,
-    bas: 145
+    bas: 200
 };
 const customRarityBalanceRules = {
     common: { cost: [50, 120], damage: [4, 24], range: [70, 190], fireRate: [0.55, 2.8] },
@@ -182,6 +182,50 @@ const horizontalEnemyLaneVisualOffset = 0;
 
 let currentLevel = 1;
 let gameMode = "campaign";
+
+// The first campaign operations are guided introductions with intentionally
+// fixed squads. Campaign uses the starter roster only; shop recruits remain
+// a separate reward for the other modes.
+const campaignTutorialSquads = {
+    1: ["james", "mason", "cody"],
+    2: ["james", "mason", "britney", "cody"]
+};
+// Campaign operations are designed around the six starter survivors. Shop
+// recruits remain special rewards for Endless, Daily Challenge, and Sandbox;
+// they never appear as campaign deployment options.
+const campaignStarterSurvivorIds = ["mason", "james", "cody", "britney", "zach", "brady"];
+
+// Campaign operations after the two fixed-squad introductions use the same
+// six starter survivors.  Shop recruits are intentionally excluded so the
+// campaign remains a fair, readable progression for every new account.
+const campaignStartingScrap = {
+    1: 400,
+    2: 550,
+    3: 500,
+    4: 550,
+    5: 600,
+    6: 650
+};
+function getCampaignSquadIds(level = currentLevel) {
+    return (campaignTutorialSquads[level] || []).filter(id =>
+        typeof survivorDetails === "undefined" || survivorDetails[id]
+    );
+}
+function getCampaignOpeningSquadIds() {
+    return getCampaignSquadIds(1);
+}
+function getCampaignLevelTwoSquadIds() {
+    return getCampaignSquadIds(2);
+}
+function isOpeningCampaignOperation() {
+    return gameMode === "campaign" && currentLevel === 1;
+}
+function isSecondCampaignOperation() {
+    return gameMode === "campaign" && currentLevel === 2;
+}
+function isGuidedCampaignOperation() {
+    return gameMode === "campaign" && Boolean(campaignTutorialSquads[currentLevel]);
+}
 
 // Sandbox deliberately shares Endless's wave, enemy, and economy rules, but
 // never writes records, awards leaderboard coins, or exposes score submission.
@@ -1552,6 +1596,157 @@ function getWaveGroups(wave) {
 
     if (isEndlessStyleMode()) return getEndlessWaveGroups(wave);
 
+    // Operation 01 is a deliberately readable tutorial arc. The first four
+    // waves teach the player the basic spider/skitter rhythm, then introduce
+    // armored cows after James explains their explosive weakness. Cows are
+    // always the final group on their mini-boss/boss waves so the player can
+    // read the threat before it reaches the safe zone.
+    if (isOpeningCampaignOperation()) {
+        const openingWaves = {
+            1: [{ type: "spider", count: 6 }],
+            2: [{ type: "spider", count: 6 }, { type: "skitter", count: 2 }],
+            3: [{ type: "spider", count: 7 }, { type: "skitter", count: 3 }],
+            4: [{ type: "spider", count: 8 }, { type: "skitter", count: 4 }],
+            5: [{ type: "spider", count: 8 }, { type: "skitter", count: 4 }, { type: "wastelandcow", count: 1 }],
+            6: [{ type: "spider", count: 8 }, { type: "skitter", count: 5 }, { type: "wastelandcow", count: 2 }],
+            7: [{ type: "spider", count: 9 }, { type: "skitter", count: 5 }, { type: "wastelandcow", count: 2 }],
+            8: [{ type: "spider", count: 9 }, { type: "skitter", count: 6 }, { type: "wastelandcow", count: 2 }],
+            9: [{ type: "spider", count: 10 }, { type: "skitter", count: 6 }, { type: "wastelandcow", count: 2 }],
+            10: [
+                { type: "spider", count: 10 },
+                { type: "skitter", count: 6 },
+                { type: "wastelandcow", count: 2 },
+                { type: "wastelandcow", count: 1, specialRole: "miniBoss" }
+            ],
+            11: [{ type: "spider", count: 11 }, { type: "skitter", count: 6 }, { type: "wastelandcow", count: 3 }],
+            12: [{ type: "spider", count: 12 }, { type: "skitter", count: 7 }, { type: "wastelandcow", count: 3 }],
+            13: [{ type: "spider", count: 12 }, { type: "skitter", count: 7 }, { type: "wastelandcow", count: 4 }],
+            14: [{ type: "spider", count: 13 }, { type: "skitter", count: 8 }, { type: "wastelandcow", count: 4 }],
+            15: [
+                { type: "spider", count: 13 },
+                { type: "skitter", count: 8 },
+                { type: "wastelandcow", count: 4 },
+                { type: "wastelandcow", count: 1, specialRole: "boss" }
+            ]
+        };
+        return openingWaves[wave] || openingWaves[15];
+    }
+
+    // Operation 02 introduces mutant snakes in small, readable batches. The
+    // first three waves remain familiar, then the splitter appears alone
+    // before joining the later cow and medic pressure.
+    if (isSecondCampaignOperation()) {
+        const snakeIntroWaves = {
+            1: [{ type: "spider", count: 6 }],
+            2: [{ type: "spider", count: 6 }, { type: "skitter", count: 2 }],
+            3: [{ type: "spider", count: 7 }, { type: "skitter", count: 3 }],
+            4: [{ type: "spider", count: 7 }, { type: "skitter", count: 3 }, { type: "mutantsnake", count: 1 }],
+            5: [{ type: "spider", count: 8 }, { type: "skitter", count: 4 }, { type: "mutantsnake", count: 1 }],
+            6: [{ type: "spider", count: 8 }, { type: "skitter", count: 4 }, { type: "mutantsnake", count: 2 }, { type: "wastelandcow", count: 1 }],
+            7: [{ type: "spider", count: 9 }, { type: "skitter", count: 5 }, { type: "mutantsnake", count: 2 }, { type: "wastelandcow", count: 1 }],
+            8: [{ type: "spider", count: 9 }, { type: "skitter", count: 5 }, { type: "mutantsnake", count: 2 }, { type: "wastelandcow", count: 1 }, { type: "hollow", count: 1 }],
+            9: [{ type: "spider", count: 10 }, { type: "skitter", count: 6 }, { type: "mutantsnake", count: 3 }, { type: "wastelandcow", count: 2 }],
+            10: [
+                { type: "spider", count: 10 },
+                { type: "skitter", count: 6 },
+                { type: "mutantsnake", count: 2 },
+                { type: "wastelandcow", count: 2 },
+                { type: "mutantsnake", count: 1, specialRole: "miniBoss" }
+            ],
+            11: [{ type: "spider", count: 11 }, { type: "skitter", count: 6 }, { type: "mutantsnake", count: 3 }, { type: "wastelandcow", count: 2 }, { type: "hollow", count: 1 }],
+            12: [{ type: "spider", count: 12 }, { type: "skitter", count: 7 }, { type: "mutantsnake", count: 4 }, { type: "wastelandcow", count: 3 }],
+            13: [{ type: "spider", count: 12 }, { type: "skitter", count: 7 }, { type: "mutantsnake", count: 4 }, { type: "wastelandcow", count: 3 }, { type: "mutantman", count: 1 }],
+            14: [{ type: "spider", count: 13 }, { type: "skitter", count: 8 }, { type: "mutantsnake", count: 5 }, { type: "wastelandcow", count: 3 }, { type: "hollow", count: 1 }],
+            15: [
+                { type: "spider", count: 13 },
+                { type: "skitter", count: 8 },
+                { type: "mutantsnake", count: 4 },
+                { type: "wastelandcow", count: 4 },
+                { type: "mutantsnake", count: 1, specialRole: "boss" }
+            ]
+        };
+        return snakeIntroWaves[wave] || snakeIntroWaves[15];
+    }
+
+    // Operations 03–06 continue the campaign tutorial with the starter
+    // roster only. Each chapter adds one readable threat or system before
+    // combining it with earlier lessons; counts stay intentionally modest so
+    // players have time to reposition and buy upgrades between waves.
+    const campaignWaveSets = {
+        3: {
+            1: [{ type: "spider", count: 6 }],
+            2: [{ type: "spider", count: 6 }, { type: "skitter", count: 2 }],
+            3: [{ type: "spider", count: 7 }, { type: "skitter", count: 2 }],
+            4: [{ type: "spider", count: 7 }, { type: "skitter", count: 3 }, { type: "mutantman", count: 1 }],
+            5: [{ type: "spider", count: 7 }, { type: "skitter", count: 3 }, { type: "mutantman", count: 1 }],
+            6: [{ type: "spider", count: 8 }, { type: "skitter", count: 3 }, { type: "mutantman", count: 1 }],
+            7: [{ type: "spider", count: 8 }, { type: "skitter", count: 4 }, { type: "mutantman", count: 1 }, { type: "hollow", count: 1 }],
+            8: [{ type: "spider", count: 8 }, { type: "skitter", count: 4 }, { type: "mutantman", count: 2 }, { type: "hollow", count: 1 }],
+            9: [{ type: "spider", count: 9 }, { type: "skitter", count: 4 }, { type: "mutantman", count: 2 }, { type: "hollow", count: 1 }],
+            10: [{ type: "spider", count: 9 }, { type: "skitter", count: 4 }, { type: "mutantman", count: 2 }, { type: "hollow", count: 1 }, { type: "mutantman", count: 1, specialRole: "miniBoss" }],
+            11: [{ type: "spider", count: 10 }, { type: "skitter", count: 5 }, { type: "mutantman", count: 2 }, { type: "hollow", count: 1 }],
+            12: [{ type: "spider", count: 10 }, { type: "skitter", count: 5 }, { type: "mutantman", count: 3 }, { type: "hollow", count: 1 }],
+            13: [{ type: "spider", count: 10 }, { type: "skitter", count: 5 }, { type: "mutantman", count: 3 }, { type: "hollow", count: 2 }],
+            14: [{ type: "spider", count: 11 }, { type: "skitter", count: 5 }, { type: "mutantman", count: 3 }, { type: "hollow", count: 2 }],
+            15: [{ type: "spider", count: 11 }, { type: "skitter", count: 6 }, { type: "mutantman", count: 3 }, { type: "hollow", count: 2 }, { type: "mutantman", count: 1, specialRole: "boss" }]
+        },
+        4: {
+            1: [{ type: "spider", count: 6 }],
+            2: [{ type: "spider", count: 6 }, { type: "skitter", count: 2 }],
+            3: [{ type: "spider", count: 7 }, { type: "skitter", count: 2 }],
+            4: [{ type: "spider", count: 7 }, { type: "skitter", count: 3 }, { type: "spiderRunner", count: 1 }],
+            5: [{ type: "spider", count: 7 }, { type: "skitter", count: 3 }, { type: "spiderRunner", count: 1 }, { type: "wastelandcow", count: 1 }],
+            6: [{ type: "spider", count: 8 }, { type: "skitter", count: 3 }, { type: "spiderRunner", count: 1 }, { type: "wastelandcow", count: 1 }, { type: "mutantsnake", count: 1 }],
+            7: [{ type: "spider", count: 8 }, { type: "skitter", count: 4 }, { type: "spiderRunner", count: 1 }, { type: "wastelandcow", count: 1 }, { type: "mutantsnake", count: 1 }],
+            8: [{ type: "spider", count: 8 }, { type: "skitter", count: 4 }, { type: "wastelandcow", count: 2 }, { type: "mutantsnake", count: 1 }, { type: "mutantman", count: 1 }],
+            9: [{ type: "spider", count: 9 }, { type: "skitter", count: 4 }, { type: "wastelandcow", count: 2 }, { type: "mutantsnake", count: 2 }],
+            10: [{ type: "spider", count: 9 }, { type: "skitter", count: 5 }, { type: "wastelandcow", count: 2 }, { type: "mutantsnake", count: 2 }, { type: "spiderBrute", count: 1 }, { type: "wastelandcow", count: 1, specialRole: "miniBoss" }],
+            11: [{ type: "spider", count: 10 }, { type: "skitter", count: 5 }, { type: "wastelandcow", count: 2 }, { type: "mutantsnake", count: 2 }, { type: "mutantman", count: 1 }],
+            12: [{ type: "spider", count: 10 }, { type: "skitter", count: 6 }, { type: "wastelandcow", count: 3 }, { type: "mutantsnake", count: 2 }, { type: "hollow", count: 1 }],
+            13: [{ type: "spider", count: 10 }, { type: "skitter", count: 6 }, { type: "wastelandcow", count: 3 }, { type: "mutantsnake", count: 3 }, { type: "mutantman", count: 1 }],
+            14: [{ type: "spider", count: 11 }, { type: "skitter", count: 6 }, { type: "wastelandcow", count: 3 }, { type: "mutantsnake", count: 3 }, { type: "hollow", count: 1 }],
+            15: [{ type: "spider", count: 11 }, { type: "skitter", count: 7 }, { type: "wastelandcow", count: 3 }, { type: "mutantsnake", count: 3 }, { type: "spiderBrute", count: 1 }, { type: "wastelandcow", count: 1, specialRole: "boss" }]
+        },
+        5: {
+            1: [{ type: "spider", count: 7 }],
+            2: [{ type: "spider", count: 7 }, { type: "skitter", count: 2 }],
+            3: [{ type: "spider", count: 8 }, { type: "skitter", count: 3 }, { type: "mutantman", count: 1 }],
+            4: [{ type: "spider", count: 8 }, { type: "skitter", count: 3 }, { type: "wastelandcow", count: 1 }, { type: "mutantsnake", count: 1 }],
+            5: [{ type: "spider", count: 8 }, { type: "skitter", count: 3 }, { type: "wastelandcow", count: 1 }, { type: "mutantsnake", count: 1 }, { type: "hollow", count: 1 }],
+            6: [{ type: "spider", count: 8 }, { type: "skitter", count: 4 }, { type: "wastelandcow", count: 2 }, { type: "mutantsnake", count: 1 }, { type: "mutantman", count: 1 }],
+            7: [{ type: "spider", count: 9 }, { type: "skitter", count: 4 }, { type: "wastelandcow", count: 2 }, { type: "mutantsnake", count: 2 }, { type: "mutantman", count: 1 }],
+            8: [{ type: "spider", count: 9 }, { type: "skitter", count: 5 }, { type: "wastelandcow", count: 2 }, { type: "mutantsnake", count: 2 }, { type: "hollow", count: 1 }],
+            9: [{ type: "spider", count: 9 }, { type: "skitter", count: 5 }, { type: "wastelandcow", count: 2 }, { type: "mutantsnake", count: 2 }, { type: "fogkeeper", count: 1 }],
+            10: [{ type: "spider", count: 10 }, { type: "skitter", count: 5 }, { type: "wastelandcow", count: 2 }, { type: "mutantsnake", count: 2 }, { type: "hollow", count: 1 }, { type: "fogkeeper", count: 1, specialRole: "miniBoss" }],
+            11: [{ type: "spider", count: 10 }, { type: "skitter", count: 6 }, { type: "wastelandcow", count: 3 }, { type: "mutantsnake", count: 2 }, { type: "mutantsnakered", count: 1 }, { type: "mutantman", count: 1 }],
+            12: [{ type: "spider", count: 10 }, { type: "skitter", count: 6 }, { type: "wastelandcow", count: 3 }, { type: "mutantsnake", count: 3 }, { type: "fogkeeper", count: 1 }],
+            13: [{ type: "spider", count: 11 }, { type: "skitter", count: 6 }, { type: "wastelandcow", count: 3 }, { type: "mutantsnake", count: 3 }, { type: "mutantsnakered", count: 1 }, { type: "hollow", count: 1 }],
+            14: [{ type: "spider", count: 11 }, { type: "skitter", count: 7 }, { type: "wastelandcow", count: 3 }, { type: "mutantsnake", count: 3 }, { type: "fogkeeper", count: 1 }, { type: "heavymutant", count: 1 }],
+            15: [{ type: "spider", count: 12 }, { type: "skitter", count: 7 }, { type: "wastelandcow", count: 3 }, { type: "mutantsnake", count: 3 }, { type: "mutantsnakered", count: 1 }, { type: "hollow", count: 1 }, { type: "heavymutant", count: 1, specialRole: "boss" }]
+        },
+        6: {
+            1: [{ type: "spider", count: 7 }, { type: "skitter", count: 2 }],
+            2: [{ type: "spider", count: 8 }, { type: "skitter", count: 3 }, { type: "mutantman", count: 1 }],
+            3: [{ type: "spider", count: 8 }, { type: "skitter", count: 3 }, { type: "mutantsnake", count: 1 }, { type: "wastelandcow", count: 1 }],
+            4: [{ type: "spider", count: 9 }, { type: "skitter", count: 4 }, { type: "mutantsnake", count: 1 }, { type: "wastelandcow", count: 1 }, { type: "hollow", count: 1 }],
+            5: [{ type: "spider", count: 9 }, { type: "skitter", count: 4 }, { type: "mutantsnake", count: 2 }, { type: "wastelandcow", count: 2 }, { type: "mutantman", count: 1 }],
+            6: [{ type: "spider", count: 9 }, { type: "skitter", count: 4 }, { type: "mutantsnake", count: 2 }, { type: "wastelandcow", count: 2 }, { type: "mutantman", count: 1 }],
+            7: [{ type: "spider", count: 9 }, { type: "skitter", count: 5 }, { type: "mutantsnake", count: 2 }, { type: "wastelandcow", count: 2 }, { type: "hollow", count: 1 }],
+            8: [{ type: "spider", count: 10 }, { type: "skitter", count: 5 }, { type: "mutantsnake", count: 2 }, { type: "mutantsnakered", count: 1 }, { type: "wastelandcow", count: 2 }, { type: "fogkeeper", count: 1 }],
+            9: [{ type: "spider", count: 10 }, { type: "skitter", count: 6 }, { type: "mutantsnake", count: 3 }, { type: "mutantsnakered", count: 1 }, { type: "wastelandcow", count: 2 }, { type: "mutantman", count: 1 }],
+            10: [{ type: "spider", count: 10 }, { type: "skitter", count: 6 }, { type: "mutantsnake", count: 3 }, { type: "mutantsnakered", count: 1 }, { type: "wastelandcow", count: 3 }, { type: "hollow", count: 1 }, { type: "fogkeeper", count: 1, specialRole: "miniBoss" }],
+            11: [{ type: "spider", count: 11 }, { type: "skitter", count: 6 }, { type: "mutantsnake", count: 3 }, { type: "mutantsnakered", count: 1 }, { type: "wastelandcow", count: 3 }, { type: "mutantman", count: 2 }],
+            12: [{ type: "spider", count: 11 }, { type: "skitter", count: 7 }, { type: "mutantsnake", count: 4 }, { type: "mutantsnakered", count: 1 }, { type: "wastelandcow", count: 3 }, { type: "hollow", count: 1 }, { type: "fogkeeper", count: 1 }],
+            13: [{ type: "spider", count: 12 }, { type: "skitter", count: 7 }, { type: "mutantsnake", count: 4 }, { type: "mutantsnakered", count: 2 }, { type: "wastelandcow", count: 3 }, { type: "mutantman", count: 2 }],
+            14: [{ type: "spider", count: 12 }, { type: "skitter", count: 8 }, { type: "mutantsnake", count: 4 }, { type: "mutantsnakered", count: 2 }, { type: "wastelandcow", count: 4 }, { type: "hollow", count: 2 }, { type: "heavymutant", count: 1 }],
+            15: [{ type: "spider", count: 13 }, { type: "skitter", count: 8 }, { type: "mutantsnake", count: 4 }, { type: "mutantsnakered", count: 2 }, { type: "wastelandcow", count: 4 }, { type: "hollow", count: 2 }, { type: "heavymutant", count: 1 }, { type: "heavymutant", count: 1, specialRole: "boss" }]
+        }
+    };
+    if (gameMode === "campaign" && campaignWaveSets[currentLevel]) {
+        const campaignWaves = campaignWaveSets[currentLevel];
+        return campaignWaves[wave] || campaignWaves[15];
+    }
+
     const waveGroups = {
         1: [{ type: "spider", count: 8 }],
         2: [
@@ -1841,6 +2036,28 @@ function getEndlessTelemetrySnapshot(finalWave, outcome = "defeat") {
 
 function startWave() {
     if (!gameRunning || waveRunning) return;
+
+    if (isOpeningCampaignOperation() && currentWave === 5 && !campaignCowWarningShown) {
+        cancelAutoStartWave();
+        showCampaignCowWarningDialogue();
+        return;
+    }
+
+    // Campaign chapters pause once before their first new threat, giving the
+    // player a clear explanation without consuming a wave. Upgrades remain
+    // available before and after every briefing.
+    const campaignBriefing = campaignBriefings[currentLevel];
+    const briefingWave = campaignBriefing?.wave || 5;
+    const briefingKind = `wave${briefingWave}`;
+    if (gameMode === "campaign" && currentLevel >= 2 && currentWave === briefingWave) {
+        const briefingKey = `${currentLevel}:${briefingWave}`;
+        if (!campaignDialogueShown.has(briefingKey) && campaignBriefing?.[briefingKind]) {
+            campaignDialogueShown.add(briefingKey);
+            cancelAutoStartWave();
+            showCampaignBriefing(currentLevel, briefingKind, () => startWave());
+            return;
+        }
+    }
 
     cancelAutoStartWave();
     awaitingNextWave = false;
@@ -3026,19 +3243,6 @@ updateSurvivorTargetingControl(deployedUnit || null);
 updateSurvivorUpgradeButton(deployedUnit || null);
 updateSellButton();
 updateMoveButton();
-
-    // On a phone the roster is kept at the top of the command panel. Once a
-    // card is selected, bring its dossier into view instead of making the
-    // player hunt for it below the roster.
-    if (window.matchMedia?.("(max-width: 900px)").matches) {
-        window.requestAnimationFrame(() => {
-            detailsPanel.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-                inline: "nearest"
-            });
-        });
-    }
 }
 
 
@@ -4904,7 +5108,9 @@ function updateWaveSystem(deltaTime) {
                 `#level${currentLevel}Button strong`
             )?.textContent || `LEVEL ${String(currentLevel).padStart(2, "0")}`;
             document.getElementById("victoryMessage").textContent =
-                `${missionTitle} is secure. Your squad cleared every wave.`;
+                currentLevel === 6
+                    ? "The gates are open. The safe zone is real. You made it through the worst of the wasteland—but this is only the beginning."
+                    : `${missionTitle} is secure. Your squad cleared every wave.`;
             updateRunRecap(totalWaves);
             setMuteButtonVisible(false);
             document.getElementById("victoryScreen").style.display = "flex";
@@ -7586,32 +7792,140 @@ function showLevelSelect() {
 
 const openingDialogue =
         "I heard there was a safe zone in the city. But this area is overrun with mutant spiders and who knows what else. We have to move fast!";
+const cowWarningDialogue =
+        "Keep your eyes open for those pesky mutant cows. Their armor shrugs off ordinary fire, but explosives hit them hard. Bring Cody online before the herd reaches the safe zone.";
+const britneyIntroductionDialogue =
+        "Hey hotshot! I'm Britney, mind if me and my rifle tag along?";
+
+// Short campaign briefings teach one new threat or decision at a time.  The
+// six campaign operations deliberately use only the starter roster; these
+// portraits also keep the story readable on small screens.
+const campaignBriefings = {
+    2: {
+        wave: 4,
+        wave4: {
+            portrait: "britney",
+            text: "Those writhing shapes are mutant snakes. Keep them under control before they split, and let Cody's explosives soften the pack."
+        }
+    },
+    3: {
+        wave: 5,
+        opening: {
+            portrait: "zach",
+            text: "The streets are getting faster. Keep your eyes open and don't let the runners slip past."
+        },
+        wave5: {
+            portrait: "zach",
+            text: "Those dark figures are Mutant Men. They hit harder than spiders, but they are slow enough to punish with range and focused fire."
+        }
+    },
+    4: {
+        wave: 5,
+        opening: {
+            portrait: "brady",
+            text: "This place is falling apart. We can still hold the line, but every survivor needs to pull their weight."
+        },
+        wave5: {
+            portrait: "brady",
+            text: "Cows are pushing through again. Use Cody's blasts to break the pack, and keep me where a shotgun can stall anything that gets close."
+        }
+    },
+    5: {
+        wave: 5,
+        opening: {
+            portrait: "britney",
+            text: "The factories are still running. Whatever is coming through those gates is tougher than anything we've faced before."
+        },
+        wave5: {
+            portrait: "britney",
+            text: "Watch the armor. Some targets shrug off ordinary hits, while support creatures keep the whole wave alive. Spend your scrap with a plan."
+        }
+    },
+    6: {
+        wave: 5,
+        opening: {
+            portrait: "mason",
+            text: "This is it. The safe zone is ahead, but the whole wasteland is moving against us. Set up carefully, watch the road, and keep everyone alive."
+        },
+        wave5: {
+            portrait: "mason",
+            text: "Everything we've learned comes down to this. Watch for armor, splitters, healers, and heavy targets—and react before the road is full."
+        }
+    }
+};
 
 let dialogueIndex = 0;
 let dialogueTimer = null;
 let dialogueFinished = false;
+let activeDialogueText = "";
+let activeDialogueAfterClose = null;
+let campaignCowWarningShown = false;
+let campaignDialogueShown = new Set();
 
-function showOpeningDialogue() {
+function showStoryDialogue(dialogue, afterClose = null, portraitId = "james") {
     const box = document.getElementById("storyDialogue");
     const text = document.getElementById("dialogueText");
+    const portrait = box?.querySelector(".dialogue-portrait");
+    const speaker = box?.querySelector(".dialogue-speaker");
 
     clearInterval(dialogueTimer);
 
+    activeDialogueText = dialogue;
+    activeDialogueAfterClose = afterClose;
     dialogueIndex = 0;
     dialogueFinished = false;
     text.textContent = "";
+    if (portrait) {
+        const portraitSource = typeof profilePortraitSources !== "undefined"
+            ? profilePortraitSources[portraitId]
+            : null;
+        if (portraitSource) portrait.src = portraitSource;
+        portrait.alt = survivorDetails?.[portraitId]?.name || "James";
+        portrait.dataset.portraitId = portraitId;
+    }
+    if (speaker) {
+        const speakerName = survivorDetails?.[portraitId]?.name || "SURVIVOR";
+        const speakerRole = portraitId === "james"
+            ? "FIRESTARTER"
+            : survivorDetails?.[portraitId]?.role || "SURVIVOR";
+        speaker.textContent = `${speakerName.toUpperCase()} // ${speakerRole}`;
+    }
     box.style.display = "flex";
     document.getElementById("startWaveButton").disabled = true;
 
     dialogueTimer = setInterval(() => {
-        if (dialogueIndex < openingDialogue.length) {
-            text.textContent += openingDialogue[dialogueIndex];
+        if (dialogueIndex < activeDialogueText.length) {
+            text.textContent += activeDialogueText[dialogueIndex];
             dialogueIndex++;
         } else {
             clearInterval(dialogueTimer);
             dialogueFinished = true;
         }
     }, 35);
+}
+
+function showOpeningDialogue() {
+    showStoryDialogue(openingDialogue);
+}
+
+function showBritneyIntroductionDialogue() {
+    showStoryDialogue(britneyIntroductionDialogue, null, "britney");
+}
+
+function showCampaignBriefing(level = currentLevel, kind = "opening", afterClose = null) {
+    const briefing = campaignBriefings[level]?.[kind];
+    if (!briefing) return false;
+    showStoryDialogue(briefing.text, afterClose, briefing.portrait);
+    return true;
+}
+
+function showCampaignCowWarningDialogue() {
+    campaignCowWarningShown = true;
+    showStoryDialogue(cowWarningDialogue, () => {
+        // Continue directly into wave 5 so the warning also works when auto
+        // start is enabled and no extra button press is required.
+        startWave();
+    });
 }
 
 function bindUIEvent(id, eventName, handler, options) {
@@ -7628,13 +7942,16 @@ function bindUIEvent(id, eventName, handler, options) {
 bindUIEvent("dialogueContinue", "click", () => {
     if (!dialogueFinished) {
         clearInterval(dialogueTimer);
-        document.getElementById("dialogueText").textContent = openingDialogue;
+        document.getElementById("dialogueText").textContent = activeDialogueText;
         dialogueFinished = true;
         return;
     }
 
     document.getElementById("storyDialogue").style.display = "none";
     document.getElementById("startWaveButton").disabled = false;
+    const afterClose = activeDialogueAfterClose;
+    activeDialogueAfterClose = null;
+    if (typeof afterClose === "function") afterClose();
 });
 
 function applyLoadoutToDeployment(loadout) {
@@ -7743,10 +8060,36 @@ function showDeployment(level = 1) {
         dailyMapPanel.hidden = true;
     }
     updateDeploymentRosterAvailability();
+    const guidedCampaign = isGuidedCampaignOperation();
+    if (guidedCampaign) {
+        // The opening campaign operations are story tutorials: their squads
+        // are fixed and cannot be replaced by a saved loadout or roster choice.
+        const guidedSquad = isSecondCampaignOperation()
+            ? getCampaignLevelTwoSquadIds()
+            : getCampaignOpeningSquadIds();
+        selectedSurvivors.clear();
+        guidedSquad.forEach(id => selectedSurvivors.add(id));
+        pendingLoadoutIds = null;
+        document.querySelector(".deployment-subtitle").textContent =
+            `Opening squad locked: ${guidedSquad
+                .map(id => survivorDetails[id]?.name || id)
+                .join(" · ")}.`;
+        document.getElementById("deploymentMessage").textContent =
+            "This operation begins with a fixed three-survivor squad.";
+        if (isSecondCampaignOperation()) {
+            document.getElementById("deploymentMessage").textContent =
+                "This operation begins with a fixed four-survivor squad.";
+        }
+        document.querySelectorAll("#deploymentRoster button[data-survivor]").forEach(card => {
+            const selected = selectedSurvivors.has(card.dataset.survivor);
+            card.classList.toggle("selected", selected);
+            card.setAttribute("aria-pressed", String(selected));
+        });
+    }
     const deploymentSort = document.getElementById("deploymentRosterSort");
     if (deploymentSort) deploymentSort.value = rosterSortMode;
     sortDeploymentRosterCards();
-    if (pendingLoadoutIds && gameMode !== "daily") {
+    if (pendingLoadoutIds && gameMode !== "daily" && !guidedCampaign) {
         selectedSurvivors.clear();
         pendingLoadoutIds
             .filter(id => isSurvivorAvailableForCurrentMode(id))
@@ -7785,6 +8128,17 @@ const selectedSurvivors = new Set();
 function isSurvivorAvailableForCurrentMode(id) {
     const survivor = survivorDetails[id];
     if (!survivor) return false;
+    if (isGuidedCampaignOperation()) {
+        const guidedSquad = isSecondCampaignOperation()
+            ? getCampaignLevelTwoSquadIds()
+            : getCampaignOpeningSquadIds();
+        return guidedSquad.includes(id);
+    }
+    if (gameMode === "campaign") {
+        // Campaign progression is balanced around the six starter survivors;
+        // shop recruits remain a separate long-term reward for other modes.
+        return campaignStarterSurvivorIds.includes(id);
+    }
     if (gameMode === "sandbox") {
         // Sandbox is a testing range: every built-in and custom survivor is
         // selectable without changing the account's unlocked roster.
@@ -7800,6 +8154,13 @@ function isSurvivorAvailableForCurrentMode(id) {
 }
 
 function startDefense() {
+    if (isGuidedCampaignOperation()) {
+        const guidedSquad = isSecondCampaignOperation()
+            ? getCampaignLevelTwoSquadIds()
+            : getCampaignOpeningSquadIds();
+        selectedSurvivors.clear();
+        guidedSquad.forEach(id => selectedSurvivors.add(id));
+    }
     const unavailableSurvivor = [...selectedSurvivors]
         .find(id => !isSurvivorAvailableForCurrentMode(id));
     if (unavailableSurvivor) {
@@ -7827,6 +8188,7 @@ function startDefense() {
     updateEndlessSubmissionUI();
     updateDailyScoreSubmissionUI();
     document.getElementById("endlessCoinReward").hidden = true;
+    campaignCowWarningShown = false;
 
     activeCampaignRunId = gameMode === "campaign" ? createRunId() : null;
     activeEndlessRunId = gameMode === "endless" ? createRunId() : null;
@@ -7877,7 +8239,9 @@ function startDefense() {
             ? 150
             : gameMode === "daily"
                 ? 300
-                : 250;
+                : gameMode === "campaign"
+                    ? (campaignStartingScrap[currentLevel] || 250)
+                    : 250;
 
     updateScrapDisplay();
     updatePlayerHealthDisplay();
@@ -7908,9 +8272,14 @@ spawnTimer = 0;
 moveMode = false;
     document.getElementById("waveStatus").textContent =
         "Prepare your defenses.";
+        campaignDialogueShown = new Set();
         if (gameMode === "campaign" && currentLevel === 1) {
-    showOpeningDialogue();
-}
+            showOpeningDialogue();
+        } else if (isSecondCampaignOperation()) {
+            showBritneyIntroductionDialogue();
+        } else if (gameMode === "campaign") {
+            showCampaignBriefing(currentLevel, "opening");
+        }
 }
 
 bindUIEvent("campaignButton", "click", () => {
@@ -8823,6 +9192,12 @@ function updateDeploymentRosterAvailability() {
 survivorCards.forEach(card => {
     card.addEventListener("click", () => {
         const survivorId = card.dataset.survivor;
+
+        if (isGuidedCampaignOperation()) {
+            document.getElementById("deploymentMessage").textContent =
+                "The opening squad is locked for this operation.";
+            return;
+        }
 
         if (!isSurvivorAvailableForCurrentMode(survivorId)) {
             document.getElementById("deploymentMessage").textContent =
