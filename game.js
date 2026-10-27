@@ -64,8 +64,12 @@ const survivorCostOverrides = {
     // targets relative to Mason's dependable common baseline.
     selena: 190,
     radhesh: 150,
-    bas: 200
+    bas: 200,
+    nathan: 90
 };
+// Keep full survivor sprite footprints from visually merging in staging areas.
+// The same value is used by placement validation and its preview.
+const survivorPlacementMinimumDistance = 58;
 const customRarityBalanceRules = customBalanceConfig.rarityRules;
 const clampCustomStat = (value, range, fallback) =>
     Math.min(range[1], Math.max(range[0], Number(value) || fallback));
@@ -207,12 +211,15 @@ const campaignStarterSurvivorIds = ["mason", "james", "cody", "britney", "zach",
 // six starter survivors.  Shop recruits are intentionally excluded so the
 // campaign remains a fair, readable progression for every new account.
 const campaignStartingScrap = {
-    1: 400,
-    2: 550,
-    3: 500,
-    4: 550,
-    5: 600,
-    6: 650
+    // The tutorial squads cost 325 (level 1) and 485 (level 2), so each
+    // opening operation still supports its intended roster without giving
+    // the player a large bank to snowball from.
+    1: 350,
+    2: 500,
+    3: 375,
+    4: 400,
+    5: 425,
+    6: 450
 };
 function getCampaignSquadIds(level = currentLevel) {
     return (campaignTutorialSquads[level] || []).filter(id =>
@@ -1076,15 +1083,25 @@ const enemyProfiles = {
         spriteBottomRatio: 30 / 32,
         leakDamage: enemyDamage,
         isArmored: true,
-        // Armor should reward bringing a counter, not make ordinary weapons
-        // feel completely useless.  The resistance and armor stack below
-        // still make ballistic fire a poor choice, but leave room for skill.
+        // Armor should make ordinary gunfire a poor answer while leaving a
+        // clear, satisfying counter in the roster.  Keep the extra damage
+        // family separate from the base armor multiplier so the matchup is
+        // visible in the damage numbers and the wave preview.
         armorMultiplier: 0.72,
-        // Explosives should be a clear answer to armor. Cody's armor-piercing
-        // launcher still applies a small armor factor, so this multiplier
-        // makes the matchup feel meaningfully better without deleting cows.
-        weaknesses: { explosive: 1.45, blunt: 1.1 },
-        resistances: { ballistic: 0.8 }
+        // Cows shrug off every ordinary damage family.  Explosives are the
+        // single intended counter, hitting the exposed joints in their
+        // plating.  The per-family values keep fire, melee, and precision
+        // useful without letting them melt an armored wave.
+        weaknesses: { explosive: 1.65 },
+        resistances: {
+            ballistic: 0.45,
+            shotgun: 0.55,
+            fire: 0.55,
+            precision: 0.5,
+            melee: 0.6,
+            blunt: 0.6,
+            piercing: 0.6
+        }
     },
     mutantman: {
         image: mutantManImage,
@@ -1106,7 +1123,9 @@ const enemyProfiles = {
         spriteBottomRatio: 27 / 32,
         leakDamage: 6,
         isSplitter: true,
-        weaknesses: { fire: 1.35 },
+        // Snakes are deliberately very vulnerable to James/WILLIAM-style
+        // fire damage so bringing a fire counter is a meaningful choice.
+        weaknesses: { fire: 2.7 },
         resistances: { ballistic: 0.9 }
     },
     mutantsnakered: {
@@ -1149,7 +1168,7 @@ const enemyDescriptions = {
     hollow: "A field medic that periodically heals nearby hostiles.",
     fogkeeper: "A slow heavy hostile with high health and an explosive weakness.",
     heavymutant: "A very durable heavy hostile with an explosive weakness.",
-    wastelandcow: "Armored contact: resists ballistic fire but is weak to explosives and blunt hits.",
+    wastelandcow: "Armored contact: resists every ordinary attack and is vulnerable only to explosives.",
     mutantman: "A standard hostile with steady speed and health.",
     mutantsnake: "A fire-vulnerable splitter that releases two skitters when defeated.",
     mutantsnakered: "A hardened splitter that ignores fire and releases two skitters when defeated."
@@ -1192,6 +1211,10 @@ const damageTypeLabels = {
 
 function getSurvivorDamageType(survivor) {
     return survivorDamageTypes[survivor?.type] || "ballistic";
+}
+
+function getSurvivorDamageTypeForId(id) {
+    return survivorDamageTypes[id] || getSurvivorDamageType(survivorDetails[id]);
 }
 
 function getEnemyDamageMultiplier(enemy, damageType) {
@@ -1308,6 +1331,13 @@ function getEnemyHealthForWave(type, specialRole = "normal", wave = currentWave,
             ? (1.25 + Math.min(0.2, Math.floor(wave / 25) * 0.04))
                 * (endlessDifficulty?.miniBossHealthMultiplier || 1)
             : 1;
+    // Campaign wave 15 is the chapter finale. Give its boss a clear health
+    // checkpoint without changing the regular campaign curve or Endless.
+    const campaignFinaleBossMultiplier = gameMode === "campaign"
+        && wave === 15
+        && specialRole === "boss"
+        ? 2
+        : 1;
     const lateQualityTier = isEndlessStyleMode()
         ? Math.max(0, Math.floor((wave - 50) / 10))
         : 0;
@@ -1329,6 +1359,7 @@ function getEnemyHealthForWave(type, specialRole = "normal", wave = currentWave,
         profile.baseHealth
         * waveHealthScale
         * specialHealthScale
+        * campaignFinaleBossMultiplier
         * healthScale
         * lateQualityBonus
         * (endlessDifficulty?.healthMultiplier || 1)
@@ -2224,6 +2255,11 @@ const scrapRewardPerKill = 5;
 // be farmed for money.
 const endlessKillScrapPerKill = 1;
 const killScrapChance = 0.5;
+// Campaign uses a deliberately tighter economy than the open-ended modes.
+// Kills provide a light trickle rather than enough income to snowball a full
+// roster, while wave rewards remain the dependable way to fund a new unit.
+const campaignKillScrapPerKill = 2;
+const campaignKillScrapChance = 0.4;
 
 function updateScrapDisplay() {
     document.getElementById("scrapDisplay").textContent = scrap;
@@ -2312,7 +2348,7 @@ canvas.addEventListener("click", function(event) {
                 const dx = survivor.x - clickX;
                 const dy = survivor.y - clickY;
 
-                if (Math.sqrt(dx * dx + dy * dy) < 45) {
+                if (Math.sqrt(dx * dx + dy * dy) < survivorPlacementMinimumDistance) {
                     updateDeploymentMessage(
                         "That spot is too close to another survivor."
                     );
@@ -2397,7 +2433,7 @@ canvas.addEventListener("click", function(event) {
         return;
     }
 
-    const minimumDistance = 45;
+    const minimumDistance = survivorPlacementMinimumDistance;
 
     for (const survivor of survivors) {
         const dx = survivor.x - x;
@@ -2484,7 +2520,7 @@ canvas.addEventListener("click", function(event) {
         const dx = survivor.x - x;
         const dy = survivor.y - y;
 
-        if (Math.sqrt(dx * dx + dy * dy) < 45) {
+        if (Math.sqrt(dx * dx + dy * dy) < survivorPlacementMinimumDistance) {
             document.getElementById("deploymentMessage").textContent =
                 "That spot is too close to another survivor.";
             return;
@@ -2620,8 +2656,12 @@ function getSurvivorUpgradePulse(survivor, now = performance.now()) {
     return Math.sin(Math.max(0, Math.min(1, progress)) * Math.PI);
 }
 
-function drawSurvivors(onlySurvivor = null) {
-    const mobileViewport = isMobileGameplayViewport();
+// Survivor art comes from several sources and does not always use the same
+// transparent padding below the feet. Measure each image once so every model
+// can share the same visual ground line without doing pixel work per frame.
+const survivorSpriteMetricsCache = new WeakMap();
+
+function getSurvivorImage(type) {
     const survivorImages = {
         mason: masonImage,
         james: jamesImage,
@@ -2630,10 +2670,66 @@ function drawSurvivors(onlySurvivor = null) {
         zach: zachImage,
         brady: bradyImage
     };
+    return survivorImages[type] || customSurvivorImages[type] || null;
+}
 
-    for (const survivor of survivors) {
+function getSurvivorSpriteMetrics(image) {
+    if (!image || !image.complete || image.naturalWidth === 0) {
+        return { bottomInset: 0 };
+    }
+
+    const cached = survivorSpriteMetricsCache.get(image);
+    if (cached) return cached;
+
+    let metrics = { bottomInset: 0 };
+    try {
+        const sample = document.createElement("canvas");
+        sample.width = 64;
+        sample.height = 64;
+        const sampleCtx = sample.getContext("2d", { willReadFrequently: true });
+        sampleCtx.clearRect(0, 0, 64, 64);
+        sampleCtx.drawImage(image, 0, 0, 64, 64);
+        const pixels = sampleCtx.getImageData(0, 0, 64, 64).data;
+        let maxY = -1;
+
+        for (let y = 0; y < 64; y += 1) {
+            for (let x = 0; x < 64; x += 1) {
+                if (pixels[(y * 64 + x) * 4 + 3] > 12) maxY = y;
+            }
+        }
+
+        if (maxY >= 0) metrics = { bottomInset: Math.max(0, 63 - maxY) };
+    } catch (error) {
+        // If a package image cannot be sampled, leave its existing placement.
+        metrics = { bottomInset: 0 };
+    }
+
+    survivorSpriteMetricsCache.set(image, metrics);
+    return metrics;
+}
+
+function getSurvivorVisualTop(survivor, bounce = 0, selectionNudge = 0, placementNudge = 0, upgradeNudge = 0) {
+    const image = getSurvivorImage(survivor.type);
+    const bottomInset = getSurvivorSpriteMetrics(image).bottomInset;
+    return survivor.y + (survivor.recoilY || 0) - 32 + bottomInset
+        + bounce - selectionNudge - placementNudge - upgradeNudge;
+}
+
+function drawSurvivors(onlySurvivor = null) {
+    const mobileViewport = isMobileGameplayViewport();
+    // Paint back-to-front using each model's feet anchor. This prevents a
+    // later-placed survivor's legs from appearing through a closer torso.
+    const renderList = onlySurvivor
+        ? [onlySurvivor]
+        : survivors.slice().sort((a, b) => {
+            const depthA = (a.y || 0) + (a.recoilY || 0);
+            const depthB = (b.y || 0) + (b.recoilY || 0);
+            return depthA - depthB || (a.x || 0) - (b.x || 0);
+        });
+
+    for (const survivor of renderList) {
         if (onlySurvivor && survivor !== onlySurvivor) continue;
-        const image = survivorImages[survivor.type] || customSurvivorImages[survivor.type];
+        const image = getSurvivorImage(survivor.type);
 
         if (!image || !image.complete || image.naturalWidth === 0) {
             continue;
@@ -2708,7 +2804,7 @@ survivor.recoilY *= 1 - recoilReturn;
     survivor.x + survivor.recoilX - width / 2,
     // A small arrival bounce gives deployment and repositioning a tactile
     // response while preserving the crisp pixel-art silhouette.
-    survivor.y + survivor.recoilY - height / 2 + bounce - selectionNudge - placementNudge - upgradeNudge,
+    getSurvivorVisualTop(survivor, bounce, selectionNudge, placementNudge, upgradeNudge),
     width,
     height
 );
@@ -2828,9 +2924,6 @@ function drawSurvivorUpgradeFeedback() {
 // been rendered keeps one survivor's upgrade indicator visible when units
 // overlap in a crowded deployment area.
 function drawSurvivorLevelMarkers() {
-    const width = 64;
-    const height = 64;
-
     for (const survivor of survivors) {
         const upgradeLevel = getSurvivorUpgradeLevel(survivor);
         if (upgradeLevel <= 0) continue;
@@ -2843,10 +2936,14 @@ function drawSurvivorLevelMarkers() {
         const selectionNudge = getSurvivorSelectionPulse(survivor) * 3;
         const placementNudge = getSurvivorPlacementPulse(survivor) * 7;
         const upgradeNudge = getSurvivorUpgradePulse(survivor) * 8;
-        const upgradePipsY = Math.max(
-            4,
-            survivor.y + (survivor.recoilY || 0) - height / 2 - 6 + bounce - selectionNudge - placementNudge - upgradeNudge
+        const modelTop = getSurvivorVisualTop(
+            survivor,
+            bounce,
+            selectionNudge,
+            placementNudge,
+            upgradeNudge
         );
+        const upgradePipsY = Math.max(4, modelTop - 6);
 
         drawSurvivorLevelPips(
             survivor.x + (survivor.recoilX || 0),
@@ -2861,7 +2958,6 @@ function drawSurvivorLevelMarkers() {
 // the buff state remains visible when survivors overlap.
 function drawNoahBuffIndicators() {
     const now = performance.now();
-    const height = 64;
     for (const survivor of survivors) {
         if (!(Number(survivor.noahDamageMultiplier) > 1)) continue;
 
@@ -2876,8 +2972,13 @@ function drawNoahBuffIndicators() {
         const selectionNudge = getSurvivorSelectionPulse(survivor) * 3;
         const placementNudge = getSurvivorPlacementPulse(survivor) * 7;
         const upgradeNudge = getSurvivorUpgradePulse(survivor) * 8;
-        const modelTop = survivor.y + (survivor.recoilY || 0) - height / 2
-            + bounce - selectionNudge - placementNudge - upgradeNudge;
+        const modelTop = getSurvivorVisualTop(
+            survivor,
+            bounce,
+            selectionNudge,
+            placementNudge,
+            upgradeNudge
+        );
         const x = Math.round(survivor.x + (survivor.recoilX || 0) + 11);
         const y = Math.round(modelTop - 4);
         const pulse = 0.78 + Math.sin(now / 260 + survivor.x * 0.02) * 0.14;
@@ -3826,7 +3927,7 @@ function drawSurvivorPreview() {
         const dx = survivor.x - mouseX;
         const dy = survivor.y - mouseY;
 
-        if (Math.sqrt(dx * dx + dy * dy) < 45) {
+        if (Math.sqrt(dx * dx + dy * dy) < survivorPlacementMinimumDistance) {
             validPlacement = false;
             break;
         }
@@ -4436,15 +4537,19 @@ function updateSurvivorCombat(deltaTime) {
             enemies.splice(i, 1);
             const currentKillScrapChance = isEndlessStyleMode()
                 ? getEndlessDifficultyProfile(currentWave).killScrapChance
-                : killScrapChance;
+                : gameMode === "campaign"
+                    ? campaignKillScrapChance
+                    : killScrapChance;
             const earnsScrap = !defeatedEnemy.isSplitChild
                 && Math.random() < currentKillScrapChance;
             const killReward = earnsScrap
                 ? (isEndlessStyleMode()
                     ? endlessKillScrapPerKill
-                    : scrapRewardPerKill + (gameMode === "daily"
-                        ? getDailyModifierBonus("killScrapBonus", 0)
-                        : 0))
+                    : gameMode === "campaign"
+                        ? campaignKillScrapPerKill
+                        : scrapRewardPerKill + (gameMode === "daily"
+                            ? getDailyModifierBonus("killScrapBonus", 0)
+                            : 0))
                 : 0;
             scrap += killReward;
         }
@@ -5046,7 +5151,15 @@ function drawEnemies() {
         ctx.restore();
     }
 
-    for (const enemy of enemies) {
+    // Draw models back-to-front by their road anchor. This keeps a closer
+    // enemy's feet in front of a farther enemy's body when lanes converge.
+    const renderList = enemies.slice().sort((a, b) => {
+        const depthA = (a.y || 0) + (a.visualLaneOffsetY || 0);
+        const depthB = (b.y || 0) + (b.visualLaneOffsetY || 0);
+        return depthA - depthB || (a.x || 0) - (b.x || 0);
+    });
+
+    for (const enemy of renderList) {
         const profile = getEnemyProfile(enemy.type);
         const isHollow = profile.isBoss === true && !enemy.isMiniBoss && !enemy.isWaveBoss;
         const image = profile.image;
@@ -5512,6 +5625,11 @@ const TARGETING_PRIORITY_LABELS = {
 const scrapPenaltyPerLeak = 8;
 const startingWaveScrapReward = 45;
 const waveScrapRewardIncrease = 8;
+// Campaign checkpoints are intentionally much leaner than the open-ended
+// economy. The curve still rises each wave, but leaves meaningful decisions
+// between deploying another unit and investing in an upgrade.
+const campaignStartingWaveScrapReward = 26;
+const campaignWaveScrapRewardIncrease = 4;
 let leakedEnemiesThisWave = 0;
 
 function cancelAutoStartWave() {
@@ -5701,7 +5819,11 @@ function updateWaveSystem(deltaTime) {
             ? 26
                 + Math.min(38, Math.floor((completedWave - 1) * 0.5))
                 + lateEndlessIncomeBonus
-            : startingWaveScrapReward + (completedWave - 1) * waveScrapRewardIncrease;
+            : gameMode === "campaign"
+                ? campaignStartingWaveScrapReward
+                    + (completedWave - 1) * campaignWaveScrapRewardIncrease
+                : startingWaveScrapReward
+                    + (completedWave - 1) * waveScrapRewardIncrease;
         const endlessLeakPenalty = completedWave <= 15
             ? 3
             : completedWave <= 40
@@ -6014,6 +6136,50 @@ function getDailyChallengeDate(date = new Date()) {
     return date.toISOString().slice(0, 10);
 }
 
+function getDailyEnemyWeaknessTypes(enemyTypes = []) {
+    const weaknessTypes = [];
+    enemyTypes.forEach(type => {
+        const weaknesses = Object.entries(getEnemyProfile(type).weaknesses || {});
+        weaknesses.forEach(([damageType, multiplier]) => {
+            // Only treat a real bonus as a counter.  Resistance text and
+            // neutral damage families should not force a particular pick.
+            if (Number(multiplier) > 1 && !weaknessTypes.includes(damageType)) {
+                weaknessTypes.push(damageType);
+            }
+        });
+    });
+    return weaknessTypes;
+}
+
+function chooseDailySurvivors(enemyTypes, initialIds) {
+    const candidates = campaignStarterSurvivorIds.filter(id => survivorDetails[id]);
+    const weaknessTypes = getDailyEnemyWeaknessTypes(enemyTypes);
+    const picks = initialIds.filter(id => candidates.includes(id)).slice(0, 3);
+    const reserved = new Set();
+
+    // Lock in one starter survivor for each distinct weakness while there is
+    // room in the three-person trial squad.  The initial seeded roll is kept
+    // intact wherever possible, so changing this guarantee does not reshuffle
+    // the map, enemy roster, modifiers, or the rest of the daily challenge.
+    weaknessTypes.forEach(damageType => {
+        const existingCounter = picks.find(id => getSurvivorDamageTypeForId(id) === damageType);
+        if (existingCounter) {
+            reserved.add(existingCounter);
+            return;
+        }
+
+        const counterId = candidates.find(id => getSurvivorDamageTypeForId(id) === damageType);
+        if (!counterId) return;
+
+        const replaceIndex = picks.findIndex(id => !reserved.has(id));
+        if (replaceIndex < 0) return;
+        picks[replaceIndex] = counterId;
+        reserved.add(counterId);
+    });
+
+    return picks.length === 3 ? picks : [...picks, ...candidates.filter(id => !picks.includes(id))].slice(0, 3);
+}
+
 function createDailyChallenge(dateKey = getDailyChallengeDate()) {
     let seed = 2166136261;
     for (let index = 0; index < dateKey.length; index++) {
@@ -6035,9 +6201,11 @@ function createDailyChallenge(dateKey = getDailyChallengeDate()) {
         }
         return result;
     };
-    const survivorIds = shuffled(["mason", "james", "cody", "britney", "zach", "brady"]).slice(0, 3);
+    const survivorRoll = shuffled(["mason", "james", "cody", "britney", "zach", "brady"]).slice(0, 3);
     const regularTypes = shuffled(["spider", "skitter", "wastelandcow", "mutantman", "mutantsnake"]).slice(0, 2);
     const heavyType = shuffled(["hollow", "fogkeeper", "heavymutant"])[0];
+    const enemyTypes = [...regularTypes, heavyType];
+    const survivorIds = chooseDailySurvivors(enemyTypes, survivorRoll);
     const modifierIds = [
         dailyModifierHazards[Math.floor(random() * dailyModifierHazards.length)],
         dailyModifierBoons[Math.floor(random() * dailyModifierBoons.length)]
@@ -6046,7 +6214,7 @@ function createDailyChallenge(dateKey = getDailyChallengeDate()) {
         date: dateKey,
         mapId: 1 + Math.floor(random() * 6),
         survivorIds,
-        enemyTypes: [...regularTypes, heavyType],
+        enemyTypes,
         modifierIds
     };
 }

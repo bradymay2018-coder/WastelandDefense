@@ -5553,6 +5553,71 @@ main.game-layout > .control-panel {
     box-shadow: 0 28px 72px #000b, 0 0 0 1px #f2c76d0c, inset 0 1px #ffffff14 !important;
 }
 
+/* Slow, low-contrast atmosphere drift for the safehouse and menu screens.
+   The gradient lives on its own composited layer so it never repaints the
+   game canvas or shifts the layout. */
+body {
+    isolation: isolate;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: -16vmax;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse at 15% 20%, #80628d22 0, transparent 34%),
+        radial-gradient(ellipse at 84% 18%, #b77a4b1d 0, transparent 32%),
+        radial-gradient(ellipse at 56% 84%, #4e77751b 0, transparent 38%),
+        linear-gradient(145deg, transparent 25%, #f0c76508 49%, transparent 72%);
+    transform: translate3d(-1.2%, -0.8%, 0) scale(1.04);
+    animation: wasteland-gradient-drift 34s ease-in-out infinite alternate;
+    will-change: transform;
+}
+
+@keyframes wasteland-gradient-drift {
+    0% {
+        transform: translate3d(-1.2%, -0.8%, 0) scale(1.04);
+    }
+    50% {
+        transform: translate3d(1.1%, 0.9%, 0) scale(1.07);
+    }
+    100% {
+        transform: translate3d(-0.4%, 1.4%, 0) scale(1.05);
+    }
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    inset: -16vmax;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+        radial-gradient(circle, #e5b95e14 0 1px, transparent 1.5px),
+        radial-gradient(circle, #b69bd20f 0 1px, transparent 1.5px);
+    background-repeat: repeat, repeat;
+    background-position: 11px 17px, 29px 7px;
+    background-size: 83px 73px, 137px 121px;
+    animation: wasteland-dots-pulse 9s ease-in-out infinite;
+    will-change: opacity;
+}
+
+@keyframes wasteland-dots-pulse {
+    0%, 100% { opacity: 0.72; }
+    50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body::before {
+        animation: none;
+    }
+    body::after {
+        animation: none;
+    }
+}
+
 #campaignSelect .level-select-header > .menu-button,
 #levelSelect .level-select-header > .menu-button,
 #deploymentScreen .deployment-header > .menu-button,
@@ -9159,12 +9224,10 @@ body {
         radial-gradient(ellipse at 12% 9%, #80628d24 0, transparent 38%),
         radial-gradient(ellipse at 88% 17%, #b77a4b1c 0, transparent 34%),
         radial-gradient(ellipse at 49% 100%, #4e77751a 0, transparent 39%),
-        radial-gradient(circle, #e5b95e14 0 1px, transparent 1.5px),
-        radial-gradient(circle, #b69bd20f 0 1px, transparent 1.5px),
         linear-gradient(180deg, #111015, #101114 58%, #121116);
-    background-repeat: no-repeat, no-repeat, no-repeat, repeat, repeat, no-repeat;
-    background-position: center, center, center, 11px 17px, 29px 7px, center;
-    background-size: auto, auto, auto, 83px 73px, 137px 121px, auto;
+    background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+    background-position: center, center, center, center;
+    background-size: auto, auto, auto, auto;
     background-attachment: fixed;
 }
 
