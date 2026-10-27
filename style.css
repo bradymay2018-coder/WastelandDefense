@@ -2295,6 +2295,15 @@ main.game-layout > .control-panel {
     border-radius: 50%;
 }
 
+.mobile-selection-range-ring.noah-range {
+    border-color: rgba(246, 198, 92, 0.92);
+    filter: drop-shadow(0 0 5px rgba(246, 198, 92, 0.48));
+}
+
+.mobile-selection-range-ring.noah-range::after {
+    border-color: rgba(246, 198, 92, 0.48);
+}
+
 @keyframes mobile-selection-range-pulse {
     0%, 100% {
         opacity: 0.6;
@@ -4129,6 +4138,34 @@ main.game-layout > .control-panel {
 #survivorDetailDescription,
 .survivor-details .placement-hint {
     color: #a3a3a8;
+}
+
+#survivorDetailRole[data-noah-buffed="true"] {
+    color: #f6c65c;
+    text-shadow: 0 0 8px rgba(246, 198, 92, 0.32);
+}
+
+.survivor-detail-buff {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    margin-top: 4px;
+    padding: 3px 6px;
+    border: 1px solid rgba(246, 198, 92, 0.64);
+    border-radius: 3px;
+    background: linear-gradient(135deg, rgba(246, 198, 92, 0.18), rgba(246, 198, 92, 0.06));
+    box-shadow: 0 0 12px rgba(246, 198, 92, 0.12), inset 0 0 0 1px rgba(255, 239, 170, 0.06);
+    color: #f6c65c;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+}
+
+/* The badge has an explicit display value above, so preserve the semantic
+   hidden state instead of leaving an empty outlined chip in the card. */
+.survivor-detail-buff[hidden] {
+    display: none !important;
 }
 
 #cancelPlacementButton {

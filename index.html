@@ -1060,6 +1060,7 @@
                 <div class="survivor-details-title">
                     <h3 id="survivorDetailName">SURVIVOR NAME</h3>
                     <span id="survivorDetailRole">ROLE</span>
+                    <span id="survivorDetailBuff" class="survivor-detail-buff" hidden></span>
                     <strong id="survivorDetailCost">0 SCRAP</strong>
                 </div>
 
@@ -1076,17 +1077,17 @@
                         <span id="survivorUpgradeLevel" class="survivor-upgrade-level">LEVEL 0 / 3</span>
                     </button>
                 </div>
-                <div>
+                <div id="survivorDetailDamageTile">
                     <span>DAMAGE</span>
                     <strong id="survivorDetailDamage">0</strong>
                 </div>
-                <div>
+                <div id="survivorDetailRangeTile">
                     <span>RANGE</span>
                     <strong id="survivorDetailRange">0</strong>
                 </div>
             </div>
 
-            <div class="survivor-detail-stats">
+            <div class="survivor-detail-stats" id="survivorDetailCombatStats">
                 <div>
                     <span title="Estimated combat DPS including a nearby secondary target or active burn">EST. DPS</span>
                     <strong id="survivorDetailDps">0</strong>
@@ -1144,6 +1145,7 @@
 </div>
 
 <script src="supabase-config.js?v=20261023-02"></script>
+<script src="balance-profile.js?v=2"></script>
 <script>
 (() => {
     const loadGame = () => {

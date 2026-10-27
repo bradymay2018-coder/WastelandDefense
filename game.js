@@ -35,9 +35,21 @@ const bradyImage = new Image();
 bradyImage.src = "Images/Bradychar.png";
 
 const builtinSurvivorIds = new Set(["mason", "james", "cody", "britney", "zach", "brady"]);
+// Custom packages contain base inputs only. This profile marker makes the
+// contract explicit while keeping all live tuning centralized in this file.
+const customBalanceConfig = window.WD_SURVIVOR_BALANCE || {
+    version: "rarity-v2",
+    rarityRules: {
+        common: { cost: [50, 120], damage: [4, 24], range: [70, 190], fireRate: [0.55, 2.8] },
+        uncommon: { cost: [90, 170], damage: [5, 30], range: [70, 220], fireRate: [0.5, 2.8] },
+        rare: { cost: [140, 260], damage: [6, 38], range: [70, 260], fireRate: [0.45, 3.0] },
+        legendary: { cost: [190, 420], damage: [8, 48], range: [60, 280], fireRate: [0.4, 3.2] }
+    }
+};
+const customSurvivorBalanceProfile = customBalanceConfig.version;
 // Keep the first mystery-box roster locked even if an older exported package
 // does not yet include the builder's mysteryBoxOnly flag.
-const mysteryBoxOnlySurvivorIds = new Set(["selena", "radhesh", "rork", "bas", "knox"]);
+const mysteryBoxOnlySurvivorIds = new Set(["selena", "radhesh", "rork", "bas", "knox", "nathan", "gregory"]);
 // Deployment costs reflect real combat value, including range and utility.
 // Custom survivor files can keep their original builder values while the live
 // game applies this balance layer consistently.
@@ -54,12 +66,7 @@ const survivorCostOverrides = {
     radhesh: 150,
     bas: 200
 };
-const customRarityBalanceRules = {
-    common: { cost: [50, 120], damage: [4, 24], range: [70, 190], fireRate: [0.55, 2.8] },
-    uncommon: { cost: [90, 170], damage: [5, 30], range: [70, 220], fireRate: [0.5, 2.8] },
-    rare: { cost: [140, 260], damage: [6, 38], range: [70, 260], fireRate: [0.45, 3.0] },
-    legendary: { cost: [190, 420], damage: [8, 48], range: [60, 280], fireRate: [0.4, 3.2] }
-};
+const customRarityBalanceRules = customBalanceConfig.rarityRules;
 const clampCustomStat = (value, range, fallback) =>
     Math.min(range[1], Math.max(range[0], Number(value) || fallback));
 const customSurvivors = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_CUSTOM_SURVIVORS : [])
@@ -75,6 +82,7 @@ const customSurvivors = (Array.isArray(window.WD_CUSTOM_SURVIVORS) ? window.WD_C
         const configuredCost = survivorCostOverrides[id] ?? survivor.cost;
         return {
         id,
+        balanceProfile: String(survivor.balanceProfile || customSurvivorBalanceProfile),
         name: String(survivor.name || "New Survivor").slice(0, 28),
         role: String(survivor.role || "RIFLE").slice(0, 30).toUpperCase(),
         rarity,
@@ -1165,7 +1173,10 @@ const survivorDamageTypes = {
     radhesh: "blunt",
     bas: "piercing",
     rork: "ballistic",
-    knox: "ballistic"
+    knox: "ballistic",
+    william: "fire",
+    // Noah is a support-only survivor and never deals attack damage.
+    noah: "blunt"
 };
 
 const damageTypeLabels = {
@@ -1232,9 +1243,41 @@ function updatePlayerHealthDisplay() {
             : "#b8bac1";
 }
 
+// Endless difficulty is intentionally centralized here so the late-game
+// curve can be tuned without touching campaign, daily challenges, or survivor
+// stats.  The first 100 waves retain the established curve; veteran pressure
+// begins at wave 101 in five-wave steps.
+function getEndlessDifficultyProfile(wave = currentWave) {
+    const waveNumber = Math.max(1, Math.floor(Number(wave) || 1));
+    const veteranWaves = Math.max(0, waveNumber - 100);
+    const veteranTier = Math.floor(veteranWaves / 5);
+
+    return {
+        veteranTier,
+        healthMultiplier: 1 + veteranTier * 0.06,
+        speedMultiplier: 1 + Math.min(0.12, veteranTier * 0.009),
+        leakDamageMultiplier: 1 + Math.min(0.35, veteranTier * 0.027),
+        miniBossHealthMultiplier: 1 + veteranTier * 0.08,
+        bossHealthMultiplier: 1 + veteranTier * 0.12,
+        armorMultiplier: Math.max(0.6, 1 - veteranTier * 0.01),
+        medicHealMultiplier: 1 + Math.min(0.5, veteranTier * 0.035),
+        medicRadiusMultiplier: 1 + Math.min(0.2, veteranTier * 0.012),
+        // Kills remain useful income, but late waves cannot create an
+        // unlimited wallet from a capped enemy stream.
+        killScrapChance: waveNumber <= 50
+            ? 0.5
+            : waveNumber <= 100
+                ? 0.42
+                : 0.34
+    };
+}
+
 function getEnemyHealthForWave(type, specialRole = "normal", wave = currentWave, healthScale = 1) {
     const profile = getEnemyProfile(type);
     const waveIndex = Math.max(0, wave - 1);
+    const endlessDifficulty = isEndlessStyleMode()
+        ? getEndlessDifficultyProfile(wave)
+        : null;
     let waveHealthScale;
     if (isEndlessStyleMode()) {
         // Endless should grow steadily instead of dropping abrupt health walls
@@ -1259,9 +1302,11 @@ function getEnemyHealthForWave(type, specialRole = "normal", wave = currentWave,
         ? Math.max(0, Math.floor(wave / 10) - 1)
         : 0;
     const specialHealthScale = specialRole === "boss"
-        ? 1.35 + Math.min(0.6, bossMilestone * 0.08)
+        ? (1.35 + Math.min(0.6, bossMilestone * 0.08))
+            * (endlessDifficulty?.bossHealthMultiplier || 1)
         : specialRole === "miniBoss"
-            ? 1.25 + Math.min(0.2, Math.floor(wave / 25) * 0.04)
+            ? (1.25 + Math.min(0.2, Math.floor(wave / 25) * 0.04))
+                * (endlessDifficulty?.miniBossHealthMultiplier || 1)
             : 1;
     const lateQualityTier = isEndlessStyleMode()
         ? Math.max(0, Math.floor((wave - 50) / 10))
@@ -1286,6 +1331,7 @@ function getEnemyHealthForWave(type, specialRole = "normal", wave = currentWave,
         * specialHealthScale
         * healthScale
         * lateQualityBonus
+        * (endlessDifficulty?.healthMultiplier || 1)
         * dailyHealthScale
     );
 }
@@ -1293,9 +1339,13 @@ function getEnemyHealthForWave(type, specialRole = "normal", wave = currentWave,
 function spawnEnemy(type = "spider", specialRole = "normal", spawnOptions = {}) {
     const profile = getEnemyProfile(type);
     const waveIndex = Math.max(0, currentWave - 1);
+    const endlessDifficulty = isEndlessStyleMode()
+        ? getEndlessDifficultyProfile(currentWave)
+        : null;
     let waveSpeedScale;
     if (isEndlessStyleMode()) {
-        waveSpeedScale = 1 + Math.min(0.3, waveIndex * 0.003);
+        waveSpeedScale = (1 + Math.min(0.3, waveIndex * 0.003))
+            * (endlessDifficulty?.speedMultiplier || 1);
     } else if (gameMode === "daily") {
         waveSpeedScale = 1 + Math.min(0.08, waveIndex * 0.002);
     } else {
@@ -1361,9 +1411,20 @@ function spawnEnemy(type = "spider", specialRole = "normal", spawnOptions = {}) 
         isSplitChild: spawnOptions.isSplitChild === true,
         shotgunKnockbackHits: 0,
         isArmored: profile.isArmored === true,
-        armorMultiplier: profile.armorMultiplier || 1,
+        armorMultiplier: profile.isArmored
+            ? Math.max(
+                0.55,
+                (profile.armorMultiplier || 1) * (endlessDifficulty?.armorMultiplier || 1)
+            )
+            : (profile.armorMultiplier || 1),
         isFireImmune: profile.isFireImmune === true,
         isMedic: profile.isMedic === true,
+        medicHealRadius: profile.isMedic
+            ? (profile.healRadius || 132) * (endlessDifficulty?.medicRadiusMultiplier || 1)
+            : 0,
+        medicHealAmount: profile.isMedic
+            ? (profile.healAmount || 10) * (endlessDifficulty?.medicHealMultiplier || 1)
+            : 0,
         medicPulseTimer: profile.isMedic ? 1.2 : 0,
         burnTimer: Number.isFinite(Number(spawnOptions.burnTimer))
             ? Math.max(0, Number(spawnOptions.burnTimer))
@@ -1382,7 +1443,11 @@ function spawnEnemy(type = "spider", specialRole = "normal", spawnOptions = {}) 
         leakDamage: Math.min(
             specialRole === "boss" ? 45 : specialRole === "miniBoss" ? 28 : 20,
             Math.max(1, Math.round(
-                profile.leakDamage * leakScale * specialLeakScale * lateQualityLeakBonus
+                profile.leakDamage
+                * leakScale
+                * specialLeakScale
+                * lateQualityLeakBonus
+                * (endlessDifficulty?.leakDamageMultiplier || 1)
             ))
         )
     };
@@ -1422,8 +1487,12 @@ function spawnSplitterChildren(parent) {
 
 function applyMedicPulse(medic) {
     const profile = getEnemyProfile(medic.type);
-    const radius = profile.healRadius || 132;
-    const healAmount = profile.healAmount || 10;
+    const radius = Number.isFinite(Number(medic.medicHealRadius))
+        ? Number(medic.medicHealRadius)
+        : (profile.healRadius || 132);
+    const healAmount = Number.isFinite(Number(medic.medicHealAmount))
+        ? Number(medic.medicHealAmount)
+        : (profile.healAmount || 10);
     let healedAny = false;
 
     for (const target of enemies) {
@@ -1534,7 +1603,38 @@ function getEndlessWaveGroups(wave) {
     const bruteSpiderCount = bruteSpiderWave
         ? Math.max(1, Math.floor(spiderCount * (wave >= 50 ? 0.24 : 0.18)))
         : 0;
-    const baselineSpiderCount = Math.max(0, spiderCount - runnerSpiderCount - bruteSpiderCount);
+    // From wave 101 onward, replace a growing slice of disposable spiders
+    // with a rotating specialist batch. This raises enemy quality without
+    // increasing the battlefield population beyond the existing cap.
+    const veteranTier = Math.max(0, Math.floor((wave - 100) / 5));
+    const lateQualitySwapCount = wave >= 101
+        ? Math.min(
+            Math.max(0, spiderCount - 1),
+            Math.floor(spiderCount * Math.min(0.32, 0.05 + veteranTier * 0.015))
+        )
+        : 0;
+    const qualitySpiderCount = Math.max(0, spiderCount - lateQualitySwapCount);
+    const qualityRunnerCount = lateQualitySwapCount === 0
+        ? runnerSpiderCount
+        : runnerSpiderWave
+            ? Math.min(runnerSpiderCount, Math.max(0, Math.floor(qualitySpiderCount * 0.32)))
+            : 0;
+    const qualityBruteCount = lateQualitySwapCount === 0
+        ? bruteSpiderCount
+        : bruteSpiderWave
+            ? Math.min(bruteSpiderCount, Math.max(0, Math.floor(qualitySpiderCount * 0.24)))
+            : 0;
+    const qualityBaselineCount = Math.max(0, qualitySpiderCount - qualityRunnerCount - qualityBruteCount);
+    const qualityCycle = Math.floor(wave / 5) % 4;
+    const lateQualityType = wave >= 101
+        ? (qualityCycle === 0
+            ? "wastelandcow"
+            : qualityCycle === 1
+                ? "hollow"
+                : qualityCycle === 2
+                    ? "mutantsnake"
+                    : (wave >= 130 ? "mutantsnakered" : "spiderBrute"))
+        : null;
     const groups = [];
     const addGroup = (type, count, specialRole = "normal") => {
         if (count > 0) groups.push({ type, count, ...(specialRole === "normal" ? {} : { specialRole }) });
@@ -1542,9 +1642,10 @@ function getEndlessWaveGroups(wave) {
 
     // One enemy type per batch keeps the battlefield readable and makes Cody's
     // area damage and Radhesh's sweep feel intentional.
-    addGroup("spider", baselineSpiderCount);
-    addGroup("spiderRunner", runnerSpiderCount);
-    addGroup("spiderBrute", bruteSpiderCount);
+    addGroup("spider", qualityBaselineCount);
+    addGroup("spiderRunner", qualityRunnerCount);
+    addGroup("spiderBrute", qualityBruteCount);
+    addGroup(lateQualityType, lateQualitySwapCount);
     addGroup("wastelandcow", cowCount);
     addGroup("mutantman", mutantManCount);
     addGroup("hollow", hollowCount);
@@ -2750,6 +2851,43 @@ function drawSurvivorLevelMarkers() {
     }
 }
 
+// A tiny gold badge makes Noah's active aura readable without adding another
+// large status panel over the battlefield. It is drawn after all sprites so
+// the buff state remains visible when survivors overlap.
+function drawNoahBuffIndicators() {
+    const now = performance.now();
+    const height = 64;
+    for (const survivor of survivors) {
+        if (!(Number(survivor.noahDamageMultiplier) > 1)) continue;
+
+        // Keep the badge locked to the same animated model origin as the
+        // sprite itself. This prevents it from floating when the survivor
+        // bounces, recoils, is selected, is moved, or finishes an upgrade.
+        const bounce = gamePaused || !waveRunning
+            ? 0
+            : Math.sin(
+                now / 250 * gameSpeed + survivor.x * 0.1
+            ) * 2;
+        const selectionNudge = getSurvivorSelectionPulse(survivor) * 3;
+        const placementNudge = getSurvivorPlacementPulse(survivor) * 7;
+        const upgradeNudge = getSurvivorUpgradePulse(survivor) * 8;
+        const modelTop = survivor.y + (survivor.recoilY || 0) - height / 2
+            + bounce - selectionNudge - placementNudge - upgradeNudge;
+        const x = Math.round(survivor.x + (survivor.recoilX || 0) + 11);
+        const y = Math.round(modelTop - 4);
+        const pulse = 0.78 + Math.sin(now / 260 + survivor.x * 0.02) * 0.14;
+
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = "#101217";
+        ctx.fillRect(x - 5, y - 5, 11, 11);
+        ctx.fillStyle = "#f6c65c";
+        ctx.fillRect(x - 1, y - 4, 3, 8);
+        ctx.fillRect(x - 4, y - 1, 9, 3);
+        ctx.restore();
+    }
+}
+
 
 
 // Combat tuning is intentionally centralized here.  Rarity now changes the
@@ -2851,11 +2989,74 @@ const customAttackProfiles = {
     // to the whole group rather than only the selected target.
     bas: { kind: "syringe", area: true, slow: true },
     rork: { kind: "assault" },
-    knox: { kind: "burst", repeat: () => 3 }
+    knox: { kind: "burst", repeat: () => 3 },
+    nathan: { kind: "handcannon" },
+    gregory: { kind: "slingshot", stun: true },
+    // William's flamethrower saturates his whole range.
+    william: { kind: "fireswarmer", area: true, fireAoe: true },
+    // Noah is a pure support unit; his combat loop is skipped below.
+    noah: { kind: "support" }
 };
 
 function getCustomAttackProfile(survivor) {
     return customAttackProfiles[survivor?.type] || null;
+}
+
+// Each survivor can receive Noah's aura from one Noah only. The closest Noah
+// wins, with a stable tie-breaker so overlapping auras never stack.
+// Noah's aura is useful immediately, then grows at each upgrade tier.  The
+// ownership logic below still assigns at most one aura to each survivor.
+const noahDamageMultipliers = [1.12, 1.2, 1.3, 1.42];
+
+function getNoahDamageBuffPercent(survivor) {
+    const level = getSurvivorUpgradeLevel(survivor);
+    return Math.round(((noahDamageMultipliers[level] || 1) - 1) * 100);
+}
+
+function updateNoahSupportBuffs() {
+    const activeNoahs = survivors.filter(survivor =>
+        survivor.type === "noah" &&
+        Number.isFinite(Number(survivor.x)) &&
+        Number.isFinite(Number(survivor.y))
+    );
+
+    for (const target of survivors) {
+        target.noahBuffedBy = null;
+        target.noahDamageMultiplier = 1;
+
+        if (target.type === "noah" ||
+            !Number.isFinite(Number(target.x)) ||
+            !Number.isFinite(Number(target.y))) {
+            continue;
+        }
+
+        const candidates = activeNoahs
+            .map(noah => {
+                const noahStats = getSurvivorStats(noah);
+                const dx = Number(target.x) - Number(noah.x);
+                const dy = Number(target.y) - Number(noah.y);
+                return {
+                    noah,
+                    distance: Math.hypot(dx, dy),
+                    range: Number(noahStats?.range) || 0
+                };
+            })
+            .filter(candidate => candidate.distance <= candidate.range)
+            .sort((first, second) => {
+                if (first.distance !== second.distance) {
+                    return first.distance - second.distance;
+                }
+                return String(first.noah.telemetryId || first.noah.type)
+                    .localeCompare(String(second.noah.telemetryId || second.noah.type));
+            });
+
+        const chosenNoah = candidates[0]?.noah;
+        if (!chosenNoah) continue;
+
+        const level = getSurvivorUpgradeLevel(chosenNoah);
+        target.noahBuffedBy = chosenNoah.telemetryId || chosenNoah.type;
+        target.noahDamageMultiplier = noahDamageMultipliers[level] || 1;
+    }
 }
 
 const maxSurvivorUpgradeLevel = 3;
@@ -2904,27 +3105,37 @@ function getSurvivorStats(survivorOrType) {
         fireRate = base.fireRate * 0.5 * rarityFireRateMultiplier;
     }
 
+    // Noah's role is entirely supportive. Keep his combat stats available for
+    // range/aura calculations, but expose zero attack damage to the game and UI.
+    if (type === "noah") {
+        damage = 0;
+    }
+
     const dailyRangeScale = isSurvivor && gameMode === "daily"
         ? getDailyModifierValue("survivorRangeScale", 1)
         : 1;
     const dailyFireRateScale = isSurvivor && gameMode === "daily"
         ? getDailyModifierValue("survivorFireRateScale", 1)
         : 1;
+    const williamRangeMultiplier = type === "william"
+        ? getWilliamBurnStats(survivorOrType).rangeMultiplier
+        : 1;
 
     return {
         damage: Number(damage.toFixed(2)),
-        range: Math.round(base.range * (1 + 0.06 * level) * dailyRangeScale),
+        range: Math.round(base.range * (1 + 0.06 * level) * williamRangeMultiplier * dailyRangeScale),
         fireRate: fireRate * dailyFireRateScale
     };
 }
 
 function getSurvivorDps(survivorOrType) {
-    const stats = getSurvivorStats(survivorOrType);
-    if (!stats || !stats.fireRate) return 0;
-
     const type = typeof survivorOrType === "object" && survivorOrType !== null
         ? survivorOrType.type
         : survivorOrType;
+    if (type === "noah") return 0;
+
+    const stats = getSurvivorStats(survivorOrType);
+    if (!stats || !stats.fireRate) return 0;
     const level = getSurvivorUpgradeLevel(survivorOrType);
     const attackProfile = getCustomAttackProfile({ type });
     const hitsPerAttack = attackProfile?.repeat
@@ -2966,6 +3177,31 @@ function getJamesBurnStats(survivor) {
         duration: napalmThrower ? 5 : 4,
         damage: Number((standardTickDamage * (napalmThrower ? 2 : 1)).toFixed(2))
     };
+}
+
+function getWilliamBurnStats(survivor) {
+    const level = getSurvivorUpgradeLevel(survivor);
+    const fuelFlow = level >= 1;
+    const wideNozzle = level >= 2;
+    const inferno = level >= 3;
+    const standardTickDamage = 4 * getRarityPowerMultiplier("william") * upgradeDamageMultipliers[level];
+
+    return {
+        duration: fuelFlow ? (inferno ? 5.5 : 4.5) : 4,
+        damage: Number((standardTickDamage * (inferno ? 1.35 : 1)).toFixed(2)),
+        rangeMultiplier: wideNozzle ? (inferno ? 1.2 : 1.15) : 1
+    };
+}
+
+function getGregoryStunStats(survivor) {
+    const level = getSurvivorUpgradeLevel(survivor);
+    const tiers = [
+        { chance: 0.10, duration: 0.35 },
+        { chance: 0.15, duration: 0.50 },
+        { chance: 0.19, duration: 0.65 },
+        { chance: 0.22, duration: 0.75 }
+    ];
+    return tiers[level] || tiers[0];
 }
 
 function getSurvivorUpgradeCost(type, level) {
@@ -3118,7 +3354,9 @@ const survivorAbilityTags = {
     radhesh: "SWEEP",
     bas: "AREA SLOW",
     rork: "ASSAULT",
-    knox: "3-ROUND BURST"
+    knox: "3-ROUND BURST",
+    william: "AREA BURN",
+    noah: "DAMAGE AURA"
 };
 customSurvivors.forEach(survivor => {
     survivorDescriptions[survivor.id] = survivor.description;
@@ -3180,6 +3418,7 @@ function syncMobileSelectionRangeOverlay() {
     ring.style.height = `${diameterY}px`;
     ring.style.left = `${centerX - diameterX / 2}px`;
     ring.style.top = `${centerY - diameterY / 2}px`;
+    ring.classList.toggle("noah-range", inspectedSurvivor.type === "noah");
     ring.hidden = false;
 }
 
@@ -3217,7 +3456,66 @@ function hideSurvivorDetails() {
     detailsPanel.setAttribute("aria-hidden", "true");
 }
 
+function getSurvivorNoahDamageMultiplier(survivor) {
+    if (!survivor || survivor.type === "noah") return 1;
+    const multiplier = Number(survivor.noahDamageMultiplier);
+    return Number.isFinite(multiplier) && multiplier > 1 ? multiplier : 1;
+}
+
+function updateInspectedSurvivorCardStats() {
+    const survivor = inspectedSurvivor;
+    if (!survivor) return;
+
+    const stats = getSurvivorStats(survivor);
+    if (!stats) return;
+
+    const isNoah = survivor.type === "noah";
+    const multiplier = getSurvivorNoahDamageMultiplier(survivor);
+    const displayedDamage = Number((stats.damage * multiplier).toFixed(2));
+    const displayedDps = (getSurvivorDps(survivor) * multiplier).toFixed(1);
+    const damageNode = document.getElementById("survivorDetailDamage");
+    const damageTile = document.getElementById("survivorDetailDamageTile");
+    const combatStats = document.getElementById("survivorDetailCombatStats");
+    const targetingControl = document.getElementById("survivorTargetingControl");
+    const dpsNode = document.getElementById("survivorDetailDps");
+    const roleNode = document.getElementById("survivorDetailRole");
+    const buffNode = document.getElementById("survivorDetailBuff");
+    const costNode = document.getElementById("survivorDetailCost");
+
+    if (damageTile) {
+        const label = damageTile.querySelector("span");
+        if (label) label.textContent = isNoah ? "DAMAGE BUFF" : "DAMAGE";
+    }
+    if (damageNode) {
+        damageNode.textContent = isNoah
+            ? `+${getNoahDamageBuffPercent(survivor)}%`
+            : String(displayedDamage);
+    }
+    if (dpsNode) dpsNode.textContent = displayedDps;
+    if (combatStats) combatStats.hidden = isNoah;
+    if (targetingControl) targetingControl.hidden = isNoah || targetingControl.hidden;
+    if (costNode) costNode.hidden = survivors.includes(survivor);
+
+    if (roleNode) {
+        roleNode.dataset.noahBuffed = !isNoah && multiplier > 1 ? "true" : "false";
+    }
+
+    if (buffNode) {
+        if (!isNoah && multiplier > 1) {
+            const bonus = Math.round((multiplier - 1) * 100);
+            buffNode.hidden = false;
+            buffNode.textContent = `NOAH'S WISDOM · +${bonus}% DAMAGE`;
+            buffNode.title = `Damage and estimated DPS are boosted by Noah's Wisdom (+${bonus}%).`;
+        } else {
+            buffNode.hidden = true;
+            buffNode.textContent = "";
+            buffNode.removeAttribute("title");
+        }
+    }
+}
+
 function showSurvivorDetails(id) {
+    updateNoahSupportBuffs();
     const person = survivorDetails[id];
 
     const deployedUnit = survivors.find(survivor =>
@@ -3277,10 +3575,24 @@ portrait.alt = person.name + "'s portrait";    document.getElementById("survivor
     document.getElementById("survivorDetailRole").textContent = survivorAbilityTags[id]
         ? `${person.role} · ${survivorAbilityTags[id]}`
         : person.role;
-    document.getElementById("survivorDetailCost").textContent =
-        person.cost + " SCRAP";
+    const costNode = document.getElementById("survivorDetailCost");
+    costNode.textContent = person.cost + " SCRAP";
+    costNode.hidden = Boolean(deployedUnit);
 
-    document.getElementById("survivorDetailDamage").textContent = detail.damage;
+    const isNoah = id === "noah" || deployedUnit?.type === "noah";
+    const noahMultiplier = getSurvivorNoahDamageMultiplier(deployedUnit);
+    const damageTile = document.getElementById("survivorDetailDamageTile");
+    const combatStats = document.getElementById("survivorDetailCombatStats");
+    const targetingControl = document.getElementById("survivorTargetingControl");
+    if (damageTile) {
+        const label = damageTile.querySelector("span");
+        if (label) label.textContent = isNoah ? "DAMAGE BUFF" : "DAMAGE";
+    }
+    if (combatStats) combatStats.hidden = isNoah;
+    if (targetingControl) targetingControl.hidden = isNoah;
+    document.getElementById("survivorDetailDamage").textContent = isNoah
+        ? `+${getNoahDamageBuffPercent(deployedUnit || { type: "noah" })}%`
+        : String(Number((detail.damage * noahMultiplier).toFixed(2)));
     document.getElementById("survivorDetailRange").textContent = detail.range;
     document.getElementById("survivorDamageDealt").textContent =
     deployedUnit ? Math.round(deployedUnit.damageDealt || 0) : 0;
@@ -3288,9 +3600,24 @@ portrait.alt = person.name + "'s portrait";    document.getElementById("survivor
 document.getElementById("survivorKills").textContent =
     deployedUnit ? deployedUnit.kills || 0 : 0;
     document.getElementById("survivorDetailDps").textContent =
-        getSurvivorDps(deployedUnit || id).toFixed(1);
+        (getSurvivorDps(deployedUnit || id) * noahMultiplier).toFixed(1);
     document.getElementById("survivorDetailDps").title =
         "Estimated DPS includes a conservative nearby target for area attacks and active burn damage.";
+    const buffNode = document.getElementById("survivorDetailBuff");
+    if (buffNode) {
+        if (!isNoah && noahMultiplier > 1) {
+            const bonus = Math.round((noahMultiplier - 1) * 100);
+            buffNode.hidden = false;
+            buffNode.textContent = `NOAH'S WISDOM · +${bonus}% DAMAGE`;
+            buffNode.title = `Damage and estimated DPS are boosted by Noah's Wisdom (+${bonus}%).`;
+        } else {
+            buffNode.hidden = true;
+            buffNode.textContent = "";
+            buffNode.removeAttribute("title");
+        }
+    }
+    document.getElementById("survivorDetailRole").dataset.noahBuffed =
+        !isNoah && noahMultiplier > 1 ? "true" : "false";
 
    
 const deployedUpgradeLevel = getSurvivorUpgradeLevel(deployedUnit);
@@ -3325,7 +3652,12 @@ if (person.custom && deployedUpgradeLevel > 0) {
 }
 document.getElementById("survivorDetailDescription").textContent = detailDescription;
 
-updateSurvivorTargetingControl(deployedUnit || null);
+    if (isNoah) {
+        // Noah is a pure aura support unit and has no attack target to set.
+        if (targetingControl) targetingControl.hidden = true;
+    } else {
+        updateSurvivorTargetingControl(deployedUnit || null);
+    }
 updateSurvivorUpgradeButton(deployedUnit || null);
 updateSellButton();
 updateMoveButton();
@@ -3495,7 +3827,10 @@ const weaponAudioProfiles = {
     radhesh: { wave: "sawtooth",  start: 220, end: 68,  time: 0.16,  tone: 0.08,  noise: 0.09,  hiss: 0.07,  cutoff: 1200 },
     bas:     { wave: "triangle",  start: 740, end: 310, time: 0.09,  tone: 0.05,  noise: 0.02, hiss: 0.025, cutoff: 3300 },
     rork:    { wave: "square",    start: 560, end: 110, time: 0.06,  tone: 0.05,  noise: 0.06, hiss: 0.028, cutoff: 2300 },
-    knox:    { wave: "square",    start: 610, end: 150, time: 0.045, tone: 0.045, noise: 0.05, hiss: 0.022, cutoff: 2500 }
+    knox:    { wave: "square",    start: 610, end: 150, time: 0.045, tone: 0.045, noise: 0.05, hiss: 0.022, cutoff: 2500 },
+    nathan:  { wave: "sawtooth",  start: 190, end: 48,  time: 0.16,  tone: 0.105, noise: 0.09,  hiss: 0.09,  cutoff: 1100 },
+    gregory: { wave: "triangle",  start: 880, end: 360, time: 0.10,  tone: 0.055, noise: 0.012, hiss: 0.025, cutoff: 3000 },
+    william: { wave: "sawtooth",  start: 180, end: 62,  time: 0.15,  tone: 0.09,  noise: 0.08, hiss: 0.09, cutoff: 1250 }
 };
 
 const audioMuteKey = "wastelandDefense.audioMuted.v1";
@@ -3544,9 +3879,10 @@ function setGameAudioMuted(muted) {
 
 updateAudioMuteButton();
 
-function playWeaponAttackSound(type, delay = 0) {
+function playWeaponAttackSound(type, delay = 0, intensity = 1) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     const profile = weaponAudioProfiles[type] || weaponAudioProfiles.mason;
+    const soundIntensity = Math.max(0.5, Math.min(2, Number(intensity) || 1));
     if (gameAudioMuted || !AudioContextClass || !profile) return;
 
     if (!window.jamesAudioContext) {
@@ -3569,7 +3905,7 @@ function playWeaponAttackSound(type, delay = 0) {
     oscillator.frequency.setValueAtTime(profile.start, now);
     oscillator.frequency.exponentialRampToValueAtTime(profile.end, now + profile.time);
     toneGain.gain.setValueAtTime(0.0001, now);
-    toneGain.gain.exponentialRampToValueAtTime(profile.tone, now + 0.004);
+    toneGain.gain.exponentialRampToValueAtTime(profile.tone * soundIntensity, now + 0.004);
     toneGain.gain.exponentialRampToValueAtTime(0.0001, now + profile.time);
     oscillator.connect(toneGain);
     toneGain.connect(window.wastelandSoundGain);
@@ -3594,7 +3930,7 @@ function playWeaponAttackSound(type, delay = 0) {
     filter.type = "lowpass";
     filter.frequency.setValueAtTime(profile.cutoff, now);
     noiseGain.gain.setValueAtTime(0.0001, now);
-    noiseGain.gain.exponentialRampToValueAtTime(profile.noise, now + 0.003);
+    noiseGain.gain.exponentialRampToValueAtTime(profile.noise * soundIntensity, now + 0.003);
     noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + noiseDuration);
     noise.connect(filter);
     filter.connect(noiseGain);
@@ -3648,6 +3984,7 @@ function playSurvivorUpgradeSound(level = 1) {
 }
 
 function addShotVisual(survivor, enemy, dx, dy, distance, type, shotIndex = 0, shotCount = 1) {
+    const upgradeLevel = getSurvivorUpgradeLevel(survivor);
     const unitX = dx / distance;
     const unitY = dy / distance;
     const volleyOffset = (type === "selena" || type === "knox")
@@ -3695,7 +4032,10 @@ function addShotVisual(survivor, enemy, dx, dy, distance, type, shotIndex = 0, s
         maxLife: type === "james" ? 0.13 : 0.105,
         type,
         shotIndex,
-        shotCount
+        shotCount,
+        projectileScale: type === "nathan"
+            ? (upgradeLevel >= 3 ? 1.65 : 1.15)
+            : type === "gregory" ? 1.1 : 1
     });
 }
 
@@ -3711,7 +4051,9 @@ function addImpactPixels(enemy, type, dx, dy) {
         radhesh: ["#f4d08d", "#c0844d", "#fff0b4"],
         bas: ["#b9f3ff", "#5fc6d8", "#e8ffff"],
         rork: ["#d9e7b5", "#9ab36e", "#f4ffd7"],
-        knox: ["#fff0bd", "#d3b35a", "#fff8d0"]
+        knox: ["#fff0bd", "#d3b35a", "#fff8d0"],
+        nathan: ["#fff0b5", "#d5a65b", "#f4ca73"],
+        gregory: ["#ffe2ad", "#a97c57", "#d6b28a"]
     };
     const colors = palettes[type] || palettes.mason;
     const angleToTarget = Math.atan2(dy, dx);
@@ -3822,8 +4164,9 @@ function updateSurvivorTargetingControl(survivor) {
     if (!control || !select) return;
 
     const isFieldedSurvivor = Boolean(survivor && survivors.includes(survivor));
-    control.hidden = !isFieldedSurvivor;
-    if (!isFieldedSurvivor) return;
+    const isNoah = survivor?.type === "noah";
+    control.hidden = !isFieldedSurvivor || isNoah;
+    if (!isFieldedSurvivor || isNoah) return;
 
     const priority = Object.prototype.hasOwnProperty.call(
         TARGETING_PRIORITY_LABELS,
@@ -3838,6 +4181,10 @@ function updateSurvivorTargetingControl(survivor) {
 }
 
 function updateSurvivorCombat(deltaTime) {
+    // Recompute support ownership every frame so moving, placing, or selling
+    // Noah immediately updates the one-aura-per-survivor rule.
+    updateNoahSupportBuffs();
+
     for (const survivor of survivors) {
         if (survivor.damageDealt === undefined) survivor.damageDealt = 0;
         if (survivor.kills === undefined) survivor.kills = 0;
@@ -3847,6 +4194,13 @@ function updateSurvivorCombat(deltaTime) {
         }
         const stats = getSurvivorStats(survivor);
         if (!stats) continue;
+
+        // Noah contributes through his aura only; he never acquires targets,
+        // fires, plays weapon sounds, or increments attack telemetry.
+        if (survivor.type === "noah") {
+            survivor.attackCooldown = 0;
+            continue;
+        }
 
         survivor.attackCooldown =
             Math.max(0, (survivor.attackCooldown || 0) - deltaTime);
@@ -3913,20 +4267,29 @@ function updateSurvivorCombat(deltaTime) {
                             continue;
                         }
 
+                        const supportMultiplier = Number(survivor.noahDamageMultiplier) || 1;
                         const damage = isDirectTarget
-                            ? stats.damage
-                            : Math.max(1, Math.round(stats.damage * 0.5));
+                            ? stats.damage * supportMultiplier
+                            : Math.max(1, Math.round(stats.damage * supportMultiplier * 0.5));
                         applySurvivorDamage(survivor, affectedEnemy, damage, !isDirectTarget, hitIndex);
                     }
                 } else {
-                    applySurvivorDamage(survivor, enemy, stats.damage, false, hitIndex);
+                    const supportMultiplier = Number(survivor.noahDamageMultiplier) || 1;
+                    applySurvivorDamage(survivor, enemy, stats.damage * supportMultiplier, false, hitIndex);
                 }
 
-                // James ignites each target hit by the attack volley.
-                if (survivor.type === "james") {
-                    const burnStats = getJamesBurnStats(survivor);
+                // Flame weapons ignite every target hit by the volley. William
+                // uses an area profile, so one attack can ignite his whole aura.
+                if (survivor.type === "james" || survivor.type === "william") {
+                    const burnStats = survivor.type === "william"
+                        ? getWilliamBurnStats(survivor)
+                        : getJamesBurnStats(survivor);
                     enemy.burnTimer = burnStats.duration;
-                    enemy.burnDamage = burnStats.damage;
+                    const supportMultiplier = Number(survivor.noahDamageMultiplier) || 1;
+                    enemy.burnDamage = Math.max(
+                        Number(enemy.burnDamage) || 0,
+                        burnStats.damage * supportMultiplier
+                    );
                     if (enemy.burnTickTimer === undefined) {
                         enemy.burnTickTimer = 1;
                     }
@@ -3937,6 +4300,26 @@ function updateSurvivorCombat(deltaTime) {
                     enemy.slowTimer = 5;
                     enemy.slowMultiplier = 0.5;
                     enemy.slowFlash = 0.35;
+                }
+
+                if (customAttack?.stun && enemy.health > 0) {
+                    const stunStats = getGregoryStunStats(survivor);
+                    if (Math.random() < stunStats.chance) {
+                        const bossReduction = enemy.isWaveBoss || enemy.isMiniBoss ? 0.45 : 1;
+                        enemy.stunTimer = Math.max(
+                            enemy.stunTimer || 0,
+                            stunStats.duration * bossReduction
+                        );
+                        enemy.stunFlash = 0.45;
+                        blastEffects.push({
+                            kind: "stun",
+                            x: enemy.x,
+                            y: enemy.y,
+                            radius: 9,
+                            life: 0.24,
+                            maxLife: 0.24
+                        });
+                    }
                 }
 
                 // Survivors recoil from each target. Brady's shotgun also pushes
@@ -3967,8 +4350,10 @@ function updateSurvivorCombat(deltaTime) {
         const soundCount = customAttack?.repeat
             ? customAttack.repeat(getSurvivorUpgradeLevel(survivor))
             : 1;
+        const attackLevel = getSurvivorUpgradeLevel(survivor);
+        const soundIntensity = survivor.type === "nathan" && attackLevel >= 3 ? 1.45 : 1;
         for (let soundIndex = 0; soundIndex < soundCount; soundIndex++) {
-            playWeaponAttackSound(survivor.type, soundIndex * 0.055);
+            playWeaponAttackSound(survivor.type, soundIndex * 0.055, soundIntensity);
         }
         survivor.attackCooldown = stats.fireRate;
     }
@@ -3985,8 +4370,11 @@ function updateSurvivorCombat(deltaTime) {
             }
             totalEnemiesDefeated++;
             enemies.splice(i, 1);
+            const currentKillScrapChance = isEndlessStyleMode()
+                ? getEndlessDifficultyProfile(currentWave).killScrapChance
+                : killScrapChance;
             const earnsScrap = !defeatedEnemy.isSplitChild
-                && Math.random() < killScrapChance;
+                && Math.random() < currentKillScrapChance;
             const killReward = earnsScrap
                 ? (isEndlessStyleMode()
                     ? endlessKillScrapPerKill
@@ -4122,7 +4510,9 @@ function drawBullets() {
         selena:  { trail: "#8fe4ef", core: "#f1ffff", width: 2, length: 9 },
         bas:     { trail: "#63d6e5", core: "#eaffff", width: 3, length: 13 },
         rork:    { trail: "#a9c86e", core: "#efffc8", width: 2, length: 20 },
-        knox:    { trail: "#d4b759", core: "#fff5c2", width: 2, length: 16 }
+        knox:    { trail: "#d4b759", core: "#fff5c2", width: 2, length: 16 },
+        nathan:  { trail: "#d3a34f", core: "#fff3bb", width: 3, length: 26 },
+        gregory: { trail: "#9b704d", core: "#ffe0a5", width: 2, length: 15 }
     };
 
     ctx.save();
@@ -4232,6 +4622,31 @@ function drawBullets() {
             // Individual pellets stay small so the tight spread remains clear.
             ctx.fillStyle = style.core;
             ctx.fillRect(endX - 1, endY - 1, 2, 2);
+        } else if (bullet.type === "nathan") {
+            // Nathan's .50 caliber hand cannon gets a heavy, oversized round.
+            const scale = bullet.projectileScale || 1;
+            const size = Math.max(2, Math.round(3 * scale));
+            ctx.fillStyle = "#8f663c";
+            ctx.fillRect(
+                endX - Math.round(size * 1.5),
+                endY - Math.round(size * 0.5),
+                Math.round(size * 2),
+                Math.max(2, size)
+            );
+            ctx.fillStyle = style.core;
+            ctx.fillRect(
+                endX - Math.max(1, Math.round(size * 0.5)),
+                endY - Math.max(1, Math.round(size * 0.5)),
+                size,
+                size
+            );
+        } else if (bullet.type === "gregory") {
+            // Gregory's slingshot stone is small, earthy, and easy to read.
+            const size = Math.max(2, Math.round(2 * (bullet.projectileScale || 1)));
+            ctx.fillStyle = "#6d4c36";
+            ctx.fillRect(endX - size, endY - size, size * 2, size * 2);
+            ctx.fillStyle = style.core;
+            ctx.fillRect(endX - 1, endY - 1, 2, 2);
         } else {
             // Compact, squared-off bullet tips for the handgun and SMG.
             ctx.fillStyle = style.core;
@@ -4303,6 +4718,24 @@ function drawBlastEffects() {
             ctx.strokeStyle = "#fff3c1";
             ctx.lineWidth = 1;
             ctx.stroke();
+            continue;
+        }
+        if (effect.kind === "stun") {
+            ctx.globalAlpha = Math.max(0, effect.life / effect.maxLife) * 0.9;
+            ctx.strokeStyle = "#b7efff";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(
+                Math.round(effect.x),
+                Math.round(effect.y),
+                Math.round(effect.radius + progress * 6),
+                0,
+                Math.PI * 2
+            );
+            ctx.stroke();
+            ctx.fillStyle = "#e7fbff";
+            ctx.fillRect(Math.round(effect.x) - 1, Math.round(effect.y) - 5, 2, 10);
+            ctx.fillRect(Math.round(effect.x) - 5, Math.round(effect.y) - 1, 10, 2);
             continue;
         }
         const radius = Math.max(4, effect.radius * progress);
@@ -4402,6 +4835,8 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
 );
         enemy.slowTimer = Math.max(0, (enemy.slowTimer || 0) - deltaTime);
         enemy.slowFlash = Math.max(0, (enemy.slowFlash || 0) - deltaTime);
+        enemy.stunTimer = Math.max(0, (enemy.stunTimer || 0) - deltaTime);
+        enemy.stunFlash = Math.max(0, (enemy.stunFlash || 0) - deltaTime);
         enemy.healFlash = Math.max(0, (enemy.healFlash || 0) - deltaTime);
         const target = roadPoints[enemy.targetPoint];
 
@@ -4412,7 +4847,9 @@ if (enemy.burnTimer > 0 && enemy.health > 0) {
         const dx = target.x - enemy.x;
         const dy = target.y - enemy.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-            const movement = enemy.speed * (enemy.slowTimer > 0 ? (enemy.slowMultiplier || 0.5) : 1) * deltaTime;
+            const movement = enemy.stunTimer > 0
+                ? 0
+                : enemy.speed * (enemy.slowTimer > 0 ? (enemy.slowMultiplier || 0.5) : 1) * deltaTime;
 
         if (distance <= movement) {
             enemy.x = target.x;
@@ -4633,6 +5070,22 @@ function drawEnemies() {
                 ctx.restore();
             }
 
+            if (enemy.stunTimer > 0) {
+                // Stunned enemies keep their sprite silhouette but flash with
+                // a cool electric tint so the status is readable at a glance.
+                ctx.save();
+                ctx.globalAlpha = 0.38 + Math.sin(performance.now() / 75 + enemy.x) * 0.06;
+                ctx.filter = "hue-rotate(165deg) saturate(2.8) brightness(1.35)";
+                ctx.drawImage(
+                    image,
+                    spriteX - spriteWidth / 2,
+                    spriteY - spriteHeight / 2,
+                    spriteWidth,
+                    spriteHeight
+                );
+                ctx.restore();
+            }
+
                      ctx.restore();
         }
 
@@ -4654,6 +5107,26 @@ function drawEnemies() {
             ctx.fillStyle = "#9af0b8";
             ctx.fillRect(Math.round(spriteX) - 2, Math.round(spriteY - spriteHeight / 2 - 13), 4, 10);
             ctx.fillRect(Math.round(spriteX) - 5, Math.round(spriteY - spriteHeight / 2 - 10), 10, 4);
+            ctx.restore();
+        }
+
+        if (enemy.stunTimer > 0 && enemy.health > 0) {
+            const pulse = 1 + Math.sin(performance.now() / 80 + enemy.x) * 0.15;
+            ctx.save();
+            ctx.globalAlpha = 0.9;
+            ctx.strokeStyle = "#b7efff";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(
+                Math.round(spriteX),
+                Math.round(spriteY - spriteHeight / 2 - 7),
+                5 * pulse,
+                0,
+                Math.PI * 2
+            );
+            ctx.stroke();
+            ctx.fillStyle = "#e7fbff";
+            ctx.fillRect(Math.round(spriteX) - 1, Math.round(spriteY - spriteHeight / 2 - 10), 2, 2);
             ctx.restore();
         }
 
@@ -4766,6 +5239,7 @@ function drawHollowBossBar(hollowAlive) {
 
 
 function renderGame() {
+    updateNoahSupportBuffs();
     ctx.drawImage(mapCanvas, 0, 0);
     drawBattlefieldAtmosphere();
     drawSurvivors();
@@ -4781,10 +5255,12 @@ function renderGame() {
     // the translucent circle.
     if (inspectedSurvivor) drawSurvivors(inspectedSurvivor);
     drawSurvivorLevelMarkers();
+    drawNoahBuffIndicators();
     drawSurvivorSelectionFeedback();
     drawSurvivorPlacementFeedback();
     drawSurvivorUpgradeFeedback();
     if (inspectedSurvivor) {
+    updateInspectedSurvivorCardStats();
     document.getElementById("survivorDamageDealt").textContent =
         Math.round(inspectedSurvivor.damageDealt || 0);
 
@@ -4900,13 +5376,18 @@ function drawSelectedSurvivorRange() {
         Math.PI * 2
     );
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+    const isNoah = inspectedSurvivor.type === "noah";
+    ctx.fillStyle = isNoah
+        ? "rgba(246, 198, 92, 0.12)"
+        : "rgba(255, 255, 255, 0.08)";
     ctx.fill();
 
     const pulse = 0.72 + Math.sin(now / 180) * 0.16;
-    ctx.strokeStyle = `rgba(255, 255, 255, ${pulse})`;
+    ctx.strokeStyle = isNoah
+        ? `rgba(246, 198, 92, ${pulse})`
+        : `rgba(255, 255, 255, ${pulse})`;
     ctx.lineWidth = 2;
-    ctx.setLineDash([8, 10]);
+    ctx.setLineDash(isNoah ? [5, 7] : [8, 10]);
     ctx.lineDashOffset = -(now / 90);
     ctx.stroke();
 
@@ -5149,7 +5630,7 @@ function updateWaveSystem(deltaTime) {
         const completedWave = currentWave;
         if (gameMode === "daily") dailyLastCompletedAt = new Date().toISOString();
         const lateEndlessIncomeBonus = isEndlessStyleMode()
-            ? Math.min(20, Math.max(0, Math.floor((completedWave - 40) * 0.5)))
+            ? Math.min(14, Math.max(0, Math.floor((completedWave - 100) * 0.18)))
             : 0;
         const baseWaveReward = isEndlessStyleMode()
             // Raise the early checkpoint slightly and let it grow gradually
@@ -5180,22 +5661,21 @@ function updateWaveSystem(deltaTime) {
             && (completedWave === 5 || completedWave === 10)
             ? 12
             : 0;
-        // Once the roster is built, a small late-run upkeep charge keeps scrap
-        // meaningful without starving the opening build. It scales by active
-        // survivors and only begins after the first major boss milestone.
-        const endlessUpkeep = gameMode === "endless" && completedWave >= 50
-            ? Math.min(48, survivors.length * (2 + Math.floor((completedWave - 50) / 15)))
-            : 0;
-        const waveReward = Math.max(0, grossWaveReward + checkpointBonus - endlessUpkeep);
+        // There is no upkeep tax. Late-game scarcity comes from stronger
+        // enemy quality and a deliberately slower reward curve instead of
+        // silently charging the player for every survivor on the field.
+        const waveReward = Math.max(0, grossWaveReward + checkpointBonus);
         scrap += waveReward;
         updateScrapDisplay();
-        recordEndlessTelemetryWave(completedWave, waveReward, leakPenalty, endlessUpkeep);
+        // Keep the telemetry field for backwards-compatible dashboards; it is
+        // always zero now that upkeep has been removed.
+        recordEndlessTelemetryWave(completedWave, waveReward, leakPenalty, 0);
         showWaveCompleteToast(
             completedWave,
             waveReward,
             leakedEnemiesThisWave,
             leakPenalty,
-            endlessUpkeep,
+            0,
             checkpointBonus
         );
 
