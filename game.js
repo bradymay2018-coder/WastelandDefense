@@ -2718,6 +2718,11 @@ survivor.recoilY *= 1 - recoilReturn;
 }
 
 function drawSurvivorSelectionFeedback() {
+    // The mobile range ring is already rendered by the compositor. Skip the
+    // extra canvas pulse there; the sprite nudge in drawSurvivors still gives
+    // a tactile selection response without another animated stroke repaint.
+    if (isMobileGameplayViewport()) return;
+
     const now = performance.now();
 
     for (const survivor of survivors) {
@@ -3367,9 +3372,18 @@ customSurvivors.forEach(survivor => {
 // frame pay the cost of the full scene. A small compositor-owned ring keeps
 // the selection feedback smooth without changing the desktop presentation.
 let mobileSelectionRangeRing = null;
+const mobileGameplayMediaQuery = window.matchMedia?.("(max-width: 900px)") || null;
+let mobileGameplayViewport = Boolean(mobileGameplayMediaQuery?.matches);
 
 function isMobileGameplayViewport() {
-    return Boolean(window.matchMedia?.("(max-width: 900px)").matches);
+    return mobileGameplayViewport;
+}
+
+function refreshMobileGameplayViewport() {
+    mobileGameplayViewport = Boolean(
+        mobileGameplayMediaQuery?.matches
+        ?? window.matchMedia?.("(max-width: 900px)").matches
+    );
 }
 
 function getMobileSelectionRangeRing() {
@@ -3423,13 +3437,16 @@ function syncMobileSelectionRangeOverlay() {
 }
 
 window.addEventListener("resize", () => {
+    refreshMobileGameplayViewport();
     if (!mobileSelectionRangeRing?.hidden) {
         window.requestAnimationFrame(syncMobileSelectionRangeOverlay);
     }
 }, { passive: true });
 window.addEventListener("orientationchange", () => {
+    refreshMobileGameplayViewport();
     window.requestAnimationFrame(syncMobileSelectionRangeOverlay);
 }, { passive: true });
+mobileGameplayMediaQuery?.addEventListener?.("change", refreshMobileGameplayViewport);
 
 function hideSurvivorDetails() {
     const detailsPanel = document.getElementById("survivorDetailsPanel");
@@ -3462,9 +3479,26 @@ function getSurvivorNoahDamageMultiplier(survivor) {
     return Number.isFinite(multiplier) && multiplier > 1 ? multiplier : 1;
 }
 
-function updateInspectedSurvivorCardStats() {
+let lastInspectedCardSyncAt = 0;
+let lastInspectedCardSyncSurvivor = null;
+
+function updateInspectedSurvivorCardStats(force = false) {
     const survivor = inspectedSurvivor;
     if (!survivor) return;
+
+    // On phones, updating several text nodes every animation frame forces the
+    // browser to repeatedly recalculate the control panel while the selected
+    // survivor is being rendered. The combat readout does not need 60fps
+    // precision, so refresh it at a lightweight cadence instead. Desktop
+    // keeps the original immediate updates.
+    const now = performance.now();
+    if (!force && isMobileGameplayViewport()
+        && survivor === lastInspectedCardSyncSurvivor
+        && now - lastInspectedCardSyncAt < 120) {
+        return;
+    }
+    lastInspectedCardSyncAt = now;
+    lastInspectedCardSyncSurvivor = survivor;
 
     const stats = getSurvivorStats(survivor);
     if (!stats) return;
@@ -3484,17 +3518,29 @@ function updateInspectedSurvivorCardStats() {
 
     if (damageTile) {
         const label = damageTile.querySelector("span");
-        if (label) label.textContent = isNoah ? "DAMAGE BUFF" : "DAMAGE";
+        if (label) {
+            const nextLabel = isNoah ? "DAMAGE BUFF" : "DAMAGE";
+            if (label.textContent !== nextLabel) label.textContent = nextLabel;
+        }
     }
     if (damageNode) {
-        damageNode.textContent = isNoah
+        const nextDamage = isNoah
             ? `+${getNoahDamageBuffPercent(survivor)}%`
             : String(displayedDamage);
+        if (damageNode.textContent !== nextDamage) damageNode.textContent = nextDamage;
     }
-    if (dpsNode) dpsNode.textContent = displayedDps;
-    if (combatStats) combatStats.hidden = isNoah;
-    if (targetingControl) targetingControl.hidden = isNoah || targetingControl.hidden;
-    if (costNode) costNode.hidden = survivors.includes(survivor);
+    if (dpsNode && dpsNode.textContent !== displayedDps) dpsNode.textContent = displayedDps;
+    if (combatStats && combatStats.hidden !== isNoah) combatStats.hidden = isNoah;
+    if (targetingControl) {
+        const shouldHideTargeting = isNoah || targetingControl.hidden;
+        if (targetingControl.hidden !== shouldHideTargeting) {
+            targetingControl.hidden = shouldHideTargeting;
+        }
+    }
+    if (costNode) {
+        const shouldHideCost = survivors.includes(survivor);
+        if (costNode.hidden !== shouldHideCost) costNode.hidden = shouldHideCost;
+    }
 
     if (roleNode) {
         roleNode.dataset.noahBuffed = !isNoah && multiplier > 1 ? "true" : "false";
@@ -3503,14 +3549,32 @@ function updateInspectedSurvivorCardStats() {
     if (buffNode) {
         if (!isNoah && multiplier > 1) {
             const bonus = Math.round((multiplier - 1) * 100);
-            buffNode.hidden = false;
-            buffNode.textContent = `NOAH'S WISDOM · +${bonus}% DAMAGE`;
-            buffNode.title = `Damage and estimated DPS are boosted by Noah's Wisdom (+${bonus}%).`;
+            const nextBuff = `NOAH'S WISDOM · +${bonus}% DAMAGE`;
+            if (buffNode.hidden) buffNode.hidden = false;
+            if (buffNode.textContent !== nextBuff) buffNode.textContent = nextBuff;
+            const nextTitle = `Damage and estimated DPS are boosted by Noah's Wisdom (+${bonus}%).`;
+            if (buffNode.title !== nextTitle) buffNode.title = nextTitle;
         } else {
-            buffNode.hidden = true;
-            buffNode.textContent = "";
-            buffNode.removeAttribute("title");
+            if (!buffNode.hidden) buffNode.hidden = true;
+            if (buffNode.textContent) buffNode.textContent = "";
+            if (buffNode.hasAttribute("title")) buffNode.removeAttribute("title");
         }
+    }
+
+    updateInspectedCombatReadout();
+}
+
+function updateInspectedCombatReadout() {
+    if (!inspectedSurvivor) return;
+    const damageNode = document.getElementById("survivorDamageDealt");
+    const killsNode = document.getElementById("survivorKills");
+    const nextDamage = String(Math.round(inspectedSurvivor.damageDealt || 0));
+    const nextKills = String(inspectedSurvivor.kills || 0);
+    if (damageNode && damageNode.textContent !== nextDamage) {
+        damageNode.textContent = nextDamage;
+    }
+    if (killsNode && killsNode.textContent !== nextKills) {
+        killsNode.textContent = nextKills;
     }
 }
 
@@ -5250,23 +5314,21 @@ function renderGame() {
     drawDamageNumbers();
     drawSurvivorPreview();
     drawSelectedSurvivorRange();
-    // Repaint only the inspected model after its range so the selected
-    // survivor remains the visual focal point instead of being washed out by
-    // the translucent circle.
-    if (inspectedSurvivor) drawSurvivors(inspectedSurvivor);
+    // Desktop repaints the inspected model after its range so it remains the
+    // visual focal point. Mobile uses a DOM-owned range ring and no canvas
+    // range fill, so this second sprite/shadow pass is unnecessary and costs
+    // a noticeable amount on phones.
+    if (inspectedSurvivor && !isMobileGameplayViewport()) {
+        drawSurvivors(inspectedSurvivor);
+    }
     drawSurvivorLevelMarkers();
     drawNoahBuffIndicators();
     drawSurvivorSelectionFeedback();
     drawSurvivorPlacementFeedback();
     drawSurvivorUpgradeFeedback();
     if (inspectedSurvivor) {
-    updateInspectedSurvivorCardStats();
-    document.getElementById("survivorDamageDealt").textContent =
-        Math.round(inspectedSurvivor.damageDealt || 0);
-
-    document.getElementById("survivorKills").textContent =
-        inspectedSurvivor.kills || 0;
-}
+        updateInspectedSurvivorCardStats();
+    }
 }
 
 let battlefieldAtmosphereGradientCache = null;

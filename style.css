@@ -2321,6 +2321,35 @@ main.game-layout > .control-panel {
     }
 }
 
+/* Phones have much less GPU headroom than desktop. Keep the selection cue,
+   but avoid dashed-border repainting, nested pseudo-elements, and drop-shadow
+   filters while the battlefield is animating underneath it. Opacity is
+   compositor-friendly and still gives the ring a gentle pulse. */
+@media (max-width: 900px) {
+    .mobile-selection-range-ring {
+        border-style: solid;
+        border-width: 1.5px;
+        border-color: rgba(255, 255, 255, 0.78);
+        filter: none;
+        animation: mobile-selection-range-pulse-mobile 1.8s ease-in-out infinite;
+        will-change: opacity;
+    }
+
+    .mobile-selection-range-ring::after {
+        display: none;
+    }
+
+    .mobile-selection-range-ring.noah-range {
+        border-color: rgba(246, 198, 92, 0.9);
+        filter: none;
+    }
+}
+
+@keyframes mobile-selection-range-pulse-mobile {
+    0%, 100% { opacity: 0.68; }
+    50% { opacity: 0.92; }
+}
+
 /* Homepage update callout for the newly available account features. */
 #mainMenu .menu-whats-new {
     display: grid;
