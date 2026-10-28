@@ -28,11 +28,82 @@ codyImage.src = "Images/Codychar.png";
 const britneyImage = new Image();
 britneyImage.src = "Images/Britneychar.png";
 
+// Britney has dedicated combat poses. Keep these separate from her portrait
+// and idle model so the game can swap poses without changing any roster art.
+const britneyAimImage = new Image();
+britneyAimImage.src = "Images/Britneychar_aim.png";
+
+const britneyShootImage = new Image();
+britneyShootImage.src = "Images/Britneychar_shoot.png";
+
+// Mason has matching combat poses so his handgun reads clearly while he is
+// tracking and firing at hostiles.
+const masonAimImage = new Image();
+masonAimImage.src = "Images/Masonsurv_aim.png";
+
+const masonShootImage = new Image();
+masonShootImage.src = "Images/Masonsurv_shoot.png";
+
+// Zach has dedicated combat poses for his fast SMG fire.
+const zachAimImage = new Image();
+zachAimImage.src = "Images/Zachsurv_aim.png";
+
+const zachShootImage = new Image();
+zachShootImage.src = "Images/Zachsurv_shoot.png";
+
 const zachImage = new Image();
 zachImage.src = "Images/Zachchar.png";
 
 const bradyImage = new Image();
 bradyImage.src = "Images/Bradychar.png";
+
+// Additional combat poses for the expanded roster. These assets are kept
+// separate from the idle models so aiming/firing can be animated without
+// changing portraits or deployment art.
+const bradyAimImage = new Image();
+bradyAimImage.src = "Images/BradySurv_aim.png";
+const bradyShootImage = new Image();
+bradyShootImage.src = "Images/BradySurv_shoot.png";
+const jamesAimImage = new Image();
+jamesAimImage.src = "Images/JamesSurv_aim.png";
+const jamesShootImage = new Image();
+jamesShootImage.src = "Images/JamesSurv_shoot.png";
+const rorkAimImage = new Image();
+rorkAimImage.src = "Images/Rorksurv_aim.png";
+const rorkShootImage = new Image();
+rorkShootImage.src = "Images/Rorksurv_shoot.png";
+const nathanAimImage = new Image();
+nathanAimImage.src = "Images/Nathansurv_aim.png";
+const nathanShootImage = new Image();
+nathanShootImage.src = "Images/Nathansurv_shoot.png";
+const gregoryAimImage = new Image();
+gregoryAimImage.src = "Images/GregorySurv_aim.png";
+const gregoryShootImage = new Image();
+gregoryShootImage.src = "Images/GregorySurv_shoot.png";
+const codyAimImage = new Image();
+codyAimImage.src = "Images/CodySurv_aim.png";
+const codyShootImage = new Image();
+codyShootImage.src = "Images/CodySurv_shoot.png";
+const knoxAimImage = new Image();
+knoxAimImage.src = "Images/Knoxsurv_aim.png";
+const knoxShootImage = new Image();
+knoxShootImage.src = "Images/Knoxsurv_shoot.png";
+
+// A single pose contract keeps every weapon's visual behavior consistent.
+// The property names preserve the existing Britney/Mason/Zach state so saved
+// runs and older code continue to work unchanged.
+const survivorCombatPoseConfig = {
+    britney: { aimImage: britneyAimImage, shootImage: britneyShootImage, targetKey: "britneyTarget", facingKey: "britneyFacing", shootUntilKey: "britneyShootUntil" },
+    mason: { aimImage: masonAimImage, shootImage: masonShootImage, targetKey: "masonTarget", facingKey: "masonFacing", shootUntilKey: "masonShootUntil" },
+    zach: { aimImage: zachAimImage, shootImage: zachShootImage, targetKey: "zachTarget", facingKey: "zachFacing", shootUntilKey: "zachShootUntil" },
+    brady: { aimImage: bradyAimImage, shootImage: bradyShootImage, targetKey: "bradyTarget", facingKey: "bradyFacing", shootUntilKey: "bradyShootUntil" },
+    james: { aimImage: jamesAimImage, shootImage: jamesShootImage, targetKey: "jamesTarget", facingKey: "jamesFacing", shootUntilKey: "jamesShootUntil" },
+    rork: { aimImage: rorkAimImage, shootImage: rorkShootImage, targetKey: "rorkTarget", facingKey: "rorkFacing", shootUntilKey: "rorkShootUntil" },
+    nathan: { aimImage: nathanAimImage, shootImage: nathanShootImage, targetKey: "nathanTarget", facingKey: "nathanFacing", shootUntilKey: "nathanShootUntil" },
+    gregory: { aimImage: gregoryAimImage, shootImage: gregoryShootImage, targetKey: "gregoryTarget", facingKey: "gregoryFacing", shootUntilKey: "gregoryShootUntil" },
+    cody: { aimImage: codyAimImage, shootImage: codyShootImage, targetKey: "codyTarget", facingKey: "codyFacing", shootUntilKey: "codyShootUntil" },
+    knox: { aimImage: knoxAimImage, shootImage: knoxShootImage, targetKey: "knoxTarget", facingKey: "knoxFacing", shootUntilKey: "knoxShootUntil" }
+};
 
 const builtinSurvivorIds = new Set(["mason", "james", "cody", "britney", "zach", "brady"]);
 // Custom packages contain base inputs only. This profile marker makes the
@@ -2682,6 +2753,32 @@ function getSurvivorImage(type) {
     return survivorImages[type] || customSurvivorImages[type] || null;
 }
 
+function getSurvivorRenderImage(survivor) {
+    if (!survivor) return null;
+    const pose = survivorCombatPoseConfig[survivor.type];
+    const idleImage = getSurvivorImage(survivor.type);
+    if (!pose) return idleImage;
+
+    const now = performance.now();
+    if (
+        Number(survivor[pose.shootUntilKey]) > now &&
+        pose.shootImage.complete &&
+        pose.shootImage.naturalWidth > 0
+    ) {
+        return pose.shootImage;
+    }
+
+    if (
+        isPoseTargetValid(survivor, pose) &&
+        pose.aimImage.complete &&
+        pose.aimImage.naturalWidth > 0
+    ) {
+        return pose.aimImage;
+    }
+
+    return idleImage;
+}
+
 function getSurvivorSpriteMetrics(image) {
     if (!image || !image.complete || image.naturalWidth === 0) {
         return { bottomInset: 0 };
@@ -2738,7 +2835,7 @@ function drawSurvivors(onlySurvivor = null) {
 
     for (const survivor of renderList) {
         if (onlySurvivor && survivor !== onlySurvivor) continue;
-        const image = getSurvivorImage(survivor.type);
+        const image = getSurvivorRenderImage(survivor);
 
         if (!image || !image.complete || image.naturalWidth === 0) {
             continue;
@@ -2808,15 +2905,42 @@ survivor.recoilY *= 1 - recoilReturn;
         ctx.fillRect(Math.round(shadowX - 6), Math.round(shadowY - 1), 12, 1);
         ctx.imageSmoothingEnabled = false;
 
-        ctx.drawImage(
-    image,
-    survivor.x + survivor.recoilX - width / 2,
-    // A small arrival bounce gives deployment and repositioning a tactile
-    // response while preserving the crisp pixel-art silhouette.
-    getSurvivorVisualTop(survivor, bounce, selectionNudge, placementNudge, upgradeNudge),
-    width,
-    height
-);
+        const visualTop = getSurvivorVisualTop(
+            survivor,
+            bounce,
+            selectionNudge,
+            placementNudge,
+            upgradeNudge
+        );
+        const visualX = survivor.x + survivor.recoilX;
+        const pose = survivorCombatPoseConfig[survivor.type];
+        const facing = pose && survivor[pose.facingKey] === -1 ? -1 : 1;
+
+        // Flip only the pose-enabled survivors around their feet anchor. This
+        // keeps every other survivor's art and existing depth behavior intact.
+        if (facing < 0) {
+            ctx.save();
+            ctx.translate(visualX, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(
+                image,
+                -width / 2,
+                // A small arrival bounce gives deployment and repositioning a
+                // tactile response while preserving the crisp pixel-art silhouette.
+                visualTop,
+                width,
+                height
+            );
+            ctx.restore();
+        } else {
+            ctx.drawImage(
+                image,
+                visualX - width / 2,
+                visualTop,
+                width,
+                height
+            );
+        }
 
         ctx.restore();
     }
@@ -4358,6 +4482,198 @@ function compareAttackTargets(first, second, priority = targetingPriority) {
     return (secondEnemy.leakDamage || 0) - (firstEnemy.leakDamage || 0);
 }
 
+function getBritneyTarget(survivor, stats) {
+    if (!survivor || survivor.type !== "britney" || !stats) return null;
+
+    const candidates = [];
+    for (const enemy of enemies) {
+        if (enemy.finished || enemy.health <= 0) continue;
+
+        const dx = enemy.x - survivor.x;
+        const dy = enemy.y - survivor.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= stats.range) {
+            candidates.push({
+                enemy,
+                dx,
+                dy,
+                distance,
+                pathProgress: getEnemyPathProgress(enemy)
+            });
+        }
+    }
+
+    candidates.sort((first, second) => compareAttackTargets(
+        first,
+        second,
+        survivor.targetingPriority || targetingPriority
+    ));
+    return candidates[0]?.enemy || null;
+}
+
+function updateBritneyVisualState(survivor, stats) {
+    if (!survivor || survivor.type !== "britney") return;
+
+    const target = getBritneyTarget(survivor, stats);
+    survivor.britneyTarget = target;
+    if (target) {
+        survivor.britneyFacing = target.x < survivor.x ? -1 : 1;
+    }
+}
+
+function isBritneyTargetValid(survivor) {
+    const target = survivor?.britneyTarget;
+    if (!target || target.finished || target.health <= 0) return false;
+
+    const stats = getSurvivorStats(survivor);
+    if (!stats) return false;
+    return Math.hypot(target.x - survivor.x, target.y - survivor.y) <= stats.range;
+}
+
+function getMasonTarget(survivor, stats) {
+    if (!survivor || survivor.type !== "mason" || !stats) return null;
+
+    const candidates = [];
+    for (const enemy of enemies) {
+        if (enemy.finished || enemy.health <= 0) continue;
+
+        const dx = enemy.x - survivor.x;
+        const dy = enemy.y - survivor.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= stats.range) {
+            candidates.push({
+                enemy,
+                dx,
+                dy,
+                distance,
+                pathProgress: getEnemyPathProgress(enemy)
+            });
+        }
+    }
+
+    candidates.sort((first, second) => compareAttackTargets(
+        first,
+        second,
+        survivor.targetingPriority || targetingPriority
+    ));
+    return candidates[0]?.enemy || null;
+}
+
+function updateMasonVisualState(survivor, stats) {
+    if (!survivor || survivor.type !== "mason") return;
+
+    const target = getMasonTarget(survivor, stats);
+    survivor.masonTarget = target;
+    if (target) {
+        survivor.masonFacing = target.x < survivor.x ? -1 : 1;
+    }
+}
+
+function isMasonTargetValid(survivor) {
+    const target = survivor?.masonTarget;
+    if (!target || target.finished || target.health <= 0) return false;
+
+    const stats = getSurvivorStats(survivor);
+    if (!stats) return false;
+    return Math.hypot(target.x - survivor.x, target.y - survivor.y) <= stats.range;
+}
+
+function getZachTarget(survivor, stats) {
+    if (!survivor || survivor.type !== "zach" || !stats) return null;
+
+    const candidates = [];
+    for (const enemy of enemies) {
+        if (enemy.finished || enemy.health <= 0) continue;
+
+        const dx = enemy.x - survivor.x;
+        const dy = enemy.y - survivor.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= stats.range) {
+            candidates.push({
+                enemy,
+                dx,
+                dy,
+                distance,
+                pathProgress: getEnemyPathProgress(enemy)
+            });
+        }
+    }
+
+    candidates.sort((first, second) => compareAttackTargets(
+        first,
+        second,
+        survivor.targetingPriority || targetingPriority
+    ));
+    return candidates[0]?.enemy || null;
+}
+
+function updateZachVisualState(survivor, stats) {
+    if (!survivor || survivor.type !== "zach") return;
+
+    const target = getZachTarget(survivor, stats);
+    survivor.zachTarget = target;
+    if (target) {
+        survivor.zachFacing = target.x < survivor.x ? -1 : 1;
+    }
+}
+
+function isZachTargetValid(survivor) {
+    const target = survivor?.zachTarget;
+    if (!target || target.finished || target.health <= 0) return false;
+
+    const stats = getSurvivorStats(survivor);
+    if (!stats) return false;
+    return Math.hypot(target.x - survivor.x, target.y - survivor.y) <= stats.range;
+}
+
+function getPoseTarget(survivor, stats) {
+    const pose = survivorCombatPoseConfig[survivor?.type];
+    if (!pose || !stats) return null;
+
+    const candidates = [];
+    for (const enemy of enemies) {
+        if (enemy.finished || enemy.health <= 0) continue;
+
+        const dx = enemy.x - survivor.x;
+        const dy = enemy.y - survivor.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= stats.range) {
+            candidates.push({
+                enemy,
+                dx,
+                dy,
+                distance,
+                pathProgress: getEnemyPathProgress(enemy)
+            });
+        }
+    }
+
+    candidates.sort((first, second) => compareAttackTargets(
+        first,
+        second,
+        survivor.targetingPriority || targetingPriority
+    ));
+    return candidates[0]?.enemy || null;
+}
+
+function updatePoseVisualState(survivor, stats) {
+    const pose = survivorCombatPoseConfig[survivor?.type];
+    if (!pose) return;
+
+    const target = getPoseTarget(survivor, stats);
+    survivor[pose.targetKey] = target;
+    if (target) survivor[pose.facingKey] = target.x < survivor.x ? -1 : 1;
+}
+
+function isPoseTargetValid(survivor, pose = survivorCombatPoseConfig[survivor?.type]) {
+    const target = pose ? survivor?.[pose.targetKey] : null;
+    if (!target || target.finished || target.health <= 0) return false;
+
+    const stats = getSurvivorStats(survivor);
+    if (!stats) return false;
+    return Math.hypot(target.x - survivor.x, target.y - survivor.y) <= stats.range;
+}
+
 function updateSurvivorTargetingControl(survivor) {
     const control = document.getElementById("survivorTargetingControl");
     const select = document.getElementById("survivorTargetPrioritySelect");
@@ -4402,6 +4718,11 @@ function updateSurvivorCombat(deltaTime) {
             continue;
         }
 
+        // Keep pose-enabled survivors' visual targets live even while their
+        // weapons are cooling down. This lets them hold the aim pose whenever
+        // a hostile enters their radius instead of only updating on a shot.
+        updatePoseVisualState(survivor, stats);
+
         survivor.attackCooldown =
             Math.max(0, (survivor.attackCooldown || 0) - deltaTime);
 
@@ -4441,6 +4762,14 @@ function updateSurvivorCombat(deltaTime) {
         }
 
         if (attackTargets.length === 0) continue;
+
+        const pose = survivorCombatPoseConfig[survivor.type];
+        if (pose) {
+            const shotTarget = attackTargets[0].enemy;
+            survivor[pose.targetKey] = shotTarget;
+            survivor[pose.facingKey] = shotTarget.x < survivor.x ? -1 : 1;
+            survivor[pose.shootUntilKey] = performance.now() + 180;
+        }
 
         survivor.telemetryAttacks = (survivor.telemetryAttacks || 0) + 1;
 
