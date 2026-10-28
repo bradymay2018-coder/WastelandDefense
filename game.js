@@ -49,7 +49,7 @@ const customBalanceConfig = window.WD_SURVIVOR_BALANCE || {
 const customSurvivorBalanceProfile = customBalanceConfig.version;
 // Keep the first mystery-box roster locked even if an older exported package
 // does not yet include the builder's mysteryBoxOnly flag.
-const mysteryBoxOnlySurvivorIds = new Set(["selena", "radhesh", "rork", "bas", "knox", "nathan", "gregory"]);
+const mysteryBoxOnlySurvivorIds = new Set(["selena", "radhesh", "rork", "bas", "knox", "nathan", "gregory", "william", "noah", "boomer"]);
 // Deployment costs reflect real combat value, including range and utility.
 // Custom survivor files can keep their original builder values while the live
 // game applies this balance layer consistently.
@@ -65,7 +65,8 @@ const survivorCostOverrides = {
     selena: 190,
     radhesh: 150,
     bas: 200,
-    nathan: 90
+    nathan: 90,
+    boomer: 190
 };
 // Keep full survivor sprite footprints from visually merging in staging areas.
 // The same value is used by placement validation and its preview.
@@ -1194,6 +1195,7 @@ const survivorDamageTypes = {
     rork: "ballistic",
     knox: "ballistic",
     william: "fire",
+    boomer: "explosive",
     // Noah is a support-only survivor and never deals attack damage.
     noah: "blunt"
 };
@@ -2243,6 +2245,13 @@ const deploymentCostFloors = {
     rare: 140,
     legendary: 190
 };
+// Explicit runtime tuning for custom survivors. Keep this outside the cost
+// loop so the same values are available when the live stat table is built.
+const customStatOverrides = {
+    // Boomer's RPG is deliberately slower than Cody's launcher, but its
+    // shell and splash damage are strong enough to justify the rare cost.
+    boomer: { range: 155, damage: 72, fireRate: 2.4 }
+};
 customSurvivors.forEach(survivor => {
     survivorCosts[survivor.id] = Math.max(
         deploymentCostFloors[survivor.rarity] || deploymentCostFloors.common,
@@ -3079,12 +3088,13 @@ customSurvivors.forEach(survivor => {
         knox: 0.85,
         radhesh: 1.1
     };
+    const statOverride = customStatOverrides[survivor.id];
     survivorStats[survivor.id] = {
-        range: survivor.range,
+        range: statOverride?.range ?? survivor.range,
         // Give custom weapons a little role headroom while still respecting
         // the builder's values and the rarity multiplier below.
-        damage: survivor.damage * (customDamageTuning[survivor.id] || 1),
-        fireRate: survivor.fireRate * (customFireRateTuning[survivor.id] || 1)
+        damage: statOverride?.damage ?? survivor.damage * (customDamageTuning[survivor.id] || 1),
+        fireRate: statOverride?.fireRate ?? survivor.fireRate * (customFireRateTuning[survivor.id] || 1)
     };
 });
 
@@ -3101,7 +3111,8 @@ const customAttackProfiles = {
     // William's flamethrower saturates his whole range.
     william: { kind: "fireswarmer", area: true, fireAoe: true },
     // Noah is a pure support unit; his combat loop is skipped below.
-    noah: { kind: "support" }
+    noah: { kind: "support" },
+    boomer: { kind: "rpg", explosive: true }
 };
 
 function getCustomAttackProfile(survivor) {
@@ -3211,6 +3222,16 @@ function getSurvivorStats(survivorOrType) {
         fireRate = base.fireRate * 0.5 * rarityFireRateMultiplier;
     }
 
+    // Boomer's RPG trades cadence for a large, clearly escalating explosive
+    // payload. These explicit values keep the custom survivor independent of
+    // the builder's small integer damage field.
+    if (type === "boomer") {
+        const damages = [72, 82, 95, 120];
+        const fireRates = [2.4, 2.35, 2.3, 2.8];
+        damage = damages[level] ?? damages[0];
+        fireRate = fireRates[level] ?? fireRates[0];
+    }
+
     // Noah's role is entirely supportive. Keep his combat stats available for
     // range/aura calculations, but expose zero attack damage to the game and UI.
     if (type === "noah") {
@@ -3249,7 +3270,7 @@ function getSurvivorDps(survivorOrType) {
         : 1;
     const targetMultiplier = type === "zach" && level >= 3
         ? 2
-        : type === "radhesh" || type === "cody" || type === "bas"
+        : type === "radhesh" || type === "cody" || type === "bas" || type === "boomer"
             ? 1.5
             : 1;
     let estimatedDps = (stats.damage * hitsPerAttack * targetMultiplier) / stats.fireRate;
@@ -3272,6 +3293,11 @@ function getCodyBlastRadius(survivor) {
     return level >= 3
         ? Math.round(levelTwoRadius * 1.45)
         : Math.round(baseRadius * (1 + 0.09 * level));
+}
+
+function getBoomerBlastRadius(survivor) {
+    const radii = [68, 72, 76, 88];
+    return radii[getSurvivorUpgradeLevel(survivor)] ?? radii[0];
 }
 
 function getJamesBurnStats(survivor) {
@@ -3995,7 +4021,8 @@ const weaponAudioProfiles = {
     knox:    { wave: "square",    start: 610, end: 150, time: 0.045, tone: 0.045, noise: 0.05, hiss: 0.022, cutoff: 2500 },
     nathan:  { wave: "sawtooth",  start: 190, end: 48,  time: 0.16,  tone: 0.105, noise: 0.09,  hiss: 0.09,  cutoff: 1100 },
     gregory: { wave: "triangle",  start: 880, end: 360, time: 0.10,  tone: 0.055, noise: 0.012, hiss: 0.025, cutoff: 3000 },
-    william: { wave: "sawtooth",  start: 180, end: 62,  time: 0.15,  tone: 0.09,  noise: 0.08, hiss: 0.09, cutoff: 1250 }
+    william: { wave: "sawtooth",  start: 180, end: 62,  time: 0.15,  tone: 0.09,  noise: 0.08, hiss: 0.09, cutoff: 1250 },
+    boomer:  { wave: "sawtooth",  start: 120, end: 42,  time: 0.24,  tone: 0.08, noise: 0.10, hiss: 0.05, cutoff: 1400 }
 };
 
 const audioMuteKey = "wastelandDefense.audioMuted.v1";
@@ -4193,12 +4220,13 @@ function addShotVisual(survivor, enemy, dx, dy, distance, type, shotIndex = 0, s
         startX, startY,
         endX: enemy.x,
         endY: enemy.y,
-        life: type === "james" ? 0.13 : 0.105,
-        maxLife: type === "james" ? 0.13 : 0.105,
+        life: type === "boomer" ? 0.22 : type === "james" ? 0.13 : 0.105,
+        maxLife: type === "boomer" ? 0.22 : type === "james" ? 0.13 : 0.105,
         type,
         shotIndex,
         shotCount,
-        projectileScale: type === "nathan"
+        projectileScale: type === "boomer" ? 1.35
+            : type === "nathan"
             ? (upgradeLevel >= 3 ? 1.65 : 1.15)
             : type === "gregory" ? 1.1 : 1
     });
@@ -4218,22 +4246,29 @@ function addImpactPixels(enemy, type, dx, dy) {
         rork: ["#d9e7b5", "#9ab36e", "#f4ffd7"],
         knox: ["#fff0bd", "#d3b35a", "#fff8d0"],
         nathan: ["#fff0b5", "#d5a65b", "#f4ca73"],
-        gregory: ["#ffe2ad", "#a97c57", "#d6b28a"]
+        gregory: ["#ffe2ad", "#a97c57", "#d6b28a"],
+        boomer: ["#ef633d", "#ef9c48", "#ffe0a0"]
     };
     const colors = palettes[type] || palettes.mason;
     const angleToTarget = Math.atan2(dy, dx);
     const phase = ((Math.round(enemy.x + enemy.y) % 11) / 11) * Math.PI * 2;
-    const isLauncher = type === "cody";
-    const count = isLauncher ? 2 : 4;
+    const isLauncher = type === "cody" || type === "boomer";
+    const count = type === "boomer" ? 8 : isLauncher ? 2 : 4;
 
     for (let i = 0; i < count; i++) {
         // Cody's launcher gets a tiny, forward-flying contact fleck rather
         // than a radial burst, keeping its direct-hit behavior clear.
-        const angle = isLauncher
+        const angle = type === "boomer"
+            ? angleToTarget + (i - (count - 1) / 2) * 0.22
+            : isLauncher
             ? angleToTarget + (i === 0 ? -0.35 : 0.35)
             : phase + i * Math.PI / 2;
-        const speed = isLauncher ? 18 + i * 4 : 34 + (i % 2) * 15;
-        const life = isLauncher ? 0.075 : 0.12 + (i % 2) * 0.035;
+        const speed = type === "boomer"
+            ? 28 + i * 5
+            : isLauncher ? 18 + i * 4 : 34 + (i % 2) * 15;
+        const life = type === "boomer"
+            ? 0.18
+            : isLauncher ? 0.075 : 0.12 + (i % 2) * 0.035;
 
         impactPixels.push({
             x: enemy.x,
@@ -4242,7 +4277,7 @@ function addImpactPixels(enemy, type, dx, dy) {
             vy: Math.sin(angle) * speed,
             life,
             maxLife: life,
-            size: isLauncher ? 2 : 2 + (i % 2),
+            size: type === "boomer" ? 3 + (i % 2) : isLauncher ? 2 : 2 + (i % 2),
             color: colors[i % colors.length]
         });
     }
@@ -4416,10 +4451,23 @@ function updateSurvivorCombat(deltaTime) {
             for (let hitIndex = 0; hitIndex < repeatCount; hitIndex++) {
                 if (enemy.health <= 0) break;
 
-                if (survivor.type === "cody") {
-                    const blastRadius = getCodyBlastRadius(survivor);
+                if (survivor.type === "cody" || survivor.type === "boomer") {
+                    const blastRadius = survivor.type === "boomer"
+                        ? getBoomerBlastRadius(survivor)
+                        : getCodyBlastRadius(survivor);
                     const blastRadiusSquared = blastRadius * blastRadius;
-                    addBlastEffect(enemy.x, enemy.y, blastRadius);
+                    if (survivor.type === "boomer") {
+                        blastEffects.push({
+                            kind: "rpg",
+                            x: enemy.x,
+                            y: enemy.y,
+                            radius: blastRadius,
+                            life: 0.34,
+                            maxLife: 0.34
+                        });
+                    } else {
+                        addBlastEffect(enemy.x, enemy.y, blastRadius);
+                    }
 
                     for (const affectedEnemy of enemies) {
                         if (affectedEnemy.finished || affectedEnemy.health <= 0) continue;
@@ -4433,9 +4481,10 @@ function updateSurvivorCombat(deltaTime) {
                         }
 
                         const supportMultiplier = Number(survivor.noahDamageMultiplier) || 1;
+                        const splashMultiplier = survivor.type === "boomer" ? 0.6 : 0.5;
                         const damage = isDirectTarget
                             ? stats.damage * supportMultiplier
-                            : Math.max(1, Math.round(stats.damage * supportMultiplier * 0.5));
+                            : Math.max(1, Math.round(stats.damage * supportMultiplier * splashMultiplier));
                         applySurvivorDamage(survivor, affectedEnemy, damage, !isDirectTarget, hitIndex);
                     }
                 } else {
@@ -4681,7 +4730,8 @@ function drawBullets() {
         rork:    { trail: "#a9c86e", core: "#efffc8", width: 2, length: 20 },
         knox:    { trail: "#d4b759", core: "#fff5c2", width: 2, length: 16 },
         nathan:  { trail: "#d3a34f", core: "#fff3bb", width: 3, length: 26 },
-        gregory: { trail: "#9b704d", core: "#ffe0a5", width: 2, length: 15 }
+        gregory: { trail: "#9b704d", core: "#ffe0a5", width: 2, length: 15 },
+        boomer:  { trail: "#ef633d", core: "#ffe09a", width: 4, length: 30 }
     };
 
     ctx.save();
@@ -4724,7 +4774,29 @@ function drawBullets() {
         ctx.lineTo(endX, endY);
         ctx.stroke();
 
-        if (bullet.type === "cody") {
+        if (bullet.type === "boomer") {
+            // Boomer's RPG is deliberately chunky: a dark rocket body,
+            // hot exhaust, and a bright warhead make it distinct from Cody's
+            // compact grenade projectile.
+            const rocketX = Math.round(endX - ux * 7);
+            const rocketY = Math.round(endY - uy * 7);
+            const px = -uy;
+            const py = ux;
+            ctx.fillStyle = "#6d2c22";
+            ctx.fillRect(rocketX - 3, rocketY - 3, 7, 6);
+            ctx.fillStyle = style.trail;
+            ctx.fillRect(Math.round(endX - ux * 18) - 2, Math.round(endY - uy * 18) - 2, 5, 5);
+            ctx.fillStyle = style.core;
+            ctx.fillRect(endX - 3, endY - 3, 6, 6);
+            ctx.fillStyle = "#fff7cf";
+            ctx.fillRect(endX - 1, endY - 1, 2, 2);
+            ctx.strokeStyle = "#f6b24d";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(rocketX + px * 3, rocketY + py * 3);
+            ctx.lineTo(rocketX - px * 3, rocketY - py * 3);
+            ctx.stroke();
+        } else if (bullet.type === "cody") {
             // The brass-cased shell vanishes on impact; the blast ring marks
             // the splash radius around the hit target.
             const px = -uy;
@@ -4905,6 +4977,24 @@ function drawBlastEffects() {
             ctx.fillStyle = "#e7fbff";
             ctx.fillRect(Math.round(effect.x) - 1, Math.round(effect.y) - 5, 2, 10);
             ctx.fillRect(Math.round(effect.x) - 5, Math.round(effect.y) - 1, 10, 2);
+            continue;
+        }
+        if (effect.kind === "rpg") {
+            const fade = Math.max(0, effect.life / effect.maxLife);
+            const radius = Math.max(6, effect.radius * Math.min(1, progress * 1.25));
+            ctx.globalAlpha = fade * 0.35;
+            ctx.fillStyle = "#ef633d";
+            ctx.beginPath();
+            ctx.arc(Math.round(effect.x), Math.round(effect.y), Math.round(radius), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = fade;
+            ctx.strokeStyle = "#ffe09a";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(Math.round(effect.x), Math.round(effect.y), Math.round(radius), 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = "#fff7cf";
+            ctx.fillRect(Math.round(effect.x) - 2, Math.round(effect.y) - 2, 4, 4);
             continue;
         }
         const radius = Math.max(4, effect.radius * progress);

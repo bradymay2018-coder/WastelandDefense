@@ -261,5 +261,34 @@ window.WD_CUSTOM_SURVIVORS = [
         "description": "Largest aura and max damage bonus."
       }
     ]
+  },
+  {
+    "id": "boomer",
+    "balanceProfile": "rarity-v2",
+    "name": "Boomer",
+    "role": "RPG",
+    "rarity": "rare",
+    "cost": 190,
+    "damage": 72,
+    "range": 155,
+    "fireRate": 2.4,
+    "description": "A heavy RPG blast that devastates clustered enemies.",
+    "portraitData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAEAElEQVR4Xu2coYqWQRSGXQRBYaM34BUsWMVkNpgEk81oMZlNFqPNJJgMm01iFfYKvAHjgoIginCY9u955X85zOE8T/rC8M18c555zzL4e3KtL382W/rJZuuRaLnoAAEMIICPlnvZctEBCWAAAXy03MuWiw5IAAMI4KPlXrZcdEACGEAAHy33snrRtlP74uG99bwDr8+/OJdRVpeyiQIE0CirS9lEAQJolNWlbKIAATTK6lI2UYAAGmV1KZsoQACNsrqUTRQggEZZXcomChBAo6wuZRMFCKBRVhfnRGlxnZc3lz9+rucdOL1107YM8VLJUjvLSwIEMIEAAiSA5/BaXhKQACZIAAESwHN4LS8JSAATJIAACeA5vJaXBCSACRJAgATwHF71JZbT7Sza5a/f63kHTm9cty1DuVRypUQ6IECABAQgAZYMx0ICCNACaAFLhh2gBdACbB7SAgRoAbSAJcMO0AJoATYPaQECtIDNWsCzB3dXcQ7hLNr7zxfreQee3D+zLUNpJ28/fV3PV5Be9KUDgvQmEAEQYMlwCBJAgwQQoAXQApYMO8DfAPwRaPOQFiBAC6AFLBl2gBZAC7B52LIFKCfAGdsfnz9ezzvw6M0H2zKMe5ne86QDgvQiyLhoCQSQ9jKtbzogQIAEEoAEWDIci3Ev0wOeDghIgAQSwGetBH8DSHuZHvB0QEACJJAAJMCS4ViMe5ke8HRAQAIkjE8ABWffvnM7//1cJd+++373aJQpPeDpgCBNAAUE0EAAARJAIj3g6YCABEigBQjQAjRoAQK0AIk04dMBAS0ggRYgQAvQoAUI0AIk0oRPBwRpC1BOt1q0s5fv1vMhLl49Xc874Fyz0k7ElEjrmw4IECABAUiAJcMhSABawJLhKmgBxn5ahXPNCGDczCqca0YA42ZW4VwzAhg3swrnmhHAuJlVONfcUgD148CDIpxyz5MOCNKLIASoBQGGgwDDQYDhIMBwEGA4CDAcBBgOAgwHAYaDAMNBgOEgwHAQYDgIMBwEGA4CDGc7AZw/DJlOy38ShgA+EGA4CDAcBBgOAgwHAYaDAMNBgOEgwHB2FEAh/fmYclmkstutolI0Fdd/AKVgeUmAACYQQIAE8Bxey0sCEsAECSBAAngOr+UlAQlgggQQIAE8h9fykoAEMEECCJAAnsNrecl/kKaEivNSyYF4alXK6lI2UYAAGmV1KZsoQACNsrqUTRQggEZZXcomChBAo6wuZRMFCKBRVpeyiQIE0CirS9lEAQJolNWlbKIAATTK6vJvIltRMpyXN+aLl6Pp+m0IYAIBBLpukkLXbyMBTCCAQNdNUuj6bSSACQQQ6LpJCl2/jQQwgQACXTdJoeu3/QWl92ilL+4qGgAAAABJRU5ErkJggg==",
+    "modelData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAACjElEQVRYR92XQUhUURSGr0jCDD6RQMTHVCDOwk2NGM7GdBOEGzNXgqtoY7s2QRQti8CNu9qIK6GVqRs3tcjcJAUa0SwEiYhxIWQ1zjhTxItz7jnX+24zb85TU/Db3HfPPZ7/n3eP9840qIMTmCdNg3mKwUH+CIXvDvfzHJlcXOHHWDVjJYM4CxdKexTSeMkEjmREXFecyOIsXPj1h8Iar6lRj8lELBOiJCKYuNprhGeX1yisGR/I4AhGnr18D4+i2qIkIgARFp67M0ZhzejUcxytHFFtURKBzcfCnW16z5nNbb01bERaW5REBCAOwpkHM2rt0U2zAHAMjJAJUW1REhG4orUAM9LaoiTi5A3wFkTxP7cAQBOAa8RpQnFdcaJF6L+Bidv9jCQ5dOmwsCWI1IrX04hcBHH79AP81mY1nk2bV87Alsy+3VD577smJjkVay4QaMAGznq4D/jyYTjmXlJHbgAKujGm2tphDQBBT09GXbvg4eTJ/BsUqfYGQOzeyBUTg1zWGBzqx156vbQS0hQbOFsumoDNl9+6P5q9FoqE2S38VH7aV+VSxcTKxYpaf/cBtUUG0l2d6vwZfd+75H7sN10tzqVT5hnEgVgGfL9DZVOtOHmxmlM3+rppSfPxW0UVS3sqn9/CNXvOGpcuX8QtYGFGZACKtrckccKNxj0w/ymPYmAQzMHbsuf1NCIXidAdADcdd/qrzztGDAzy/OFQn2r3EqJjOXLRAl8fXMdg4P7oAAZzX7dx7E614fh4blk9vXVd3Z5ewLmkft0EB/xian0FD2GtieuKEwk8mNwzgOGzIE5dcSLxz8nocqwGSCx0/J5+A/ZvQm7GKjHx1ooTiZM3YKxEI/5gfwF3ii8w4kkxsAAAAABJRU5ErkJggg==",
+    "mysteryBoxOnly": true,
+    "upgrades": [
+      {
+        "name": "HEAVY WARHEAD",
+        "description": "Larger payload and stronger blast."
+      },
+      {
+        "name": "FRAGMENTATION",
+        "description": "Bigger blast radius and higher damage."
+      },
+      {
+        "name": "WARHEAD",
+        "description": "A devastating RPG shell with maximum blast radius."
+      }
+    ]
   }
 ];
